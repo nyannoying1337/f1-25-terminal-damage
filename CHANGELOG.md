@@ -19,8 +19,8 @@
 
 - **Qualifying engine replacement / Skip repairs: NOT TESTED, MIGHT BE BROKEN.** The intended behavior is a minimum 60-minute ICE replacement so Skip repairs consumes the remaining qualifying session. It has not been verified in game.
 - **Practice engine replacement timing: NOT TESTED, MIGHT BE BROKEN.** The game's normal timing is intended to remain unchanged.
-- **The new flashback recovery is not yet tested in game and might be broken.** Standalone tests pass; UDP format 2026 and a fresh pre-damage timeline sample are required. Very short rewinds near the failure may retain the lock.
+- **Flashbacks: Instant Replay/flashback entry can be blocked after terminal damage.** This is a known issue under investigation. The recovery path cannot help if replay entry is blocked. UDP format 2026 and a fresh pre-damage timeline sample are required. Very short rewinds near the failure may retain the lock.
 - Latest pit-entry audio and missing-crew fallback changes still need in-game confirmation. Race garage pushing still requires loading practice first in the same game process.
 - Career component replacement is detected when leaving the garage. Without a new part, the car may briefly appear at pit exit before it is returned.
 
-Validation: ten standalone test suites pass; addon validation reports zero errors/warnings. For reports, include loader.log and perf.log from the affected run before restarting the game.
+For reports, include loader.log and perf.log from the affected run before restarting the game.
