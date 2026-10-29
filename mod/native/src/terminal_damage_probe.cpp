@@ -28,7 +28,6 @@
 
 SWOFTY_SETTING(bool, keep_control, true);
 SWOFTY_SETTING(bool, log_telemetry, false);
-SWOFTY_SETTING(int, telemetry_hz, 2);
 SWOFTY_SETTING(bool, debug_failure_hotkey, false);
 SWOFTY_SETTING(std::string_view, debug_failure_key, "F10");
 SWOFTY_SETTING(std::string_view, debug_failure_part, "0");
@@ -1880,7 +1879,7 @@ void on_frame(double dt, void *)
     if (!log_telemetry)
         return;
     focus_left = focus_left > dt ? focus_left - dt : 0;
-    double period = 1.0 / (telemetry_hz > 0 ? telemetry_hz : 1);
+    double period = 0.5;
     if (focus_left > 0)
         period = 0.1;
     since += dt;
@@ -2015,7 +2014,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.30.0, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d",
+    swofty::log("[td-probe] loaded version=0.30.2, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race));
 }

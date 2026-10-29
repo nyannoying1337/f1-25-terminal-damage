@@ -2,19 +2,22 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.30.0",
-  "author": "Nick",
+  "version": "0.30.2",
+  "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
   "license": "MIT",
+  "homepage": "https://github.com/nyannoying1337/f1-25-terminal-damage",
+  "icon": "icon.png",
   "kind": [
-    "database",
     "native"
   ],
+  "category": "utility",
   "compat": {
     "game": "f1_25",
     "game_builds": [
       ">=25251167"
-    ]
+    ],
+    "launcher": ">=1.5.13"
   },
   "requires": [
     {
@@ -149,7 +152,8 @@
       "label": "Debug: garage crew diagnostics",
       "description": "Logs garage crew and asset details to swofty/loader.log. Needs a game restart.",
       "default": false,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "log_telemetry",
@@ -157,48 +161,8 @@
       "label": "Debug: log telemetry",
       "description": "Writes speed, rpm, gear and position of your car to swofty/loader.log.",
       "default": false,
-      "binds": "native"
-    },
-    {
-      "id": "telemetry_hz",
-      "type": "slider",
-      "label": "Debug: telemetry lines per second",
-      "description": "How often telemetry is logged outside an incident.",
-      "min": 1,
-      "max": 10,
-      "step": 1,
-      "default": 2,
-      "binds": "native"
-    },
-    {
-      "id": "debug_engine_wear",
-      "type": "toggle",
-      "label": "Debug: high engine wear (between sessions)",
-      "description": "Very high wear rate for your engine (ICE). Applied after each session, not live, capped at 99.9%. Career and My Team only. Rebuild after a change.",
-      "default": false,
-      "binds": "db"
-    },
-    {
-      "id": "ice_wear_per_lap",
-      "type": "choice",
-      "label": "Debug: engine wear speed",
-      "description": "Wear rate used by the debug option. Stock is about 0.001.",
-      "values": [
-        {
-          "value": "0.05",
-          "label": "High"
-        },
-        {
-          "value": "0.15",
-          "label": "Very high"
-        },
-        {
-          "value": "0.4",
-          "label": "Maximum"
-        }
-      ],
-      "default": "0.15",
-      "binds": "db"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "debug_failure_hotkey",
@@ -206,7 +170,8 @@
       "label": "Debug: hotkey triggers a failure",
       "description": "Ctrl+Shift + the chosen F key breaks the chosen part of your car. Ctrl+Shift+F9 then cycles the throttle cap (0 %, 30 %, automatic).",
       "default": false,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "debug_failure_key",
@@ -223,7 +188,8 @@
         "F12"
       ],
       "default": "F10",
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "debug_failure_part",
@@ -261,13 +227,11 @@
         }
       ],
       "default": "0",
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     }
   ],
   "operations": {
-    "database": [
-      "db/engine_wear_debug.json"
-    ],
     "native": [
       {
         "dll": "native/terminal_damage_probe.dll"

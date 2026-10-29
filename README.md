@@ -4,7 +4,7 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With th
 car and deal with the failure like a real driver: limp on with reduced power, pull over and retire,
 or bring it to your box where your garage crew pushes it into the garage.
 
-**Download:** see [Releases](../../releases). Import the zip in the Swofty Launcher.
+**Download:** install it from the Addon Browser in the Swofty Launcher, or get the zip from [Releases](../../releases) and import it.
 
 Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
 
@@ -17,7 +17,7 @@ mod\native\build.ps1      # Windows
 mod/native/build.sh       # Linux (cross-compiles the Windows DLL)
 ```
 
-The DLL lands in `mod/native/`. Zip the `mod` folder to import it in the Swofty Launcher.
+The DLL lands in `mod/native/`. Zip the contents of the `mod` folder (swofty.json at the zip root) to import it in the Swofty Launcher.
 
 ## License
 
