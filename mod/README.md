@@ -62,6 +62,9 @@ without the animation instead).
 - Race: the crew only comes out if a practice session was loaded earlier in the same game start.
 - AI cars with terminal damage can stop at the pit exit or on track.
 - Practice/qualifying: a car with terminal crash damage stays in its garage, even after repairs.
+- Career part swap: how it is handled is not ideal yet, but it does the job for now. The swap is only
+  checked when you leave the garage, so without a new part the car shows up at the pit exit for a
+  moment before it is sent back.
 - The game's own random failures are less tested than a failure triggered with the debug option.
 - Not tested yet: career / My Team in depth, F2 cars, time trial, split screen.
 - After a game update some features may switch themselves off until the mod is updated.
