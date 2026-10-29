@@ -1,0 +1,277 @@
+{
+  "schema_version": 1,
+  "id": "nick.terminal-damage-probe",
+  "name": "Terminal Damage",
+  "version": "0.30.0",
+  "author": "Nick",
+  "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
+  "license": "MIT",
+  "kind": [
+    "database",
+    "native"
+  ],
+  "compat": {
+    "game": "f1_25",
+    "game_builds": [
+      ">=25251167"
+    ]
+  },
+  "requires": [
+    {
+      "id": "swofty.core",
+      "version": ">=0.1.0"
+    }
+  ],
+  "options": [
+    {
+      "id": "garage_assets_in_race",
+      "type": "toggle",
+      "label": "Garage crew assets in the race",
+      "description": "The race also loads the garage crew scenes, so your crew can push a broken car in. Needs a game restart.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "keep_control",
+      "type": "toggle",
+      "label": "Keep control after terminal damage",
+      "description": "After terminal damage you keep your car. It does not count as a stopped car for safety car or red flag.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "udp_port_choice",
+      "type": "choice",
+      "label": "UDP telemetry port",
+      "description": "Port the mod listens on. Set the same port in the game. If another app (SimHub etc.) uses 20777, pick another one and forward to it. Needs a game restart.",
+      "values": [
+        "20777",
+        "20778",
+        "20779",
+        "20780",
+        "20781",
+        "20782",
+        "20783",
+        "20784",
+        "20785",
+        "20786",
+        "20787"
+      ],
+      "default": "20777",
+      "binds": "native"
+    },
+    {
+      "id": "damaged_power",
+      "type": "choice",
+      "label": "Power with a broken turbo/ERS part",
+      "description": "Throttle left when MGU-K, MGU-H, battery, turbo or CE has failed. A failed engine (ICE) or gearbox always gives no drive.",
+      "values": [
+        {
+          "value": "0.2",
+          "label": "20 %"
+        },
+        {
+          "value": "0.25",
+          "label": "25 %"
+        },
+        {
+          "value": "0.3",
+          "label": "30 %"
+        },
+        {
+          "value": "0.4",
+          "label": "40 %"
+        },
+        {
+          "value": "0.5",
+          "label": "50 %"
+        },
+        {
+          "value": "off",
+          "label": "Off (no drive)"
+        }
+      ],
+      "default": "0.3",
+      "binds": "native"
+    },
+    {
+      "id": "retire_hotkey",
+      "type": "toggle",
+      "label": "Retire hotkey",
+      "description": "Ctrl+Shift + key: your car counts as broken. Stand still 10 s to retire, or drive into your box. Press again to retire at once.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "retire_key",
+      "type": "choice",
+      "label": "Retire hotkey (with Ctrl+Shift)",
+      "description": "F key pressed together with Ctrl+Shift to retire. Pick one no other mod uses.",
+      "values": [
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F10",
+        "F11",
+        "F12"
+      ],
+      "default": "F11",
+      "binds": "native"
+    },
+    {
+      "id": "retire_in_pit_box",
+      "type": "toggle",
+      "label": "Retire in the pit box",
+      "description": "With keep control: when you bring your broken car into your pit box, it retires there, as with Retire in the pause menu.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "garage_push",
+      "type": "toggle",
+      "label": "Crew pushes the car into the garage",
+      "description": "With \"Retire in the pit box\": your crew pushes the broken car into the garage, then it retires. Retires in the box after 15 s if no push comes.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "garage_crew_in_race",
+      "type": "toggle",
+      "label": "Garage crew in the race",
+      "description": "Spawns your garage crew in the race once your broken car stands in its pit box. Load a practice session first in the same game start. Needs \"Garage crew assets in the race\" and a game restart.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "crew_asset_diagnostics",
+      "type": "toggle",
+      "label": "Debug: garage crew diagnostics",
+      "description": "Logs garage crew and asset details to swofty/loader.log. Needs a game restart.",
+      "default": false,
+      "binds": "native"
+    },
+    {
+      "id": "log_telemetry",
+      "type": "toggle",
+      "label": "Debug: log telemetry",
+      "description": "Writes speed, rpm, gear and position of your car to swofty/loader.log.",
+      "default": false,
+      "binds": "native"
+    },
+    {
+      "id": "telemetry_hz",
+      "type": "slider",
+      "label": "Debug: telemetry lines per second",
+      "description": "How often telemetry is logged outside an incident.",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 2,
+      "binds": "native"
+    },
+    {
+      "id": "debug_engine_wear",
+      "type": "toggle",
+      "label": "Debug: high engine wear (between sessions)",
+      "description": "Very high wear rate for your engine (ICE). Applied after each session, not live, capped at 99.9%. Career and My Team only. Rebuild after a change.",
+      "default": false,
+      "binds": "db"
+    },
+    {
+      "id": "ice_wear_per_lap",
+      "type": "choice",
+      "label": "Debug: engine wear speed",
+      "description": "Wear rate used by the debug option. Stock is about 0.001.",
+      "values": [
+        {
+          "value": "0.05",
+          "label": "High"
+        },
+        {
+          "value": "0.15",
+          "label": "Very high"
+        },
+        {
+          "value": "0.4",
+          "label": "Maximum"
+        }
+      ],
+      "default": "0.15",
+      "binds": "db"
+    },
+    {
+      "id": "debug_failure_hotkey",
+      "type": "toggle",
+      "label": "Debug: hotkey triggers a failure",
+      "description": "Ctrl+Shift + the chosen F key breaks the chosen part of your car. Ctrl+Shift+F9 then cycles the throttle cap (0 %, 30 %, automatic).",
+      "default": false,
+      "binds": "native"
+    },
+    {
+      "id": "debug_failure_key",
+      "type": "choice",
+      "label": "Debug: hotkey (with Ctrl+Shift)",
+      "description": "F key pressed together with Ctrl+Shift. Pick one no other mod uses.",
+      "values": [
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F10",
+        "F11",
+        "F12"
+      ],
+      "default": "F10",
+      "binds": "native"
+    },
+    {
+      "id": "debug_failure_part",
+      "type": "choice",
+      "label": "Debug: failing part",
+      "description": "Part to break: 0 ICE, 1 MGU-K, 2 MGU-H, 3 ES, 4 TC, 5 CE, 6 gearbox. Order taken from the AI failure code.",
+      "values": [
+        {
+          "value": "0",
+          "label": "0 ICE (engine)"
+        },
+        {
+          "value": "1",
+          "label": "1 MGU-K"
+        },
+        {
+          "value": "2",
+          "label": "2 MGU-H"
+        },
+        {
+          "value": "3",
+          "label": "3 Energy store"
+        },
+        {
+          "value": "4",
+          "label": "4 Turbo"
+        },
+        {
+          "value": "5",
+          "label": "5 Control electronics"
+        },
+        {
+          "value": "6",
+          "label": "6 Gearbox"
+        }
+      ],
+      "default": "0",
+      "binds": "native"
+    }
+  ],
+  "operations": {
+    "database": [
+      "db/engine_wear_debug.json"
+    ],
+    "native": [
+      {
+        "dll": "native/terminal_damage_probe.dll"
+      }
+    ]
+  }
+}

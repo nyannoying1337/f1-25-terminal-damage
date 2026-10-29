@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "ops": [
+    {
+      "op": "set",
+      "select": "engine_management.components.components[_metadata_=25].component[_metadata_=ice]",
+      "field": "wear_rates.human_min",
+      "value": "{{ice_wear_per_lap}}",
+      "when": {
+        "debug_engine_wear": true
+      }
+    },
+    {
+      "op": "set",
+      "select": "engine_management.components.components[_metadata_=25].component[_metadata_=ice]",
+      "field": "wear_rates.human_max",
+      "value": "{{ice_wear_per_lap}}",
+      "when": {
+        "debug_engine_wear": true
+      }
+    },
+    {
+      "op": "set",
+      "select": "engine_management.components.components[_metadata_=26].component[_metadata_=ice]",
+      "field": "wear_rates.human_min",
+      "value": "{{ice_wear_per_lap}}",
+      "when": {
+        "debug_engine_wear": true
+      }
+    },
+    {
+      "op": "set",
+      "select": "engine_management.components.components[_metadata_=26].component[_metadata_=ice]",
+      "field": "wear_rates.human_max",
+      "value": "{{ice_wear_per_lap}}",
+      "when": {
+        "debug_engine_wear": true
+      }
+    }
+  ]
+}
