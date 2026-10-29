@@ -8,6 +8,17 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
 
+## 0.50.0 beta
+
+Radio-menu retirement with an optional engineer reply, restart/audio fixes,
+flashback recovery and reduced CPU work in vehicle/stopped-car hooks.
+
+**Not tested, might be broken:** qualifying ICE replacement / Skip repairs,
+practice replacement timing, and the new flashback recovery. The latest pit-entry
+audio and missing-crew fallback also need runtime confirmation.
+
+Read the [changelog](CHANGELOG.md) for changes and limitations.
+
 ## Building
 
 Needs [zig](https://ziglang.org/) 0.15 on PATH.

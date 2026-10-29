@@ -2,14 +2,15 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.32.4",
+  "version": "0.50.0",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
   "license": "MIT",
   "homepage": "https://github.com/nyannoying1337/f1-25-terminal-damage",
   "icon": "icon.png",
   "kind": [
-    "native"
+    "native",
+    "files"
   ],
   "category": "utility",
   "compat": {
@@ -26,6 +27,30 @@
     }
   ],
   "options": [
+    {
+      "id": "performance_diagnostics",
+      "type": "toggle",
+      "label": "Debug: performance counters",
+      "description": "Measure this addon's private-hook work and log totals every 10 seconds. Original game calls and GPU/asset cost are excluded. Enable only while investigating FPS drops.",
+      "default": false,
+      "binds": "native"
+    },
+    {
+      "id": "retire_radio_voice",
+      "type": "toggle",
+      "label": "Retirement radio voice",
+      "description": "Play the engineer's stop-car reply when selecting Retire in the radio menu. Off keeps Retire usable without the reply. Applies after a game restart.",
+      "default": true,
+      "binds": "db"
+    },
+    {
+      "id": "radio_command_probe",
+      "type": "toggle",
+      "label": "Radio menu retirement",
+      "description": "Retire in the radio menu requests retirement: pull over and stop for 10 s, or drive into your box. A second selection changes nothing. Requires Keep control. Restart after enabling.",
+      "default": true,
+      "binds": "native"
+    },
     {
       "id": "garage_assets_in_race",
       "type": "toggle",
@@ -248,6 +273,9 @@
     }
   ],
   "operations": {
+    "assets": [
+      "ops/radio-probe-assets.json"
+    ],
     "native": [
       {
         "dll": "native/terminal_damage_probe.dll"

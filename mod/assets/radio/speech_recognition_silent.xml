@@ -1,0 +1,584 @@
+<?xml version='1.0' encoding='utf-8'?>
+<SpeechRecognition name="F1 23" version="1.0">
+    <KeywordList name="Race" type="standard" langdbId="lng_voice_commands_standard_race"><Keyword name="Box" delay="0" confidence="40" en="box this lap" ja="pi-toin suru" fr="rentrer ce tour" de="boxenstopp" it="box in questo giro" pt="ir para boxes nesta volta" es="entrar en boxes en esta vuelta" pl="zjedź do boksu tym okrążeniu" ru="вернуться в бокс" zh="zài běn quān rù zhàn" langdbId="lng_voice_commands_box">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PitReply" />
+            <Action type="GameCommand" param="pit" />
+        </Keyword>
+        <Keyword name="Full Race Update" delay="0" confidence="40" en="full race update" ja="zentai joukyou" fr="infos course" de="statusreport" it="aggiornamento completo gara" pt="atualização completa" es="informe detallado de la carrera" pl="pełne informacje o wyścigu" ru="полное обновление гонки" zh="wán zhěng bào gào bǐ sài zhuàng kuàng" langdbId="lng_voice_commands_full_update">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_FullRaceUpdate" />
+        </Keyword>
+        <Keyword name="Ahead" delay="0" confidence="40" en="driver in front" ja="zenpou doraibaa" fr="pilote devant" de="fahrer vor mir" it="pilota davanti" pt="piloto na frente" es="piloto de delante" pl="kierowca przed tobą" ru="пилот впереди" zh="qián wèi chē shǒu" langdbId="lng_voice_commands_driver_in_front">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_DriverAhead" />
+        </Keyword>
+        <Keyword name="Behind" delay="0" confidence="40" en="driver behind" ja="kouhou doraibaa" fr="pilote derrière" de="fahrer hinter mir" it="pilota dietro" pt="piloto atrás" es="piloto de detrás" pl="kierowca za tobą" ru="пилот сзади" zh="hòu wèi chē shǒu" langdbId="lng_voice_commands_driver_behind">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_DriverBehind" />
+        </Keyword>
+        <Keyword name="Tyre Status" delay="0" confidence="40" en="tyre status" ja="taiya joutai" fr="état pneus" de="reifenstatus" it="stato delle gomme" pt="status do pneu" es="estado ruedas" pl="stan opon" ru="шины" zh="lún tāi zhuàng tài " langdbId="lng_voice_commands_tyre_status">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_TyreCondition_Full" />
+        </Keyword>
+        <Keyword name="Condition" delay="0" confidence="40" en="vehicle condition" ja="mashin kondishon" fr="état voiture" de="zustand des autos" it="condizioni veicolo" pt="condicao do veiculo" es="estado del coche" pl="stan pojazdu" ru="состояние автомобиля" zh="chē liàng zhuàng kuàng" langdbId="lng_voice_commands_condition">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Damage" />
+        </Keyword>
+        <Keyword name="Weather Report" delay="0" confidence="40" en="weather report" ja="tenki yohou" fr="conditions météo" de="wetterbericht" it="previsioni del tempo" pt="previsão do tempo" es="informe tiempo" pl="prognoza pogody" ru="погода" zh="tiān qì yù bào" langdbId="lng_voice_commands_weather_report">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Weather_Forecast" />
+        </Keyword>
+        <Keyword name="Fuel Information" delay="0" confidence="40" en="fuel information" ja="nenryou jouhou" fr="données carburant" de="treibstoff info" it="informazioni sul carburante" pt="informacao de combustível" es="ver combustible" pl="poziom paliwa" ru="топливо" zh="rán yóu xìn xī" langdbId="lng_voice_commands_fuel_information">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerFuelLevel" />
+        </Keyword>
+        <Keyword name="Pit Stop Information" delay="0" confidence="40" en="pit stop information" ja="pittosutoppu jouhou" fr="données arrêt aux stands" de="rennstrategie" it="informazioni sul pit stop" pt="informacao de pitstop" es="información boxes" pl="informacje o pitstopie" ru="питстоп" zh="jìn zhàn xìn xī" langdbId="lng_voice_commands_pit_stop_info">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerStopsRemaining" />
+            <Action type="playSpeechVO" param="VC_Strat_PitWindow" />
+        </Keyword>
+        <Keyword name="SuperHard Tyres" delay="0" confidence="40" en="set super hard tyres" ja="suupaahaado taiya wo setto" fr="gommes super durs" de="superharte reifen aufziehen" it="monta gomme superdure" pt="definir pneus superfirmes" es="ruedas superduros" pl="zmień na opony supertwarde" ru="сверхтвердые шины" zh="shè zhì chāo yìng lún tāi" langdbId="lng_voice_commands_superhard_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_superhard" />
+            <Action type="playSpeechVO" param="VC_SuperHardConfirm" />
+            <Filter compound_inclusion="SuperHard" />
+            <Filter inclusion_id="0" />
+        </Keyword>
+        <Keyword name="Hard Tyres" delay="0" confidence="40" en="set hard tyres" ja="haado taiya wo setto" fr="gommes dures" de="harte reifen aufziehen" it="monta gomme dure" pt="definir pneus duros" es="ruedas duras" pl="zmień na twarde opony" ru="твердые шины" zh="shè zhì yìng zhì lún tāi" langdbId="lng_voice_commands_hard_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_hard" />
+            <Action type="playSpeechVO" param="VC_HardConfirm" />
+            <Filter compound_inclusion="Hard" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Medium Tyres" delay="0" confidence="40" en="set medium tyres" ja="midiamu taiya wo setto" fr="gommes medium" de="mittlere reifen aufziehen" it="monta gomme medie" pt="definir pneus médios" es="ruedas medio" pl="zmień na średnie opony" ru="средние шины" zh="shè zhì zhōng dù lún tāi" langdbId="lng_voice_commands_medium_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_medium" />
+            <Action type="playSpeechVO" param="VC_MediumConfirm" />
+            <Filter compound_inclusion="Medium" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Soft Tyres" delay="0" confidence="40" en="set soft tyres" ja="sofuto taiya wo setto" fr="gommes tendres" de="weiche reifen aufziehen" it="monta gomme morbide" pt="definir pneus leves" es="ruedas suaves" pl="zmień na miękkie opony" ru="мяхкие шины" zh="shè zhì ruǎn lún tāi " langdbId="lng_voice_commands_soft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_soft" />
+            <Action type="playSpeechVO" param="VC_SoftConfirm" />
+            <Filter compound_inclusion="Soft" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Supersoft Tyres" delay="0" confidence="40" en="set supersoft tyres" ja="suupaasofuto taiya wo setto" fr="gommes super tendres" de="superweiche reifen aufziehen" it="monta gomme super morbide" pt="definir pneus superleves" es="ruedas supersuaves" pl="zmień na bardzo miękkie opony" ru="супермягкие шины" zh="shè zhì chāo ruǎn lún tāi " langdbId="lng_voice_commands_supersoft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_supersoft" />
+            <Action type="playSpeechVO" param="VC_SupersoftConfirm" />
+            <Filter compound_inclusion="SuperSoft" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+        </Keyword>
+        <Keyword name="Ultrasoft Tyres" delay="0" confidence="40" en="set ultrasoft tyres" ja="urutorasofuto taiya wo setto" fr="gommes ultra tendres" de="ultraweiche reifen aufziehen" it="monta gomme ultra morbide" pt="definir pneus ultraleves" es="ruedas ultrasuaves" pl="zmień na ultramiękkie opony" ru="ультрамягкие шины" zh="shè zhì jí ruǎn lún tāi" langdbId="lng_voice_commands_ultrasoft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_ultrasoft" />
+            <Action type="playSpeechVO" param="VC_UltrasoftConfirm" />
+            <Filter compound_inclusion="UltraSoft" />
+            <Filter inclusion_id="0" />
+        </Keyword>
+        <Keyword name="HyperSoft Tyres" delay="0" confidence="40" en="set hyper soft tyres" ja="haipaasofuto taiya wo setto" fr="gommes hyper tendres" de="hyperweiche reifen aufziehen" it="monta gomme iper morbide" pt="definir pneus hipermacios" es="ruedas hiperblandos" pl="zmień na opony hipermiękkie" ru="гипермягкий шины" zh="shè zhì yì cháng ruǎn tāi" langdbId="lng_voice_commands_hypersoft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_hypersoft" />
+            <Action type="playSpeechVO" param="VC_HypersoftConfirm" />
+            <Filter compound_inclusion="HyperSoft" />
+            <Filter inclusion_id="0" />
+        </Keyword>
+        <Keyword name="Inters" delay="0" confidence="40" en="set intermediates" ja="intaamidieito wo youi" fr="gommes intermédiaires" de="intermediates aufziehen" it="monta gomme intermedi" pt="colocar pneus intermediários" es="montar gomas intermedias" pl="załóż opony pośrednie" ru="промежуточные шины" zh="shè zhì zhōng xìng lún tāi" langdbId="lng_voice_commands_set_inter_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_inter" />
+            <Action type="playSpeechVO" param="VC_InterConfirm" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Full Wets" delay="0" confidence="40" en="set full wets" ja="furu ue-to wo youi" fr="gommes pluie" de="auf regenreifen wechseln" it="monta gomme da bagnato" pt="colocar pneus de chuva" es="montar gomas de lluvia" pl="załóż opony pełne deszczowe" ru="дождевые шины" zh="shè zhì quán yǔ tāi" langdbId="lng_voice_commands_set_full_wets">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_wet" />
+            <Action type="playSpeechVO" param="VC_WetConfirm" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Wing Up" delay="0" confidence="40" en="adjust wing up" ja="uingu jouhou chousei" fr="réhausser aileron" de="flügel nach oben" it="alza ala" pt="levantar asa" es="aumentar ángulo del alerón" pl="zwiększ siłę docisku skrzydła" ru="поднять антикрыло" zh="shàng tiáo dìng fēng yì" langdbId="lng_voice_commands_wing_up">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="AeroToPlus1_VC" />
+            <Action type="GameCommand" param="wing_up" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Balance" delay="0" confidence="40" en="set wing balance" ja="uingu baransu chousei" fr="équilibrer aileron" de="flügelbalance einstellen" it="bilanciamento ala" pt="definir equilíbrio da asa" es="equilibrar alerón" pl="ustaw równowagę skrzydła" ru="сбалансировать антикрыло" zh="shè zhì dìng fēng yì píng héng" langdbId="lng_voice_commands_balance">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="AeroToBalanced_VC" />
+            <Action type="GameCommand" param="wing_balance" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Aero down" delay="0" confidence="40" en="change wing down" ja="uingu kahou chousei" fr="abaisser aileron" de="flügel nach unten" it="abbassa ala" pt="abaixar asa" es="reducir el ángulo del alerón" pl="zmniejsz siłę docisku skrzydła" ru="опустить антикрыло" zh="xià tiáo dìng fēng yì" langdbId="lng_voice_commands_aero_down">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="AeroToMinus1_VC" />
+            <Action type="GameCommand" param="wing_down" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Team mate status" delay="0" confidence="40" en="team mate status" ja="chiimu meiito joukyou" fr="position coéquipier" de="status teamkollege" it="stato del compagno di squadra" pt="status do companheiro" es="situación de colega de equipo" pl="kolega z zespołu" ru="статус участника команды" zh="duì yǒu zhuàng tài" langdbId="lng_voice_commands_team_mate_status">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_TeamMateStatus" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Fastest Lap" delay="0" confidence="40" en="fastest lap overall" ja="zentai no saisoku rappu" fr="meilleur tour en course" de="schnellste runde insgesamt" it="giro più veloce complessivo" pt="volta geral mais rápida" es="vuelta más rápida" pl="najszybsze okrążenie wyścigu" ru="самый быстрый круг" zh="zhěng tǐ zuì kuài dān quān" langdbId="lng_voice_commands_fastest_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_FastestLapOverall" />
+        </Keyword>
+        <Keyword name="Best Lap" delay="0" confidence="40" en="best lap update" ja="besuto rappu koushin" fr="mon meilleur tour" de="beste rundenzeit" it="aggiornamento giro migliore" pt="atualização de melhor volta" es="mejor tiempo vuelta" pl="najlepsze okrążenie" ru="лучший круг" zh="zuì kuài quān sù gēng xīn" langdbId="lng_voice_commands_best_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_BestLapPlayer" />
+        </Keyword>
+        <Keyword name="Last Lap" delay="0" confidence="40" en="last lap time" ja="saigo no rapputaimu" fr="temps dernier tour" de="zeit letzte runde" it="tempo ultimo giro" pt="tempo da última volta" es="última vuelta" pl="czas ostatniego okrążenia" ru="время последнего круга" zh="zuì hòu yī quān shí jiān" langdbId="lng_voice_commands_last_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_LastLapPlayer" />
+        </Keyword>
+        <Keyword name="Championship Standings" delay="0" confidence="40" en="championship standings" ja="chanpionshippu jyun-i" fr="classement championnat" de="meisterschaft platzierung" it="posizione nel campionato" pt="situacao do campeonato" es="clasificaciones" pl="klasyfikacja generalna" ru="положение в чемпионате" zh="ɡuàn jūn bǎng" langdbId="lng_voice_commands_championship_standings">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_ChampStandings" />
+        </Keyword>
+        <Keyword name="Engineer Quiet" delay="0" confidence="40" en="engineer quiet" ja="enjinia damare" fr="ingénieur silence" de="ingenieurfunk aus" it="ingegnere zitto" pt="silenciar engenheiro" es="silenciar al ingeniero" pl="inżynier nic nie mówi" ru="инженер тихо" zh="jī xiè shī jìn shēng" langdbId="lng_voice_commands_engineer_quiet">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Talk to me" delay="0" confidence="40" en="engineer talk" ja="enjinia oshietekure" fr="ingénieur parole" de="ingenieurfunk an" it="ingegnere parla" pt="ouvir engenheiro" es="jorge habla" pl="rozmowa z inżynierem" ru="инженер говорит" zh="jī xiè shī fā yán" langdbId="lng_voice_commands_engineer_speak">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+        </Keyword>
+        <Keyword name="Repeat" delay="0" confidence="40" en="engineer repeat" ja="enjinia mou ichido" fr="ingénieur répéter" de="ingenieur wiederholen" it="ingegnere ripeti" pt="pedir para engenheiro repetir" es="repite jorge" pl="inżynier powtarza" ru="инженер повторить" zh="jī xiè shī chóng fù" langdbId="lng_voice_commands_engineer_repeat">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="repeat" />
+        </Keyword>
+        <Keyword name="Fewer Updates" delay="0" confidence="25" en="fewer updates" ja="koushin sukuname" fr="actualiser moins" de="weniger updates" it="meno aggiornamenti" pt="menos atualizações" es="menos información" pl="mniej informacji" ru="меньше новостей" zh="shōu qǐ gēng xīn" langdbId="lng_voice_commands_fewer_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="verbosity_dec" />
+        </Keyword>
+        <Keyword name="More Updates" delay="0" confidence="20" en="more updates" ja="koushin oome" fr="actualiser plus" de="mehr info" it="più aggiornamenti" pt="atualizações frequentes" es="más información" pl="więcej informacji" ru="больше новостей" zh="gèng duō gēng xīn" langdbId="lng_voice_commands_more_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+            <Action type="GameCommand" param="verbosity_inc" />
+        </Keyword>
+        <Keyword name="default" delay="0" confidence="0" en="" ja="" fr="" de="" it="" pt="" es="" pl="" ru="" zh="" langdbId="">
+            <Action type="UICommand" param="not_recognised" />
+            <Action type="playSpeechVO" param="VC_KeywordRepeat" />
+        </Keyword>
+        <Keyword name="Shut Up Jeff" delay="0" confidence="40" en="shut up marc" ja="damare jefu" fr="jeff arrête de parler" de="jeff sei leise" it="zitto alex" pt="cala a boca jeff" es="calla jorge" pl="zamknij się jeff" ru="заткнись джефф" zh="bì zuǐ jié fū" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Leave me alone" delay="0" confidence="40" en="leave me alone" ja="shizuka ni shite kudasai" fr="laisse moi tranquille" de="lass mich in ruhe" it="" pt="" es="" pl="" ru="" zh="leave me alone" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Terminal Damage Retire Probe" delay="0" confidence="40" en="terminal damage probe" ja="terminal damage probe" fr="terminal damage probe" de="terminal damage probe" it="terminal damage probe" pt="terminal damage probe" es="terminal damage probe" pl="terminal damage probe" ru="terminal damage probe" zh="terminal damage probe" langdbId="lng_td_retire_probe"><Action type="UICommand" param="recognised" /></Keyword>
+    </KeywordList>
+    <KeywordList name="Race_F1W" type="standard" langdbId="lng_voice_commands_standard_race"><Keyword name="Box" delay="0" confidence="40" en="box this lap" ja="pi-toin suru" fr="rentrer ce tour" de="boxenstopp" it="box in questo giro" pt="ir para boxes nesta volta" es="entrar en boxes en esta vuelta" pl="zjedź do boksu tym okrążeniu" ru="вернуться в бокс" zh="zài běn quān rù zhàn" langdbId="lng_voice_commands_box">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PitReply" />
+            <Action type="GameCommand" param="pit" />
+        </Keyword>
+        <Keyword name="Full Race Update" delay="0" confidence="40" en="full race update" ja="zentai joukyou" fr="infos course" de="statusreport" it="aggiornamento completo gara" pt="atualização completa" es="informe detallado de la carrera" pl="pełne informacje o wyścigu" ru="полное обновление гонки" zh="wán zhěng bào gào bǐ sài zhuàng kuàng" langdbId="lng_voice_commands_full_update">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_FullRaceUpdate" />
+        </Keyword>
+        <Keyword name="Tyre Status" delay="0" confidence="40" en="tyre status" ja="taiya joutai" fr="état pneus" de="reifenstatus" it="stato delle gomme" pt="status do pneu" es="estado ruedas" pl="stan opon" ru="шины" zh="lún tāi zhuàng tài " langdbId="lng_voice_commands_tyre_status">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_TyreCondition_Full" />
+        </Keyword>
+        <Keyword name="Condition" delay="0" confidence="40" en="vehicle condition" ja="mashin kondishon" fr="état voiture" de="zustand des autos" it="condizioni veicolo" pt="condicao do veiculo" es="estado del coche" pl="stan pojazdu" ru="состояние автомобиля" zh="chē liàng zhuàng kuàng" langdbId="lng_voice_commands_condition">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Damage" />
+        </Keyword>
+        <Keyword name="Weather Report" delay="0" confidence="40" en="weather report" ja="tenki yohou" fr="conditions météo" de="wetterbericht" it="previsioni del tempo" pt="previsão do tempo" es="informe tiempo" pl="prognoza pogody" ru="погода" zh="tiān qì yù bào" langdbId="lng_voice_commands_weather_report">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Weather_Forecast" />
+        </Keyword>
+        <Keyword name="Fuel Information" delay="0" confidence="40" en="fuel information" ja="nenryou jouhou" fr="données carburant" de="treibstoff info" it="informazioni sul carburante" pt="informacao de combustível" es="ver combustible" pl="poziom paliwa" ru="топливо" zh="rán yóu xìn xī" langdbId="lng_voice_commands_fuel_information">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerFuelLevel" />
+        </Keyword>
+        <Keyword name="Pit Stop Information" delay="0" confidence="40" en="pit stop information" ja="pittosutoppu jouhou" fr="données arrêt aux stands" de="rennstrategie" it="informazioni sul pit stop" pt="informacao de pitstop" es="información boxes" pl="informacje o pitstopie" ru="питстоп" zh="jìn zhàn xìn xī" langdbId="lng_voice_commands_pit_stop_info">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerStopsRemaining" />
+        </Keyword>
+        <Keyword name="SuperHard Tyres" delay="0" confidence="40" en="set super hard tyres" ja="suupaahaado taiya wo setto" fr="gommes super durs" de="superharte reifen aufziehen" it="monta gomme superdure" pt="definir pneus superfirmes" es="ruedas superduros" pl="zmień na opony supertwarde" ru="сверхтвердые шины" zh="shè zhì chāo yìng lún tāi" langdbId="lng_voice_commands_superhard_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_superhard" />
+            <Action type="playSpeechVO" param="VC_SuperHardConfirm" />
+            <Filter compound_inclusion="SuperHard" />
+            <Filter inclusion_id="0" />
+        </Keyword>
+        <Keyword name="Hard Tyres" delay="0" confidence="40" en="set hard tyres" ja="haado taiya wo setto" fr="gommes dures" de="harte reifen aufziehen" it="monta gomme dure" pt="definir pneus duros" es="ruedas duras" pl="zmień na twarde opony" ru="твердые шины" zh="shè zhì yìng zhì lún tāi" langdbId="lng_voice_commands_hard_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_hard" />
+            <Action type="playSpeechVO" param="VC_HardConfirm" />
+            <Filter compound_inclusion="Hard" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Medium Tyres" delay="0" confidence="40" en="set medium tyres" ja="midiamu taiya wo setto" fr="gommes medium" de="mittlere reifen aufziehen" it="monta gomme medie" pt="definir pneus médios" es="ruedas medio" pl="zmień na średnie opony" ru="средние шины" zh="shè zhì zhōng dù lún tāi" langdbId="lng_voice_commands_medium_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_medium" />
+            <Action type="playSpeechVO" param="VC_MediumConfirm" />
+            <Filter compound_inclusion="Medium" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Soft Tyres" delay="0" confidence="40" en="set soft tyres" ja="sofuto taiya wo setto" fr="gommes tendres" de="weiche reifen aufziehen" it="monta gomme morbide" pt="definir pneus leves" es="ruedas suaves" pl="zmień na miękkie opony" ru="мяхкие шины" zh="shè zhì ruǎn lún tāi " langdbId="lng_voice_commands_soft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_soft" />
+            <Action type="playSpeechVO" param="VC_SoftConfirm" />
+            <Filter compound_inclusion="Soft" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Supersoft Tyres" delay="0" confidence="40" en="set supersoft tyres" ja="suupaasofuto taiya wo setto" fr="gommes super tendres" de="superweiche reifen aufziehen" it="monta gomme super morbide" pt="definir pneus superleves" es="ruedas supersuaves" pl="zmień na bardzo miękkie opony" ru="супермягкие шины" zh="shè zhì chāo ruǎn lún tāi " langdbId="lng_voice_commands_supersoft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_supersoft" />
+            <Action type="playSpeechVO" param="VC_SupersoftConfirm" />
+            <Filter compound_inclusion="SuperSoft" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+        </Keyword>
+        <Keyword name="Ultrasoft Tyres" delay="0" confidence="40" en="set ultrasoft tyres" ja="urutorasofuto taiya wo setto" fr="gommes ultra tendres" de="ultraweiche reifen aufziehen" it="monta gomme ultra morbide" pt="definir pneus ultraleves" es="ruedas ultrasuaves" pl="zmień na ultramiękkie opony" ru="ультрамягкие шины" zh="shè zhì jí ruǎn lún tāi" langdbId="lng_voice_commands_ultrasoft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_ultrasoft" />
+            <Action type="playSpeechVO" param="VC_UltrasoftConfirm" />
+            <Filter compound_inclusion="UltraSoft" />
+            <Filter inclusion_id="0" />
+        </Keyword>
+        <Keyword name="HyperSoft Tyres" delay="0" confidence="40" en="set hyper soft tyres" ja="haipaasofuto taiya wo setto" fr="gommes hyper tendres" de="hyperweiche reifen aufziehen" it="monta gomme iper morbide" pt="definir pneus hipermacios" es="ruedas hiperblandos" pl="zmień na opony hipermiękkie" ru="гипермягкий шины" zh="shè zhì yì cháng ruǎn tāi" langdbId="lng_voice_commands_hypersoft_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_hypersoft" />
+            <Action type="playSpeechVO" param="VC_HypersoftConfirm" />
+            <Filter compound_inclusion="HyperSoft" />
+            <Filter inclusion_id="0" />
+        </Keyword>
+        <Keyword name="Inters" delay="0" confidence="40" en="set intermediates" ja="intaamidieito wo youi" fr="gommes intermédiaires" de="intermediates aufziehen" it="monta gomme intermedi" pt="colocar pneus intermediários" es="montar gomas intermedias" pl="załóż opony pośrednie" ru="промежуточные шины" zh="shè zhì zhōng xìng lún tāi" langdbId="lng_voice_commands_set_inter_tyres">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_inter" />
+            <Action type="playSpeechVO" param="VC_InterConfirm" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Full Wets" delay="0" confidence="40" en="set full wets" ja="furu ue-to wo youi" fr="gommes pluie" de="auf regenreifen wechseln" it="monta gomme da bagnato" pt="colocar pneus de chuva" es="montar gomas de lluvia" pl="załóż opony pełne deszczowe" ru="дождевые шины" zh="shè zhì quán yǔ tāi" langdbId="lng_voice_commands_set_full_wets">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="tyre_wet" />
+            <Action type="playSpeechVO" param="VC_WetConfirm" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Wing Up" delay="0" confidence="40" en="adjust wing up" ja="uingu jouhou chousei" fr="réhausser aileron" de="flügel nach oben" it="alza ala" pt="levantar asa" es="aumentar ángulo del alerón" pl="zwiększ siłę docisku skrzydła" ru="поднять антикрыло" zh="shàng tiáo dìng fēng yì" langdbId="lng_voice_commands_wing_up">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="AeroToPlus1_VC" />
+            <Action type="GameCommand" param="wing_up" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Balance" delay="0" confidence="40" en="set wing balance" ja="uingu baransu chousei" fr="équilibrer aileron" de="flügelbalance einstellen" it="bilanciamento ala" pt="definir equilíbrio da asa" es="equilibrar alerón" pl="ustaw równowagę skrzydła" ru="сбалансировать антикрыло" zh="shè zhì dìng fēng yì píng héng" langdbId="lng_voice_commands_balance">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="AeroToBalanced_VC" />
+            <Action type="GameCommand" param="wing_balance" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Aero down" delay="0" confidence="40" en="change wing down" ja="uingu kahou chousei" fr="abaisser aileron" de="flügel nach unten" it="abbassa ala" pt="abaixar asa" es="reducir el ángulo del alerón" pl="zmniejsz siłę docisku skrzydła" ru="опустить антикрыло" zh="xià tiáo dìng fēng yì" langdbId="lng_voice_commands_aero_down">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="AeroToMinus1_VC" />
+            <Action type="GameCommand" param="wing_down" />
+            <Filter inclusion_id="0" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Team mate status" delay="0" confidence="40" en="team mate status" ja="chiimu meiito joukyou" fr="position coéquipier" de="status teamkollege" it="stato del compagno di squadra" pt="status do companheiro" es="ver compañero" pl="kolega z zespołu" ru="статус участника команды" zh="duì yǒu zhuàng tài" langdbId="lng_voice_commands_team_mate_status">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_TeamMateStatus" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Fastest Lap" delay="0" confidence="40" en="fastest lap overall" ja="zentai no saisoku rappu" fr="meilleur tour en course" de="schnellste runde insgesamt" it="giro più veloce complessivo" pt="volta geral mais rápida" es="vuelta más rápida" pl="najszybsze okrążenie wyścigu" ru="самый быстрый круг" zh="zhěng tǐ zuì kuài dān quān" langdbId="lng_voice_commands_fastest_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_FastestLapOverall" />
+        </Keyword>
+        <Keyword name="Best Lap" delay="0" confidence="40" en="best lap update" ja="besuto rappu koushin" fr="mon meilleur tour" de="beste rundenzeit" it="aggiornamento giro migliore" pt="atualização de melhor volta" es="mejor tiempo vuelta" pl="najlepsze okrążenie" ru="лучший круг" zh="zuì kuài quān sù gēng xīn" langdbId="lng_voice_commands_best_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_BestLapPlayer" />
+        </Keyword>
+        <Keyword name="Last Lap" delay="0" confidence="40" en="last lap time" ja="saigo no rapputaimu" fr="temps dernier tour" de="zeit letzte runde" it="tempo ultimo giro" pt="tempo da última volta" es="última vuelta" pl="czas ostatniego okrążenia" ru="время последнего круга" zh="zuì hòu yī quān shí jiān" langdbId="lng_voice_commands_last_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_LastLapPlayer" />
+        </Keyword>
+        <Keyword name="Championship Standings" delay="0" confidence="40" en="championship standings" ja="chanpionshippu jyun-i" fr="classement championnat" de="meisterschaft platzierung" it="posizione nel campionato" pt="situacao do campeonato" es="clasificaciones" pl="klasyfikacja generalna" ru="положение в чемпионате" zh="ɡuàn jūn bǎng" langdbId="lng_voice_commands_championship_standings">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_ChampStandings" />
+        </Keyword>
+        <Keyword name="Engineer Quiet" delay="0" confidence="40" en="engineer quiet" ja="enjinia damare" fr="ingénieur silence" de="ingenieurfunk aus" it="ingegnere zitto" pt="silenciar engenheiro" es="silenciar al ingeniero" pl="inżynier nic nie mówi" ru="инженер тихо" zh="jī xiè shī jìn shēng" langdbId="lng_voice_commands_engineer_quiet">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Talk to me" delay="0" confidence="40" en="engineer talk" ja="enjinia oshietekure" fr="ingénieur parole" de="ingenieurfunk an" it="ingegnere parla" pt="ouvir engenheiro" es="jorge habla" pl="rozmowa z inżynierem" ru="инженер говорит" zh="jī xiè shī fā yán" langdbId="lng_voice_commands_engineer_speak">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+        </Keyword>
+        <Keyword name="Repeat" delay="0" confidence="40" en="engineer repeat" ja="enjinia mou ichido" fr="ingénieur répéter" de="ingenieur wiederholen" it="ingegnere ripeti" pt="pedir para engenheiro repetir" es="repite jorge" pl="inżynier powtarza" ru="инженер повторить" zh="jī xiè shī chóng fù" langdbId="lng_voice_commands_engineer_repeat">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="repeat" />
+        </Keyword>
+        <Keyword name="Fewer Updates" delay="0" confidence="25" en="fewer updates" ja="koushin sukuname" fr="actualiser moins" de="weniger updates" it="meno aggiornamenti" pt="menos atualizações" es="menos información" pl="mniej informacji" ru="меньше новостей" zh="shōu qǐ gēng xīn" langdbId="lng_voice_commands_fewer_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="verbosity_dec" />
+        </Keyword>
+        <Keyword name="More Updates" delay="0" confidence="20" en="more updates" ja="koushin oome" fr="actualiser plus" de="mehr info" it="più aggiornamenti" pt="atualizações frequentes" es="más información" pl="więcej informacji" ru="больше новостей" zh="gèng duō gēng xīn" langdbId="lng_voice_commands_more_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+            <Action type="GameCommand" param="verbosity_inc" />
+        </Keyword>
+        <Keyword name="default" delay="0" confidence="0" en="" ja="" fr="" de="" it="" pt="" es="" pl="" ru="" zh="" langdbId="">
+            <Action type="UICommand" param="not_recognised" />
+            <Action type="playSpeechVO" param="VC_KeywordRepeat" />
+        </Keyword>
+        <Keyword name="Shut Up Jeff" delay="0" confidence="40" en="shut up marc" ja="damare jefu" fr="jeff arrête de parler" de="jeff sei leise" it="zitto alex" pt="cala a boca jeff" es="calla jorge" pl="zamknij się jeff" ru="заткнись джефф" zh="bì zuǐ jié fū" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Leave me alone" delay="0" confidence="40" en="leave me alone" ja="shizuka ni shite kudasai" fr="laisse moi tranquille" de="lass mich in ruhe" it="" pt="" es="" pl="" ru="" zh="leave me alone" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Terminal Damage Retire Probe" delay="0" confidence="40" en="terminal damage probe" ja="terminal damage probe" fr="terminal damage probe" de="terminal damage probe" it="terminal damage probe" pt="terminal damage probe" es="terminal damage probe" pl="terminal damage probe" ru="terminal damage probe" zh="terminal damage probe" langdbId="lng_td_retire_probe"><Action type="UICommand" param="recognised" /></Keyword>
+    </KeywordList>
+    <KeywordList name="Qualifying" type="standard" langdbId="lng_voice_commands_qualifying"><Keyword name="Box" delay="0" confidence="40" en="box this lap" ja="pi-toin suru" fr="rentrer ce tour" de="boxenstopp" it="box in questo giro" pt="ir para boxes nesta volta" es="entrar en boxes en esta vuelta" pl="zjedź do boksu tym okrążeniu" ru="вернуться в бокс" zh="zài běn quān rù zhàn" langdbId="lng_voice_commands_box">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PitReply" />
+            <Action type="GameCommand" param="pit" />
+        </Keyword>
+        <Keyword name="Ahead" delay="0" confidence="40" en="driver in front" ja="zenpou doraibaa" fr="pilote devant" de="fahrer vor mir" it="pilota davanti" pt="piloto na frente" es="piloto de delante" pl="kierowca przed tobą" ru="пилот впереди" zh="qián wèi chē shǒu" langdbId="lng_voice_commands_driver_in_front">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_DriverAhead" />
+        </Keyword>
+        <Keyword name="Behind" delay="0" confidence="40" en="driver behind" ja="kouhou doraibaa" fr="pilote derrière" de="fahrer hinter mir" it="pilota dietro" pt="piloto atrás" es="perseguidor" pl="kierowca za tobą" ru="пилот сзади" zh="hòu wèi chē shǒu" langdbId="lng_voice_commands_driver_behind">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_DriverBehind" />
+        </Keyword>
+        <Keyword name="Session Update" delay="0" confidence="40" en="session update" ja="sesshon koushin" fr="point séance" de="statusreport" it="aggiornamento sessione" pt="atualizacao de sessao" es="actualizar sesion" pl="informacje o sesji" ru="новости сеанса" zh="liú chéng gēng xīn" langdbId="lng_voice_commands_session_update">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_SessionUpdate" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+        </Keyword>
+        <Keyword name="Team mate status" delay="0" confidence="40" en="team mate status" ja="chiimu meiito joukyou" fr="position coéquipier" de="status teamkollege" it="stato del compagno di squadra" pt="status do companheiro" es="ver compañero" pl="kolega z zespołu" ru="статус участника команды" zh="duì yǒu zhuàng tài" langdbId="lng_voice_commands_team_mate_status">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_TeamMateStatus" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Condition" delay="0" confidence="40" en="vehicle condition" ja="mashin kondishon" fr="état voiture" de="zustand des autos" it="condizioni veicolo" pt="condicao do veiculo" es="estado del coche" pl="stan pojazdu" ru="состояние автомобиля" zh="chē liàng zhuàng kuàng" langdbId="lng_voice_commands_condition">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Damage" />
+        </Keyword>
+        <Keyword name="Position update" delay="0" confidence="40" en="position update" ja="pojishon jouhou" fr="infos position" de="positionsdaten" it="aggiornamento posizione" pt="atualização de posicao" es="clasificación actual" pl="informacje o pozycji" ru="обновление позиции" zh="wèi zhì gèng xīn" langdbId="lng_voice_commands_position_update">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerPosition" />
+        </Keyword>
+        <Keyword name="Weather Report" delay="0" confidence="40" en="weather report" ja="tenki yohou" fr="conditions météo" de="wetterbericht" it="previsioni del tempo" pt="previsão do tempo" es="informe tiempo" pl="prognoza pogody" ru="погода" zh="tiān qì yù bào" langdbId="lng_voice_commands_weather_report">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Weather_Forecast" />
+        </Keyword>
+        <Keyword name="Fuel Information" delay="0" confidence="40" en="fuel information" ja="nenryou jouhou" fr="données carburant" de="treibstoff info" it="informazioni sul carburante" pt="informacao de combustível" es="ver combustible" pl="poziom paliwa" ru="топливо" zh="rán yóu xìn xī" langdbId="lng_voice_commands_fuel_information">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerFuelLevel" />
+        </Keyword>
+        <Keyword name="Fastest Lap" delay="0" confidence="40" en="fastest lap overall" ja="zentai no saisoku rappu" fr="meilleur tour en course" de="schnellste runde insgesamt" it="giro più veloce complessivo" pt="volta geral mais rápida" es="vuelta más rápida" pl="najszybsze okrążenie wyścigu" ru="самый быстрый круг" zh="zhěng tǐ zuì kuài dān quān" langdbId="lng_voice_commands_fastest_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_FastestLapOverall" />
+        </Keyword>
+        <Keyword name="Best Lap" delay="0" confidence="40" en="best lap update" ja="besuto rappu koushin" fr="mon meilleur tour" de="update beste runde" it="aggiornamento giro migliore" pt="atualização de melhor volta" es="mejor tiempo vuelta" pl="najlepsze okrążenie" ru="лучший круг" zh="zuì kuài quān sù gēng xīn" langdbId="lng_voice_commands_best_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_BestLapPlayer" />
+        </Keyword>
+        <Keyword name="Last Lap" delay="0" confidence="40" en="last lap time" ja="saigo no rapputaimu" fr="temps dernier tour" de="zeit letzte runde" it="tempo ultimo giro" pt="tempo da última volta" es="última vuelta" pl="czas ostatniego okrążenia" ru="время последнего круга" zh="zuì hòu yī quān shí jiān" langdbId="lng_voice_commands_last_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_LastLapPlayer" />
+        </Keyword>
+        <Keyword name="Engineer Quiet" delay="0" confidence="40" en="engineer quiet" ja="enjinia damare" fr="ingénieur silence" de="ingenieurfunk aus" it="ingegnere zitto" pt="silenciar engenheiro" es="silenciar al ingeniero" pl="inżynier nic nie mówi" ru="инженер тихо" zh="jī xiè shī jìn shēng" langdbId="lng_voice_commands_engineer_quiet">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Talk to me" delay="0" confidence="40" en="engineer talk" ja="enjinia oshietekure" fr="ingénieur parole" de="ingenieurfunk an" it="ingegnere parla" pt="ouvir engenheiro" es="jorge habla" pl="rozmowa z inżynierem" ru="инженер говорит" zh="jī xiè shī fā yán" langdbId="lng_voice_commands_engineer_speak">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+        </Keyword>
+        <Keyword name="Repeat" delay="0" confidence="40" en="engineer repeat" ja="enjinia mou ichido" fr="ingénieur répéter" de="ingenieur wiederholen" it="ingegnere ripeti" pt="pedir para engenheiro repetir" es="repite jorge" pl="inżynier powtarza" ru="инженер повторить" zh="jī xiè shī chóng fù" langdbId="lng_voice_commands_engineer_repeat">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="repeat" />
+        </Keyword>
+        <Keyword name="Fewer Updates" delay="0" confidence="25" en="fewer updates" ja="koushin sukuname" fr="actualiser moins" de="weniger updates" it="meno aggiornamenti" pt="menos atualizações" es="menos información" pl="mniej informacji" ru="меньше новостей" zh="shōu qǐ gēng xīn" langdbId="lng_voice_commands_fewer_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="verbosity_dec" />
+        </Keyword>
+        <Keyword name="More Updates" delay="0" confidence="20" en="more updates" ja="koushin oome" fr="actualiser plus" de="mehr updates" it="più aggiornamenti" pt="atualizações frequentes" es="más información" pl="więcej informacji" ru="больше новостей" zh="gèng duō gēng xīn" langdbId="lng_voice_commands_more_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+            <Action type="GameCommand" param="verbosity_inc" />
+        </Keyword>
+        <Keyword name="default" delay="0" confidence="0" en="" ja="" fr="" de="" it="" pt="" es="" pl="" ru="" zh="" langdbId="">
+            <Action type="UICommand" param="not_recognised" />
+            <Action type="playSpeechVO" param="VC_KeywordRepeat" />
+        </Keyword>
+        <Keyword name="Shut Up Jeff" delay="0" confidence="40" en="shut up marc" ja="damare jefu" fr="jeff arrête de parler" de="jeff sei leise" it="zitto alex" pt="cala a boca jeff" es="calla jorge" pl="zamknij się jeff" ru="заткнись джефф" zh="bì zuǐ jié fū" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Leave me alone" delay="0" confidence="40" en="leave me alone" ja="shizuka ni shite kudasai" fr="laisse moi tranquille" de="lass mich in ruhe" it="" pt="" es="" pl="" ru="" zh="leave me alone" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Terminal Damage Retire Probe" delay="0" confidence="40" en="terminal damage probe" ja="terminal damage probe" fr="terminal damage probe" de="terminal damage probe" it="terminal damage probe" pt="terminal damage probe" es="terminal damage probe" pl="terminal damage probe" ru="terminal damage probe" zh="terminal damage probe" langdbId="lng_td_retire_probe"><Action type="UICommand" param="recognised" /></Keyword>
+    </KeywordList>
+    <KeywordList name="Practice" type="standard" langdbId="lng_voice_commands_practice"><Keyword name="Box" delay="0" confidence="40" en="box this lap" ja="pi-toin suru" fr="rentrer ce tour" de="boxenstopp" it="box in questo giro" pt="ir para boxes nesta volta" es="entrar en boxes en esta vuelta" pl="zjedź do boksu tym okrążeniu" ru="вернуться в бокс" zh="zài běn quān rù zhàn" langdbId="lng_voice_commands_box">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PitReply" />
+            <Action type="GameCommand" param="pit" />
+        </Keyword>
+        <Keyword name="Ahead" delay="0" confidence="40" en="driver in front" ja="zenpou doraibaa" fr="pilote devant" de="fahrer vor mir" it="pilota davanti" pt="piloto na frente" es="piloto de delante" pl="kierowca przed tobą" ru="пилот впереди" zh="qián wèi chē shǒu" langdbId="lng_voice_commands_driver_in_front">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_DriverAhead" />
+        </Keyword>
+        <Keyword name="Behind" delay="0" confidence="40" en="driver behind" ja="kouhou doraibaa" fr="pilote derrière" de="fahrer hinter mir" it="pilota dietro" pt="piloto atrás" es="perseguidor" pl="kierowca za tobą" ru="пилот сзади" zh="hòu wèi chē shǒu" langdbId="lng_voice_commands_driver_behind">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_DriverBehind" />
+        </Keyword>
+        <Keyword name="Session Update" delay="0" confidence="40" en="session update" ja="sesshon koushin" fr="point séance" de="statusreport" it="aggiornamento sessione" pt="atualizacao de sessao" es="actualizar sesion" pl="informacje o sesji" ru="новости сеанса" zh="liú chéng gēng xīn" langdbId="lng_voice_commands_session_update">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_SessionUpdate" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+        </Keyword>
+        <Keyword name="Team mate status" delay="0" confidence="40" en="team mate status" ja="chiimu meiito joukyou" fr="position coéquipier" de="status teamkollege" it="stato del compagno di squadra" pt="status do companheiro" es="ver compañero" pl="kolega z zespołu" ru="статус участника команды" zh="duì yǒu zhuàng tài" langdbId="lng_voice_commands_team_mate_status">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_TeamMateStatus" />
+            <Filter inclusion_id="0" />
+            <Filter inclusion_id="2" />
+			<Filter inclusion_id="3" />
+        </Keyword>
+        <Keyword name="Condition" delay="0" confidence="40" en="vehicle condition" ja="mashin kondishon" fr="état voiture" de="zustand des autos" it="condizioni veicolo" pt="condicao do veiculo" es="estado del coche" pl="stan pojazdu" ru="состояние автомобиля" zh="chē liàng zhuàng kuàng" langdbId="lng_voice_commands_condition">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Damage" />
+        </Keyword>
+        <Keyword name="Position update" delay="0" confidence="40" en="position update" ja="pojishon jouhou" fr="infos position" de="positionsdaten" it="aggiornamento posizione" pt="atualização de posicao" es="clasificación actual" pl="informacje o pozycji" ru="обновление позиции" zh="wèi zhì gèng xīn" langdbId="lng_voice_commands_position_update">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerPosition" />
+        </Keyword>
+        <Keyword name="Weather Report" delay="0" confidence="40" en="weather report" ja="tenki yohou" fr="conditions météo" de="wetterbericht" it="previsioni del tempo" pt="previsão do tempo" es="informe tiempo" pl="prognoza pogody" ru="погода" zh="tiān qì yù bào" langdbId="lng_voice_commands_weather_report">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_Weather_Forecast" />
+        </Keyword>
+        <Keyword name="Fuel Information" delay="0" confidence="40" en="fuel information" ja="nenryou jouhou" fr="données carburant" de="treibstoff info" it="informazioni sul carburante" pt="informacao de combustível" es="ver combustible" pl="poziom paliwa" ru="топливо" zh="rán yóu xìn xī" langdbId="lng_voice_commands_fuel_information">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_PlayerFuelLevel" />
+        </Keyword>
+        <Keyword name="Fastest Lap" delay="0" confidence="40" en="fastest lap overall" ja="zentai no saisoku rappu" fr="meilleur tour en course" de="schnellste runde insgesamt" it="giro più veloce complessivo" pt="volta geral mais rápida" es="vuelta más rápida" pl="najszybsze okrążenie wyścigu" ru="самый быстрый круг" zh="zhěng tǐ zuì kuài dān quān" langdbId="lng_voice_commands_fastest_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_FastestLapOverall" />
+        </Keyword>
+        <Keyword name="Best Lap" delay="0" confidence="40" en="best lap update" ja="besuto rappu koushin" fr="mon meilleur tour" de="update beste runde" it="aggiornamento giro migliore" pt="atualização de melhor volta" es="mejor tiempo vuelta" pl="najlepsze okrążenie" ru="лучший круг" zh="zuì kuài quān sù gēng xīn" langdbId="lng_voice_commands_best_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_BestLapPlayer" />
+        </Keyword>
+        <Keyword name="Last Lap" delay="0" confidence="40" en="last lap time" ja="saigo no rapputaimu" fr="temps dernier tour" de="zeit letzte runde" it="tempo ultimo giro" pt="tempo da última volta" es="última vuelta" pl="czas ostatniego okrążenia" ru="время последнего круга" zh="zuì hòu yī quān shí jiān" langdbId="lng_voice_commands_last_lap">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="VC_LastLapPlayer" />
+        </Keyword>
+        <Keyword name="Engineer Quiet" delay="0" confidence="40" en="engineer quiet" ja="enjinia damare" fr="ingénieur silence" de="ingenieurfunk aus" it="ingegnere zitto" pt="silenciar engenheiro" es="silenciar al ingeniero" pl="inżynier nic nie mówi" ru="инженер тихо" zh="jī xiè shī jìn shēng" langdbId="lng_voice_commands_engineer_quiet">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Talk to me" delay="0" confidence="40" en="engineer talk" ja="enjinia oshietekure" fr="ingénieur parole" de="ingenieurfunk an" it="ingegnere parla" pt="ouvir engenheiro" es="jorge habla" pl="rozmowa z inżynierem" ru="инженер говорит" zh="jī xiè shī fā yán" langdbId="lng_voice_commands_engineer_speak">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+        </Keyword>
+        <Keyword name="Repeat" delay="0" confidence="40" en="engineer repeat" ja="enjinia mou ichido" fr="ingénieur répéter" de="ingenieur wiederholen" it="ingegnere ripeti" pt="pedir para engenheiro repetir" es="repite jorge" pl="inżynier powtarza" ru="инженер повторить" zh="jī xiè shī chóng fù" langdbId="lng_voice_commands_engineer_repeat">
+            <Action type="UICommand" param="recognised" />
+            <Action type="GameCommand" param="repeat" />
+        </Keyword>
+        <Keyword name="Fewer Updates" delay="0" confidence="25" en="fewer updates" ja="koushin sukuname" fr="actualiser moins" de="weniger updates" it="meno aggiornamenti" pt="menos atualizações" es="menos información" pl="mniej informacji" ru="меньше новостей" zh="shōu qǐ gēng xīn" langdbId="lng_voice_commands_fewer_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="verbosity_dec" />
+        </Keyword>
+        <Keyword name="More Updates" delay="0" confidence="20" en="more updates" ja="koushin oome" fr="actualiser plus" de="mehr updates" it="più aggiornamenti" pt="atualizações frequentes" es="más información" pl="więcej informacji" ru="больше новостей" zh="gèng duō gēng xīn" langdbId="lng_voice_commands_more_updates">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="unmute" />
+            <Action type="GameCommand" param="verbosity_inc" />
+        </Keyword>
+        <Keyword name="default" delay="0" confidence="0" en="" ja="" fr="" de="" it="" pt="" es="" pl="" ru="" zh="" langdbId="">
+            <Action type="UICommand" param="not_recognised" />
+            <Action type="playSpeechVO" param="VC_KeywordRepeat" />
+        </Keyword>
+        <Keyword name="Shut Up Jeff" delay="0" confidence="40" en="shut up marc" ja="damare jefu" fr="jeff arrête de parler" de="jeff sei leise" it="zitto alex" pt="cala a boca jeff" es="calla jorge" pl="zamknij się jeff" ru="заткнись джефф" zh="bì zuǐ jié fū" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Leave me alone" delay="0" confidence="40" en="leave me alone" ja="shizuka ni shite kudasai" fr="laisse moi tranquille" de="lass mich in ruhe" it="" pt="" es="" pl="" ru="" zh="leave me alone" langdbId="">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="mute" />
+        </Keyword>
+        <Keyword name="Terminal Damage Retire Probe" delay="0" confidence="40" en="terminal damage probe" ja="terminal damage probe" fr="terminal damage probe" de="terminal damage probe" it="terminal damage probe" pt="terminal damage probe" es="terminal damage probe" pl="terminal damage probe" ru="terminal damage probe" zh="terminal damage probe" langdbId="lng_td_retire_probe"><Action type="UICommand" param="recognised" /></Keyword>
+    </KeywordList>
+    <KeywordList name="Change Strategy" type="query_strategy" langdbId="lng_voice_commands_query_strategy">
+        <Keyword name="Positive Strategy Change" delay="0" confidence="40" en="confirm change" ja="henkou kettei" fr="confirmer changement" de="änderung bestätigt" it="conferma modifica" pt="confirmar alteracao" es="confirmar cambios" pl="potwierdź zmianę" ru="подтвердить изменение" zh="què rèn gēng gǎi " langdbId="lng_voice_commands_pos_stratchange">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="change_strategy" />
+        </Keyword>
+        <Keyword name="Negative Strategy Change" delay="0" confidence="40" en="keep current" ja="genjou iji" fr="conserver stratégie" de="aktuelle behalten" it="mantieni la strategia attuale" pt="manter atual" es="mantener actual" pl="utrzymaj obecną" ru="оставить" zh="bǎo chí dāng qián" langdbId="lng_voice_commands_negative_stratchange">
+            <Action type="UICommand" param="recognised" />
+            <Action type="playSpeechVO" param="Confirm_VC" />
+            <Action type="GameCommand" param="keep_strategy" />
+        </Keyword>
+    </KeywordList>
+</SpeechRecognition>
