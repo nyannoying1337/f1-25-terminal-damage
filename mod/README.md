@@ -11,13 +11,21 @@ the car and deal with the failure like a real driver: limp on, pull over, or bri
   - turbo, MGU-K, MGU-H, battery or control electronics failed: reduced power (30 % throttle by
     default, adjustable)
   - terminal crash damage (e.g. broken suspension): no drive, the car rolls out
+- **Engine sound:** a failed engine plays the engine stop sound and stays silent. After terminal
+  crash damage the engine dies after 3 to 6 s, and a broken or retiring car that stands still
+  switches its engine off after 6 s (setting "Engine sound off after a failure").
+- **The game's own random failures** are handled the same way as the failures above.
 - **Stand still on track for 10 s** with a broken car: you retire.
 - **Drive into the pit lane** with a broken car (race): no tyre stop. Your garage crew comes out,
   pushes the car into the garage, then you retire.
 - **Practice and qualifying:** instead of retiring (which would end the whole session), your car is
-  sent back to its garage and stays there for the rest of the session.
-- **Ctrl+Shift+F11:** your car counts as broken (pull over or drive into your box). Press again to
-  retire at once.
+  sent back to its garage and stays there for the rest of the session. Career: fit a new part
+  (e.g. a new engine) in the garage, then leave the garage. Without a new part the car is sent
+  straight back to the garage.
+- **Ctrl+Shift+F11:** retire like a real driver. Nothing breaks and you keep full power: pull over
+  and stand still for 10 s, or drive into your box. Press again to cancel while still on track.
+- **Retire in the pause menu** works the same way on track (any controller or wheel): pull over or
+  box. A HUD message confirms the request.
 - Your stopped car does not trigger a safety car or red flag.
 
 ## Setup (once)
@@ -29,7 +37,7 @@ the car and deal with the failure like a real driver: limp on, pull over, or bri
    UDP Format **2026**.
 
 The mod reads your speed from the game's UDP telemetry. Without it, standing still does not retire
-a broken car (use Ctrl+Shift+F11 instead).
+a broken car: drive into your box, or use Retire in the pause menu.
 
 **Using SimHub, CrewChief or another telemetry app on port 20777?** Only one program can listen on
 a port. Pick another port in the addon settings (*UDP telemetry port*, e.g. 20778) and let your
@@ -52,10 +60,9 @@ without the animation instead).
 ## Known issues (beta)
 
 - Race: the crew only comes out if a practice session was loaded earlier in the same game start.
-- Practice/qualifying: if you try to drive out of the garage with a broken car, the camera stays in
-  the box. Use the pause menu to leave the session.
 - AI cars with terminal damage can stop at the pit exit or on track.
-- A broken engine idles instead of switching off.
+- Practice/qualifying: a car with terminal crash damage stays in its garage, even after repairs.
+- The game's own random failures are less tested than a failure triggered with the debug option.
 - Not tested yet: career / My Team in depth, F2 cars, time trial, split screen.
 - After a game update some features may switch themselves off until the mod is updated.
 

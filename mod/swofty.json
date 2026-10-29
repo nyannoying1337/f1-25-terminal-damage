@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.30.2",
+  "version": "0.32.4",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
   "license": "MIT",
@@ -98,10 +98,18 @@
       "binds": "native"
     },
     {
+      "id": "engine_off_sound",
+      "type": "toggle",
+      "label": "Engine sound off after a failure",
+      "description": "A failed engine (ICE) plays the engine stop sound at once, terminal crash damage after 3 to 6 s, a retiring car standing still after 6 s; then it stays silent.",
+      "default": true,
+      "binds": "native"
+    },
+    {
       "id": "retire_hotkey",
       "type": "toggle",
       "label": "Retire hotkey",
-      "description": "Ctrl+Shift + key: your car counts as broken. Stand still 10 s to retire, or drive into your box. Press again to retire at once.",
+      "description": "Ctrl+Shift + key: retire without breaking anything. Pull over and stand still 10 s, or drive into your box. Press again to cancel.",
       "default": true,
       "binds": "native"
     },
@@ -120,6 +128,14 @@
         "F12"
       ],
       "default": "F11",
+      "binds": "native"
+    },
+    {
+      "id": "pause_menu_retire",
+      "type": "toggle",
+      "label": "Retire in the pause menu: pull over first",
+      "description": "On track, Retire in the pause menu does not end your race at once: pull over and stand still 10 s, or drive into your box.",
+      "default": true,
       "binds": "native"
     },
     {
