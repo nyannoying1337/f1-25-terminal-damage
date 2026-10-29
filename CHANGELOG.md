@@ -1,3 +1,21 @@
+# Terminal Damage 0.50.2 beta
+
+## Fixed
+
+- Instant Replay / flashbacks can now be opened after terminal damage while you still control your car. Rewinding to before the damage lets you continue driving again.
+- Confirmed in practice, qualifying and race sessions. Crash damage and an engine failure were covered in the practice check.
+
+## Known issues
+
+- **Red flag while terminally damaged:** the game can take control or switch to the spectator view, followed by a delayed retirement. This is still under investigation and is not fixed in this update.
+- **Qualifying ICE replacement / Skip repairs: NOT TESTED, MIGHT BE BROKEN.** The intended replacement time is at least 60 minutes so the remaining qualifying time expires.
+- **Practice engine replacement timing: NOT TESTED, MIGHT BE BROKEN.** Normal game timing is intended to remain unchanged.
+- Race garage pushing still requires loading practice first in the same game process. The latest pit-entry audio and missing-crew fallback changes still need in-game confirmation.
+
+UDP format 2026 is required for the addon's telemetry features. For reports, send loader.log before restarting the game; include perf.log for performance problems.
+
+---
+
 # Terminal Damage 0.50.0 beta
 
 ## Added

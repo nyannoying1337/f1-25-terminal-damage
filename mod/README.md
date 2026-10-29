@@ -3,12 +3,17 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
-## 0.50.0 beta release notes
+## 0.50.2 beta
 
-**Known issues: NOT TESTED, MIGHT BE BROKEN:** qualifying ICE replacement / Skip repairs,
-practice replacement timing, and the new flashback recovery have not been verified in game.
-Latest pit-entry audio and missing-crew fallback changes also need in-game confirmation.
-See the [full changelog](https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/CHANGELOG.md).
+Instant Replay / flashbacks can now be opened after terminal damage while you still
+control your car. Rewind before the damage to continue driving. Confirmed in practice,
+qualifying and race sessions.
+
+**Known issue:** a red flag while terminally damaged can lead to AI/spectator control
+and delayed retirement. This is not fixed in this update.
+
+**NOT TESTED, MIGHT BE BROKEN:** qualifying ICE replacement / Skip repairs and
+practice replacement timing. See the [changelog](https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/CHANGELOG.md).
 
 ## What it does
 
@@ -90,7 +95,7 @@ is required. Radio menu retirement disables the native action; Retirement radio 
 voice/silent XML after restart. A repeated selection can request speech again. Other retirement
 routes do not add a voice reply. Disable the addon to remove its command-file operation.
 
-## Testing 0.50.0 beta
+## Testing 0.50.2 beta
 
 1. Race: pull over, wait for the 10 s retirement, check the DNF camera stays silent, then restart
    from results and check normal engine sound and grid position. DNF audio passed Nick's .17 test.

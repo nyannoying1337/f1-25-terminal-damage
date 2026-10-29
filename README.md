@@ -8,14 +8,17 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
 
-## 0.50.0 beta
+## 0.50.2 beta
 
-Radio-menu retirement with an optional engineer reply, restart/audio fixes,
-flashback recovery and reduced CPU work in vehicle/stopped-car hooks.
+Instant Replay / flashbacks can now be opened after terminal damage. Rewind before
+the failure to continue driving. Confirmed in practice, qualifying and race.
 
-**Not tested, might be broken:** qualifying ICE replacement / Skip repairs,
-practice replacement timing, and the new flashback recovery. The latest pit-entry
-audio and missing-crew fallback also need runtime confirmation.
+**Known issue:** a red flag while terminally damaged can cause AI/spectator control
+and delayed retirement. This remains under investigation.
+
+**Not tested, might be broken:** qualifying ICE replacement / Skip repairs and
+practice replacement timing. The latest pit-entry audio and missing-crew fallback
+also need runtime confirmation.
 
 Read the [changelog](CHANGELOG.md) for changes and limitations.
 

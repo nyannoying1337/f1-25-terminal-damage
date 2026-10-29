@@ -136,6 +136,7 @@ struct alignas(16) throttle_hook_data {
 throttle_hook_data throttle_hook{0, 1.0f};
 // Vehicle whose engine sound plays as switched off (failed ICE), or -1. Read by the engine audio stub.
 alignas(4) volatile int32_t engine_off_vehicle = -1;
+alignas(4) volatile int32_t replay_terminal_vehicle = -1;
 std::atomic<bool> engine_off_standing{false}; // broken car pulled over and standing still for 6 s
 std::atomic<int> retired_engine_off_vehicle{-1}; // keep retirement audio off through the DNF camera
 double still_for;
@@ -673,6 +674,7 @@ void hook_pit_stop_job()
 void reset_car_state(bool preserve_retirement_audio)
 {
     flashback_tracker.clear_lock();
+    replay_terminal_vehicle = -1;
     int silent_vehicle = preserve_retirement_audio ? retired_engine_off_vehicle.load() : -1;
     retired_engine_off_vehicle = silent_vehicle;
     pending_radio_command = 0;
@@ -901,6 +903,8 @@ void power_loss(uintptr_t car)
     bool off = why == 1 || (why == 8 && now >= crash_off_at) || (player_broken && engine_off_standing) ||
                (retired_engine_off_vehicle.load() >= 0 && retired_engine_off_vehicle.load() == player_vehicle.load());
     engine_off_vehicle = off && engine_off_sound ? player_vehicle.load() : -1;
+    replay_terminal_vehicle = keep_control && player_broken && player_pit.load() == 1 && !session_ended ?
+                                  player_vehicle.load() : -1;
     float t = test_cap.load();
     throttle_hook.cap = t >= 0 ? t : cap;
     if (why != logged) {
@@ -2059,6 +2063,38 @@ void hook_engine_audio()
                 reinterpret_cast<void *>(at));
 }
 
+// GameReplaySystem's entry predicate normally rejects terminal state 5 unless
+// its terminal-replay permission is set. Keep all other predicate checks intact.
+void emit_replay_terminal_gate(emitter &e, uintptr_t allowed, uintptr_t terminal_check)
+{
+    e.bytes({0x83,0xBC,0x08,0xB8,0,0,0,0x05}); // original cmp [rax+rcx+0xb8],5
+    e.bytes({0x74,0x0E}); // terminal -> compare player; otherwise original pass
+    e.jmp(allowed);
+    e.bytes({0x50,0x48,0xB8}); // preserve rax; load the player override address
+    e.u64(reinterpret_cast<uintptr_t>(&replay_terminal_vehicle));
+    e.bytes({0x3A,0x18,0x58,0x75,0x0E}); // cmp bl,[rax]; pop rax; jne original terminal check
+    e.jmp(allowed);
+    e.jmp(terminal_check);
+}
+
+void hook_replay_terminal_gate()
+{
+    constexpr const char *sig =
+        "83 BC 08 B8 00 00 00 05 75 0D 80 BE 60 01 00 00 00 0F 84 30 FF FF FF 48 8B 8E 50 01 00 00";
+    uintptr_t at = 0;
+    int hits = swofty::api->scan(".xtls", sig, &at);
+    uint8_t *stub = hits == 1 && at ? alloc_near(at) : nullptr;
+    if (!stub) {
+        swofty::log("[td-probe] replay entry: terminal gate has %d hits or no stub memory; unchanged", hits);
+        return;
+    }
+    emitter e{stub};
+    emit_replay_terminal_gate(e, at + 23, at + 10);
+    bool ok = jump_to_stub(at, 10, stub, e.p);
+    swofty::log("[td-probe] replay entry: %s player-only terminal restriction at %p; other checks unchanged",
+                ok ? "hooked" : "could not hook", reinterpret_cast<void *>(at));
+}
+
 uintptr_t player_car()
 {
     return throttle_hook.car;
@@ -2599,6 +2635,44 @@ SWOFTY_ON_CHANGE(crew_asset_diagnostics, bool on)
     crew_diagnostics_active = on;
 }
 
+// Diagnostic test build: locate the real replay-entry gate, without overriding
+// session, multiplayer, replay-buffer or flashback-limit restrictions.
+uint64_t (*orig_pause_options)(void *);
+uint64_t on_pause_options(void *self)
+{
+    uint64_t result = orig_pause_options(self);
+    static uint64_t next = 0;
+    static int previous = -1;
+    int state = session_ended ? 0 : player_broken || car_dead || terminal_mask.load() ? 2 : 1;
+    uint64_t now = GetTickCount64();
+    if (state == previous && (state != 2 || now < next))
+        return result;
+    next = now + 1000;
+    uintptr_t replay = 0, vt = 0, gate = 0;
+    uint8_t entry = 0xff;
+    uintptr_t base = reinterpret_cast<uintptr_t>(self);
+    bool readable = guarded_read(base + 1, entry) && guarded_read(base + 0xe8, replay) && replay &&
+                    guarded_read(replay, vt) && vt && guarded_read(vt + 0x130, gate);
+    static uintptr_t last_gate = 0;
+    static int last_entry = -1;
+    if (state != previous || gate != last_gate || entry != last_entry) {
+        uintptr_t module = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+        swofty::log("[td-probe] replay entry probe: state=%d readable=%d menu_enabled=%u gate_ref=0x%llx vtable_ref=0x%llx (no override)",
+                    state, readable, unsigned(entry), (unsigned long long)(gate ? gate - module + 0x140000000 : 0),
+                    (unsigned long long)(vt ? vt - module + 0x140000000 : 0));
+        previous = state; last_gate = gate; last_entry = entry;
+    }
+    return result;
+}
+
+void hook_pause_options_probe()
+{
+    constexpr uint8_t prologue[] = {0x41,0x57,0x41,0x56,0x56,0x57,0x55,0x53,0x48,0x81,0xec,0x78,0x04,0,0};
+    detour("PauseOptions replay entry probe",
+           "41 57 41 56 56 57 55 53 48 81 EC 78 04 00 00 C5 F9 29 B4 24 60 04 00 00 48 89 CE C5 F8 57 C0 C5 F8 11 01",
+           prologue, sizeof prologue, reinterpret_cast<void *>(&on_pause_options), reinterpret_cast<void **>(&orig_pause_options));
+}
+
 SWOFTY_ON_LOAD
 {
     td_perf::enabled = bool(performance_diagnostics);
@@ -2619,6 +2693,7 @@ SWOFTY_ON_LOAD
     hook_thunk("Ai MessagePitStateChanged handler", sig_pit_state_changed,
                reinterpret_cast<void *>(&on_pit_state_changed), reinterpret_cast<void **>(&orig_pit_state_changed));
     hook_update_vehicle();
+    hook_replay_terminal_gate();
     hook_vslot("DeploymentPointsAccumulatorStoppedCars::update", sig_stopped_cars_update,
                reinterpret_cast<void *>(&on_stopped_cars_update), reinterpret_cast<void **>(&orig_stopped_cars_update));
     if (crew_asset_diagnostics)
@@ -2639,7 +2714,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.50.0, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.50.2, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }
