@@ -3,20 +3,17 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
-## 0.51.8 beta
+## 0.51.12 beta
 
-Separate **Remove player wheel tethers** and **Remove AI wheel tethers** options,
-**both off by default**. Detached wheels become loose debris in the selected
-scope. Suspension damage and wheel collisions stay unchanged. Restart the game
-after changing either setting.
+- Replace the separate player tether switches with **Player wheel behavior**: Stock, Reduced jolting (experimental), or Loose wheels.
+- Reduced jolting keeps the tethers and reduces the violent bouncing seen with detached wheels. Wheels can still move oddly and pass through the chassis or cockpit.
+- Loose wheels removes player tethers. **Loose AI wheels** remains a separate option. Stock and AI removal off are the defaults; restart after changing either.
+- Simplify the launcher settings by hiding garage implementation and debug controls. Their existing defaults remain unchanged.
+- Reduce repeated checks during detached-wheel creation and remove routine collision-experiment logging.
 
-Replay/flashback overhead with wheel-tether removal enabled is reduced. Automatic
-temporary wheel diagnostics are removed; Debug: performance counters remains
-available when needed.
+**Upgrading:** choose your preferred Player wheel behavior again. Earlier player tether switches are replaced by the dropdown; the new default is Stock.
 
-Includes a versioned player-state API for spectator addons, with confirmed
-retirement and recovery notifications. Terminal Damage does not change cameras
-itself. Integration details are in docs/player-state-api.md in the source tree.
+Known issues: reduced jolting is still experimental and is not a complete realistic tether simulation. Mid-push flashbacks and red-flag camera behavior remain limited. Qualifying ICE replacement / Skip repairs and practice replacement timing remain **NOT TESTED, MIGHT BE BROKEN**.
 
 ## What it does
 

@@ -8,15 +8,15 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
 
-## 0.51.8 beta
+## 0.51.12 beta
 
-Optional player and AI wheel-tether removal, independently selectable and both
-**off by default**. Restart after changing either setting. Replay/flashback
-overhead with these options is reduced.
+Player wheel behavior now has one dropdown: Stock (default), Reduced jolting
+(experimental), or Loose wheels. AI tether removal stays separate and off by
+default. Restart after changing either setting. Reduced jolting keeps tethers,
+but detached wheels can still move oddly and clip through the chassis/cockpit.
 
-Spectator addons can subscribe to player-state changes through the documented API;
-Terminal Damage does not switch cameras itself. Existing gameplay limitations
-are listed in the addon README and changelog.
+Choose your preferred player mode again after upgrading from the earlier switches.
+Garage implementation and debug controls are hidden to simplify launcher settings.
 
 Read the [changelog](CHANGELOG.md) for changes and limitations.
 

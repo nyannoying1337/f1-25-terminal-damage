@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.51.8",
+  "version": "0.51.12",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -28,17 +28,31 @@
   ],
   "options": [
     {
-      "id": "wheel_tether_test",
-      "type": "toggle",
-      "label": "Remove player wheel tethers",
-      "description": "Optional workaround for detached wheels pulling or shaking your car. Broken player wheels become loose debris; suspension damage stays unchanged. Off by default. Restart required.",
-      "default": false,
+      "id": "player_wheel_behavior",
+      "type": "choice",
+      "label": "Player wheel behavior",
+      "description": "Stock keeps game physics. Reduced jolting keeps tethers but wheels can clip through your car and still move oddly. Loose wheels removes tethers. Restart required.",
+      "values": [
+        {
+          "value": "stock",
+          "label": "Stock (default)"
+        },
+        {
+          "value": "reduced",
+          "label": "Reduced jolting (experimental)"
+        },
+        {
+          "value": "loose",
+          "label": "Loose wheels (no tethers)"
+        }
+      ],
+      "default": "stock",
       "binds": "native"
     },
     {
       "id": "ai_wheel_tethers",
       "type": "toggle",
-      "label": "Remove AI wheel tethers",
+      "label": "Loose AI wheels (no tethers)",
       "description": "AI wheels become loose debris after detaching. Independent of the player setting. Off by default. Restart required.",
       "default": false,
       "binds": "native"
@@ -49,7 +63,8 @@
       "label": "Debug: performance counters",
       "description": "Measure this addon's private-hook work and log totals every 10 seconds. Original game calls and GPU/asset cost are excluded. Enable only while investigating FPS drops.",
       "default": false,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "retire_radio_voice",
@@ -73,7 +88,8 @@
       "label": "Garage crew assets in the race",
       "description": "The race also loads the garage crew scenes, so your crew can push a broken car in. Needs a game restart.",
       "default": true,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "keep_control",
@@ -185,7 +201,8 @@
       "label": "Retire in the pit box",
       "description": "With keep control: when you bring your broken car into your pit box, it retires there, as with Retire in the pause menu.",
       "default": true,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "pit_retire_clearance",
@@ -193,7 +210,8 @@
       "label": "Experimental: clear retirement pit box",
       "description": "Hides tyre-stop equipment during a race retirement approach. Preserves the shared box while your teammate is pitting. Garage push crew remains visible.",
       "default": true,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "garage_push",
@@ -201,15 +219,17 @@
       "label": "Crew pushes the car into the garage",
       "description": "With \"Retire in the pit box\": your crew pushes the broken car into the garage, then it retires. Retires in the box after 15 s if no push comes.",
       "default": true,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "garage_crew_in_race",
       "type": "toggle",
       "label": "Garage crew in the race",
-      "description": "Spawns your garage crew in the race once your broken car stands in its pit box. Load a practice session first in the same game start. Needs \"Garage crew assets in the race\" and a game restart.",
+      "description": "Loads your garage push crew directly in a race. Restart required.",
       "default": true,
-      "binds": "native"
+      "binds": "native",
+      "hidden": true
     },
     {
       "id": "crew_asset_diagnostics",

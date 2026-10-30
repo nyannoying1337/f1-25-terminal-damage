@@ -42,8 +42,12 @@ SWOFTY_SETTING(bool, engine_off_sound, true);
 SWOFTY_SETTING(bool, pause_menu_retire, true);
 SWOFTY_SETTING(bool, radio_command_probe, true);
 SWOFTY_SETTING(bool, performance_diagnostics, false);
-SWOFTY_SETTING(bool, wheel_tether_test, false);
+SWOFTY_SETTING(std::string_view, player_wheel_behavior, "stock");
+bool wheel_tether_test=false;
 SWOFTY_SETTING(bool, ai_wheel_tethers, false);
+bool tether_plane_experiment=false;
+bool tether_distance_experiment=false;
+bool tether_collision_experiment=false;
 SWOFTY_SETTING(bool, log_telemetry, false);
 SWOFTY_SETTING(bool, debug_failure_hotkey, false);
 SWOFTY_SETTING(std::string_view, debug_failure_key, "F10");
@@ -1370,7 +1374,33 @@ bool detour(const char *name, const char *sig, const uint8_t *prologue, size_t l
 uintptr_t wheel_part_vtable = 0;
 bool wheel_tether_test_active = false; // immutable after hook installation
 bool ai_wheel_tethers_active = false; // independent opt-in, immutable after installation
+bool tether_collision_active = false;
+uintptr_t wheel_joint_vtable = 0;
+std::atomic<unsigned> tether_collision_failures{0};
 void (*orig_wheel_detach)(void *, uint8_t) = nullptr;
+
+// Fresh live joint only. The stock pair rejection predicate follows body+350
+// joints and rejects endpoint pairs when +78==0 and +79!=0. Verify BOTH exact
+// endpoints so no road/barrier/other-car pair is excluded by this change.
+bool exclude_fresh_wheel_chassis_pair(uintptr_t car,uintptr_t body,uintptr_t connection)
+{
+    uintptr_t native=0,native_again=0,vt=0,wheel=0,physics=0,chassis_wrapper=0,chassis=0,a=0,b=0;
+    uint8_t wrapper[0x28],joint[0x80];
+    if (!car || !body || !connection || !wheel_joint_vtable ||
+        !guarded_copy(connection,wrapper,sizeof wrapper)) return false;
+    memcpy(&native,wrapper+0x18,8);memcpy(&native_again,wrapper+0x20,8);
+    if (!native || native_again!=native || !guarded_copy(native,joint,sizeof joint)) return false;
+    memcpy(&vt,joint,8);memcpy(&a,joint+8,8);memcpy(&b,joint+0x10,8);
+    if (vt!=wheel_joint_vtable || joint[0x30] || joint[0x78] || joint[0x79] ||
+        !guarded_read(body+0x18,wheel) || !wheel || a!=wheel ||
+        !guarded_read(car+0x558,physics) || !physics ||
+        !guarded_read(physics+0x340,chassis_wrapper) || !chassis_wrapper ||
+        !guarded_read(chassis_wrapper+0x18,chassis) || !chassis ||
+        wheel==chassis || b!=chassis) return false;
+    // Same freshly-created writable native joint the original just wrote.
+    *reinterpret_cast<volatile uint8_t *>(native+0x79)=1;
+    return true;
+}
 
 void on_wheel_detach(void *self, uint8_t notify)
 {
@@ -1380,7 +1410,7 @@ void on_wheel_detach(void *self, uint8_t notify)
     int32_t node=-1;
     int player=player_vehicle.load();
     uint8_t snapshot[0x110];
-    bool eligible=(wheel_tether_test_active || ai_wheel_tethers_active) && part && wheel_part_vtable &&
+    bool eligible=(wheel_tether_test_active || ai_wheel_tethers_active || tether_collision_active) && part && wheel_part_vtable &&
         player>=0 && player<max_vehicles && !session_ended.load() &&
         guarded_copy(part,snapshot,sizeof snapshot);
     if (eligible) {
@@ -1393,14 +1423,15 @@ void on_wheel_detach(void *self, uint8_t notify)
     }
     eligible=eligible && vt==wheel_part_vtable && car && !body && !connection && !active && node>=0 &&
         guarded_read(car+0xe8,vehicle) && vehicle<max_vehicles &&
-        (int(vehicle)==player ? (wheel_tether_test_active && car==throttle_hook.car) :
+        (int(vehicle)==player ? ((wheel_tether_test_active || tether_collision_active) && car==throttle_hook.car) :
                                (ai_wheel_tethers_active && car!=throttle_hook.car));
+    bool remove=eligible && (int(vehicle)!=player || wheel_tether_test_active);
     // This is the game's live, writable self object, validated above, not a
     // cached pointer. The original function also writes it and never frees self.
     // Avoid WriteProcessMemory's protection/bookkeeping overhead in this hot
     // replay path. Only this established field is written.
     auto *node_field=reinterpret_cast<volatile int32_t *>(part+0xe0);
-    if (eligible) *node_field=-1;
+    if (remove) *node_field=-1;
     before.finish();
     {
         td_perf::Scope original(td_perf::wheel_original);
@@ -1408,21 +1439,38 @@ void on_wheel_detach(void *self, uint8_t notify)
     }
     if (!eligible) return;
     td_perf::Scope after(int(vehicle)==player ? td_perf::wheel_player_after : td_perf::wheel_ai_after);
-    *node_field=node;
+    if (remove) *node_field=node;
     bool restored=*node_field==node;
     uintptr_t live_body=0, live_connection=0;
     uint8_t live_active=1;
     memcpy(&live_body,reinterpret_cast<const void *>(part+0x40),sizeof live_body);
     memcpy(&live_connection,reinterpret_cast<const void *>(part+0x100),sizeof live_connection);
     live_active=*reinterpret_cast<const volatile uint8_t *>(part+0x10c);
+    if (!remove) {
+        bool applied=live_active && int(vehicle)==player_vehicle.load() && car==throttle_hook.car &&
+            !session_ended.load() && exclude_fresh_wheel_chassis_pair(car,live_body,live_connection);
+        if (log_telemetry || (!applied && tether_collision_failures.fetch_add(1)<4))
+            swofty::log("[td-probe] tether collision experiment: vehicle=%u own_chassis_excluded=%d body=%d joint=%d active=%u",
+                unsigned(vehicle),int(applied),int(live_body!=0),int(live_connection!=0),unsigned(live_active));
+        return;
+    }
     if (!restored || live_connection || live_active || log_telemetry)
         swofty::log("[td-probe] wheel tethers: vehicle=%u node_restored=%d inspected=%d body=%d connection=%d active=%u",
             unsigned(vehicle),int(restored),1,int(live_body!=0),int(live_connection!=0),unsigned(live_active));
 }
 
+void configure_player_wheels(std::string_view mode)
+{
+    wheel_tether_test=mode=="loose";
+    bool reduced=mode=="reduced";
+    tether_plane_experiment=reduced;
+    tether_distance_experiment=reduced;
+    tether_collision_experiment=reduced;
+}
+
 void hook_wheel_tether_test()
 {
-    if (!wheel_tether_test && !ai_wheel_tethers) return;
+    if (!wheel_tether_test && !ai_wheel_tethers && !tether_collision_experiment) return;
     constexpr const char *sig=
         "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 38 03 00 00 C5 78 29 BC 24 20 03 00 00 C5 78 29 B4 24 10 03 00 00 C5 78 29 AC 24 00 03 00 00 C5 78 29 A4 24 F0 02 00 00 C5 78 29 9C 24 E0 02 00 00 C5 78 29 94 24 D0 02 00 00 C5 78 29 8C 24 C0 02 00 00 C5 78 29 84 24 B0 02 00 00 C5 F8 29 BC 24 A0 02 00 00 C5 F8 29 B4 24 90 02 00 00 48 83 79 40 00 74 6E";
     constexpr uint8_t prologue[]={0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x56,0x57,0x55,0x53,
@@ -1441,14 +1489,18 @@ void hook_wheel_tether_test()
     wheel_part_vtable=vt;
     wheel_tether_test_active=bool(wheel_tether_test);
     ai_wheel_tethers_active=bool(ai_wheel_tethers);
+    tether_collision_active=bool(tether_collision_experiment) && !wheel_tether_test_active;
+    wheel_joint_vtable=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr))+0x5a5a890;
     if (!detour_at("wheel tether options",at,prologue,sizeof prologue,
                    reinterpret_cast<void *>(&on_wheel_detach),reinterpret_cast<void **>(&orig_wheel_detach))) {
         wheel_tether_test_active=false;
         ai_wheel_tethers_active=false;
+        tether_collision_active=false;
         wheel_part_vtable=0;
     } else {
         swofty::log("[td-probe] wheel tethers: player=%d AI=%d; restart required to change",
                     int(wheel_tether_test_active),int(ai_wheel_tethers_active));
+        swofty::log("[td-probe] tether collision experiment: enabled=%d (player removal takes precedence)",int(tether_collision_active));
     }
 }
 
@@ -1826,6 +1878,96 @@ bool jump_to_stub(uintptr_t at, size_t len, uint8_t *stub, uint8_t *end)
     VirtualProtect(code, len, old, &old);
     FlushInstructionCache(GetCurrentProcess(), code, len);
     return true;
+}
+
+// Reference 144664348: isolate ONLY the chassis-plane projection/velocity
+// rewrite. Joint creation, radial limit, mesh and attached suspension stay stock.
+// No callback, allocation, logging or object mutation in the update hot path.
+void emit_tether_plane_stub(emitter &e, uintptr_t stock, uintptr_t skip, uintptr_t vt,
+                            uintptr_t original_skip=0, bool load_owner=false)
+{
+    e.bytes({0x0f,0x86}); auto *already_skip=e.p; e.u32(0); // original jbe
+    e.bytes({0x9c,0x50,0x52}); // preserve flags, rax, rdx
+    if (load_owner) e.bytes({0x53,0x48,0x8b,0x5e,0x10}); // preserve rbx, live owner
+    std::vector<uint8_t *> failures;
+    auto fail=[&](uint8_t condition) { e.bytes({0x0f,condition}); failures.push_back(e.p); e.u32(0); };
+    e.bytes({0x48,0xba}); e.u64(vt);
+    e.bytes({0x48,0x39,0x16}); fail(0x85); // wheel vtable
+    e.bytes({0x48,0x39,0x5e,0x10}); fail(0x85); // live owner == rbx
+    e.bytes({0x48,0xba}); e.u64(reinterpret_cast<uintptr_t>(&throttle_hook));
+    e.bytes({0x48,0x3b,0x1a}); fail(0x85); // current player car
+    e.bytes({0x48,0xba}); e.u64(reinterpret_cast<uintptr_t>(&session_ended));
+    e.bytes({0x80,0x3a,0x00}); fail(0x85);
+    e.bytes({0x48,0xba}); e.u64(reinterpret_cast<uintptr_t>(&player_vehicle));
+    e.bytes({0x8b,0x02,0x83,0xf8,0x20}); fail(0x83); // unsigned ID <32, rejects -1
+    e.bytes({0x0f,0xb6,0x93,0xe8,0x00,0x00,0x00,0x39,0xd0}); fail(0x85);
+    if (load_owner) e.bytes({0x5b});
+    e.bytes({0x5a,0x58,0x9d}); e.jmp(skip);
+    auto *stock_label=e.p;
+    if (load_owner) e.bytes({0x5b});
+    e.bytes({0x5a,0x58,0x9d}); e.jmp(stock);
+    auto *skip_label=e.p; e.jmp(original_skip ? original_skip : skip);
+    auto relative=[](uint8_t *field,uint8_t *target) {
+        int32_t displacement=int32_t(target-(field+4)); memcpy(field,&displacement,4);
+    };
+    relative(already_skip,skip_label);
+    for (auto *field:failures) relative(field,stock_label);
+}
+
+void hook_tether_distance_experiment()
+{
+    if (!tether_distance_experiment) return;
+    if (wheel_tether_test) {
+        swofty::log("[td-probe] tether distance experiment: disable Remove player wheel tethers first; experiment not installed");
+        return;
+    }
+    constexpr const char *sig=
+        "C5 F8 2E DC 0F 86 9F 01 00 00 C5 DA 5E CB C5 B0 5C D0 C5 F0 C6 C9 00 C5 E8 59 C9 C5 78 58 C9";
+    uintptr_t site=0;
+    if (swofty::api->scan(".xtls",sig,&site)!=1 || !site) {
+        swofty::log("[td-probe] tether distance experiment: signature unavailable; stock retained");return;
+    }
+    uintptr_t base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    uintptr_t vt=base+0x5bf9420,update=0;
+    const uint8_t branch[]={0x0f,0x86,0x9f,0x01,0x00,0x00};
+    uintptr_t at=site+4;
+    if (!guarded_read(vt+0x68,update) || update!=base+0x4664080 ||
+        memcmp(reinterpret_cast<void *>(at),branch,sizeof branch)) return;
+    auto *stub=alloc_near(at);if (!stub) return;
+    emitter e{stub};
+    // Original under-limit branch retains anchor/length updates at ca5.
+    // Over-limit experiment rejoins at the SAME continuation used by the
+    // stock hard clamp (ca0 -> 5387), not with its overwritten SIMD temporaries.
+    emit_tether_plane_stub(e,at+6,base+0x4665387,vt,at+6+0x19f,true);
+    bool installed=jump_to_stub(at,6,stub,e.p);
+    swofty::log("[td-probe] tether distance experiment: installed=%d player only; joint and break cutoff retained; restart required",int(installed));
+}
+
+void hook_tether_plane_experiment()
+{
+    if (!tether_plane_experiment) return;
+    if (wheel_tether_test) {
+        swofty::log("[td-probe] tether plane experiment: disable Remove player wheel tethers first; experiment not installed");
+        return;
+    }
+    constexpr const char *sig=
+        "C5 F2 59 96 F0 00 00 00 C4 41 10 57 ED C4 C1 78 2E D5 0F 86 03 01 00 00 C4 C3 31 0C D4 08";
+    uintptr_t site=0;
+    if (swofty::api->scan(".xtls",sig,&site)!=1 || !site) {
+        swofty::log("[td-probe] tether plane experiment: signature unavailable; stock retained"); return;
+    }
+    uintptr_t base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    uintptr_t vt=base+0x5bf9420, update=0;
+    // The signature spans 144664336..353; exact branch and vtable validation.
+    uintptr_t at=site+0x12;
+    const uint8_t branch[]={0x0f,0x86,0x03,0x01,0x00,0x00};
+    if (!guarded_read(vt+0x68,update) || update!=base+0x4664080 ||
+        memcmp(reinterpret_cast<void *>(at),branch,sizeof branch)) return;
+    auto *stub=alloc_near(at);
+    if (!stub) return;
+    emitter e{stub}; emit_tether_plane_stub(e,at+6,at+6+0x103,vt);
+    bool installed=jump_to_stub(at,6,stub,e.p);
+    swofty::log("[td-probe] tether plane experiment: installed=%d player only; physical tether retained; restart required",int(installed));
 }
 
 void patch_garage_assets_in_race()
@@ -2936,7 +3078,10 @@ SWOFTY_ON_LOAD
     patch_garage_assets_in_race();
     guard_crew_scene_read();
     hook_throttle();
+    configure_player_wheels(player_wheel_behavior);
     hook_wheel_tether_test();
+    hook_tether_plane_experiment();
+    hook_tether_distance_experiment();
     hook_engine_audio();
     hook_retire_local_player();
     register_radio_menu_probe();
@@ -2975,7 +3120,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.8, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.12, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

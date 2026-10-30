@@ -1,3 +1,17 @@
+# Terminal Damage 0.51.12 beta
+
+- Replace the separate player tether switches with **Player wheel behavior**: Stock, Reduced jolting (experimental), or Loose wheels.
+- Reduced jolting keeps the tethers and reduces the violent bouncing seen with detached wheels. Wheels can still move oddly and pass through the chassis or cockpit.
+- Loose wheels removes player tethers. **Loose AI wheels** remains a separate option. Stock and AI removal off are the defaults; restart after changing either.
+- Simplify the launcher settings by hiding garage implementation and debug controls. Their existing defaults remain unchanged.
+- Reduce repeated checks during detached-wheel creation and remove routine collision-experiment logging.
+
+**Upgrading:** choose your preferred Player wheel behavior again. Earlier player tether switches are replaced by the dropdown; the new default is Stock.
+
+Known issues: reduced jolting is still experimental and is not a complete realistic tether simulation. Mid-push flashbacks and red-flag camera behavior remain limited. Qualifying ICE replacement / Skip repairs and practice replacement timing remain **NOT TESTED, MIGHT BE BROKEN**.
+
+---
+
 # Terminal Damage 0.51.8 beta
 
 ## Added
