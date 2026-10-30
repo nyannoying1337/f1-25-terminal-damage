@@ -43,6 +43,7 @@ SWOFTY_SETTING(bool, pause_menu_retire, true);
 SWOFTY_SETTING(bool, radio_command_probe, true);
 SWOFTY_SETTING(bool, performance_diagnostics, false);
 SWOFTY_SETTING(bool, wheel_tether_test, false);
+SWOFTY_SETTING(bool, ai_wheel_tethers, false);
 SWOFTY_SETTING(bool, log_telemetry, false);
 SWOFTY_SETTING(bool, debug_failure_hotkey, false);
 SWOFTY_SETTING(std::string_view, debug_failure_key, "F10");
@@ -1364,49 +1365,64 @@ bool detour(const char *name, const char *sig, const uint8_t *prologue, size_t l
 }
 
 // Optional workaround: use the stock missing-tether-node path ONLY during
-// creation of a fresh detached player wheel. Never destroy a body/constraint
+// creation of a fresh detached wheel in the selected player/AI scope. Never destroy a body/constraint
 // or alter an already connected wheel. The node is restored before returning.
 uintptr_t wheel_part_vtable = 0;
 bool wheel_tether_test_active = false; // immutable after hook installation
+bool ai_wheel_tethers_active = false; // independent opt-in, immutable after installation
 void (*orig_wheel_detach)(void *, uint8_t) = nullptr;
-
-bool write_wheel_node(uintptr_t at, int32_t value)
-{
-    SIZE_T written=0;
-    return WriteProcessMemory(GetCurrentProcess(),reinterpret_cast<void *>(at),&value,sizeof value,&written) &&
-           written==sizeof value;
-}
 
 void on_wheel_detach(void *self, uint8_t notify)
 {
+    td_perf::Scope before(td_perf::wheel_before);
     uintptr_t part=reinterpret_cast<uintptr_t>(self), vt=0, car=0, body=0, connection=0;
     uint8_t vehicle=255, active=1;
     int32_t node=-1;
-    bool eligible=wheel_tether_test_active && part && wheel_part_vtable &&
-        guarded_read(part,vt) && vt==wheel_part_vtable &&
-        guarded_read(part+0x10,car) && car && car==throttle_hook.car &&
-        guarded_read(car+0xe8,vehicle) && int(vehicle)==player_vehicle.load() &&
-        player_vehicle.load()>=0 && !session_ended.load() &&
-        guarded_read(part+0x40,body) && !body &&
-        guarded_read(part+0x100,connection) && !connection &&
-        guarded_read(part+0x10c,active) && !active &&
-        guarded_read(part+0xe0,node) && node>=0;
-    bool bypass=eligible && write_wheel_node(part+0xe0,-1);
-    orig_wheel_detach(self,notify);
-    if (!bypass) return;
-    bool restored=write_wheel_node(part+0xe0,node);
+    int player=player_vehicle.load();
+    uint8_t snapshot[0x110];
+    bool eligible=(wheel_tether_test_active || ai_wheel_tethers_active) && part && wheel_part_vtable &&
+        player>=0 && player<max_vehicles && !session_ended.load() &&
+        guarded_copy(part,snapshot,sizeof snapshot);
+    if (eligible) {
+        memcpy(&vt,snapshot,sizeof vt);
+        memcpy(&car,snapshot+0x10,sizeof car);
+        memcpy(&body,snapshot+0x40,sizeof body);
+        memcpy(&node,snapshot+0xe0,sizeof node);
+        memcpy(&connection,snapshot+0x100,sizeof connection);
+        active=snapshot[0x10c];
+    }
+    eligible=eligible && vt==wheel_part_vtable && car && !body && !connection && !active && node>=0 &&
+        guarded_read(car+0xe8,vehicle) && vehicle<max_vehicles &&
+        (int(vehicle)==player ? (wheel_tether_test_active && car==throttle_hook.car) :
+                               (ai_wheel_tethers_active && car!=throttle_hook.car));
+    // This is the game's live, writable self object, validated above, not a
+    // cached pointer. The original function also writes it and never frees self.
+    // Avoid WriteProcessMemory's protection/bookkeeping overhead in this hot
+    // replay path. Only this established field is written.
+    auto *node_field=reinterpret_cast<volatile int32_t *>(part+0xe0);
+    if (eligible) *node_field=-1;
+    before.finish();
+    {
+        td_perf::Scope original(td_perf::wheel_original);
+        orig_wheel_detach(self,notify);
+    }
+    if (!eligible) return;
+    td_perf::Scope after(int(vehicle)==player ? td_perf::wheel_player_after : td_perf::wheel_ai_after);
+    *node_field=node;
+    bool restored=*node_field==node;
     uintptr_t live_body=0, live_connection=0;
     uint8_t live_active=1;
-    bool inspected=guarded_read(part+0x40,live_body) && guarded_read(part+0x100,live_connection) &&
-                   guarded_read(part+0x10c,live_active);
-    if (!restored || !inspected || live_connection || live_active || log_telemetry)
+    memcpy(&live_body,reinterpret_cast<const void *>(part+0x40),sizeof live_body);
+    memcpy(&live_connection,reinterpret_cast<const void *>(part+0x100),sizeof live_connection);
+    live_active=*reinterpret_cast<const volatile uint8_t *>(part+0x10c);
+    if (!restored || live_connection || live_active || log_telemetry)
         swofty::log("[td-probe] wheel tethers: vehicle=%u node_restored=%d inspected=%d body=%d connection=%d active=%u",
-            unsigned(vehicle),int(restored),int(inspected),int(live_body!=0),int(live_connection!=0),unsigned(live_active));
+            unsigned(vehicle),int(restored),1,int(live_body!=0),int(live_connection!=0),unsigned(live_active));
 }
 
 void hook_wheel_tether_test()
 {
-    if (!wheel_tether_test) return;
+    if (!wheel_tether_test && !ai_wheel_tethers) return;
     constexpr const char *sig=
         "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 38 03 00 00 C5 78 29 BC 24 20 03 00 00 C5 78 29 B4 24 10 03 00 00 C5 78 29 AC 24 00 03 00 00 C5 78 29 A4 24 F0 02 00 00 C5 78 29 9C 24 E0 02 00 00 C5 78 29 94 24 D0 02 00 00 C5 78 29 8C 24 C0 02 00 00 C5 78 29 84 24 B0 02 00 00 C5 F8 29 BC 24 A0 02 00 00 C5 F8 29 B4 24 90 02 00 00 48 83 79 40 00 74 6E";
     constexpr uint8_t prologue[]={0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x56,0x57,0x55,0x53,
@@ -1423,11 +1439,16 @@ void hook_wheel_tether_test()
         return;
     }
     wheel_part_vtable=vt;
-    wheel_tether_test_active=true;
-    if (!detour_at("player wheel tether test",at,prologue,sizeof prologue,
+    wheel_tether_test_active=bool(wheel_tether_test);
+    ai_wheel_tethers_active=bool(ai_wheel_tethers);
+    if (!detour_at("wheel tether options",at,prologue,sizeof prologue,
                    reinterpret_cast<void *>(&on_wheel_detach),reinterpret_cast<void **>(&orig_wheel_detach))) {
         wheel_tether_test_active=false;
+        ai_wheel_tethers_active=false;
         wheel_part_vtable=0;
+    } else {
+        swofty::log("[td-probe] wheel tethers: player=%d AI=%d; restart required to change",
+                    int(wheel_tether_test_active),int(ai_wheel_tethers_active));
     }
 }
 

@@ -9,10 +9,16 @@ namespace {
 unsigned calls;
 int32_t expected_node;
 bool create_body;
+bool check_timing;
 void discard_log(const char *, ...) {}
 void detach(void *self,uint8_t notify)
 {
     ++calls;
+    if (check_timing) {
+        assert(td_perf::counters[td_perf::wheel_before].samples==1);
+        assert(td_perf::counters[td_perf::wheel_original].samples==0);
+        assert(td_perf::counters[td_perf::wheel_ai_after].samples==0);
+    }
     assert(notify==7);
     int32_t node=0;
     assert(guarded_read(reinterpret_cast<uintptr_t>(self)+0xe0,node));
@@ -30,6 +36,7 @@ int main()
     SwoftyApi api{};api.log=discard_log;swofty::api=&api;
     // Default-off must return before scanning or installing any wheel hook.
     assert(!bool(wheel_tether_test));
+    assert(!bool(ai_wheel_tethers));
     hook_wheel_tether_test();
     assert(!orig_wheel_detach && !wheel_tether_test_active);
     orig_wheel_detach=detach;
@@ -69,5 +76,49 @@ int main()
     on_wheel_detach(part.data(),7);
     assert(calls==10);
     assert(guarded_read(reinterpret_cast<uintptr_t>(part.data())+0xe0,node)&&node==12);
-    puts("PASS: fresh player wheel uses missing-node path; body retained, node restored, AI/live joints untouched");
+    // All four toggle combinations must select player and AI independently.
+    std::vector<uint8_t> ai_car(0x200);
+    uintptr_t acp=reinterpret_cast<uintptr_t>(ai_car.data());
+    put(ai_car,0xe8,uint8_t(4));
+    for (bool players : {false,true}) for (bool ai : {false,true}) {
+        wheel_tether_test_active=players;ai_wheel_tethers_active=ai;
+        for (bool mine : {false,true}) {
+            put(part,0x10,mine?cp:acp);put(part,0x40,uintptr_t(0));
+            expected_node=(mine?players:ai)?-1:12;
+            on_wheel_detach(part.data(),7);
+            assert(guarded_read(reinterpret_cast<uintptr_t>(part.data())+0xe0,node)&&node==12);
+        }
+    }
+    // Unknown player identity or contradictory pointer/ID cannot opt the player
+    // into the AI switch. Invalid vehicle IDs must also retain stock behavior.
+    wheel_tether_test_active=false;ai_wheel_tethers_active=true;expected_node=12;
+    put(part,0x40,uintptr_t(0));put(part,0x10,cp);
+    on_wheel_detach(part.data(),7);
+    put(part,0x40,uintptr_t(0));put(car,0xe8,uint8_t(4));on_wheel_detach(part.data(),7);
+    put(car,0xe8,uint8_t(3));player_vehicle=-1;put(part,0x10,acp);
+    put(part,0x40,uintptr_t(0));on_wheel_detach(part.data(),7);
+    // Replay diagnostics measure original separately and classify only the
+    // selected wheel's post-work; other private-hook timing stays disabled.
+    for (auto &c:td_perf::counters) {c.samples=0;c.ticks=0;c.worst=0;}
+    td_perf::enabled=false;td_perf::wheel_capture=true;
+    player_vehicle=3;
+    put(ai_car,0xe8,uint8_t(4));put(part,0x40,uintptr_t(0));
+    expected_node=-1;check_timing=true;on_wheel_detach(part.data(),7);check_timing=false;
+    assert(td_perf::counters[td_perf::wheel_original].samples==1);
+    assert(td_perf::counters[td_perf::wheel_ai_after].samples==1);
+    assert(td_perf::counters[td_perf::wheel_player_after].samples==0);
+    assert(td_perf::counters[td_perf::vehicle_before].samples==0);
+    td_perf::wheel_capture=false;
+    expected_node=12;player_vehicle=3;put(ai_car,0xe8,uint8_t(255));
+    put(part,0x40,uintptr_t(0));on_wheel_detach(part.data(),7);
+    put(part,0x40,uintptr_t(0));put(part,0x10,uintptr_t(1));
+    on_wheel_detach(part.data(),7); // unreadable owner: original path only
+    put(ai_car,0xe8,uint8_t(4));put(part,0x10,acp);
+    put(part,0x40,uintptr_t(0));create_body=false;expected_node=-1;
+    before=part;
+    for (unsigned i=0;i<1000;++i) on_wheel_detach(part.data(),7);
+    assert(part==before); // repeated replay calls never leak the missing node
+    assert(td_perf::counters[td_perf::wheel_original].samples==1); // capture disabled
+    puts("PASS: independent player/AI toggles, both defaults off, unknown identity fails closed");
+    puts("PASS: fresh player wheel uses missing-node path; body retained, node restored, unselected cars/live joints untouched");
 }

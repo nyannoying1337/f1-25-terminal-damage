@@ -8,27 +8,15 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
 
-## 0.51.3 beta
+## 0.51.8 beta
 
-Optional **Remove player wheel tethers**, **off by default**. Enable it if loose
-wheels pull or shake your car. Player wheels become loose debris; suspension
-damage and AI wheel tethers stay unchanged. Restart after changing the setting.
+Optional player and AI wheel-tether removal, independently selectable and both
+**off by default**. Restart after changing either setting. Replay/flashback
+overhead with these options is reduced.
 
-## 0.51.1 beta
-
-Fixes the AI driving away after a voluntary retirement when you park on track.
-Power stays available until retirement completes; the car can still roll on a slope.
-
-## 0.51.0 beta
-
-Race retirement clears tyre-stop equipment while preserving the garage push crew
-and teammate stops. Load directly into a race; practice is no longer required.
-Restart and flashback cleanup also covers old crew work, power/audio locks and
-the HUD hide reason left by an interrupted push.
-
-Known limitations include stopped retirement in the pit lane, rewinding into the
-middle of a push, red-flag camera/control behavior, and untested qualifying ICE
-replacement / Skip repairs and practice repair timing.
+Spectator addons can subscribe to player-state changes through the documented API;
+Terminal Damage does not switch cameras itself. Existing gameplay limitations
+are listed in the addon README and changelog.
 
 Read the [changelog](CHANGELOG.md) for changes and limitations.
 
@@ -48,9 +36,16 @@ mod/native/build.sh       # Linux (cross-compiles the Windows DLL)
 
 The DLL lands in `mod/native/`. Zip the contents of the `mod` folder (swofty.json at the zip root) to import it in the Swofty Launcher.
 
-## License
+## License and attribution
 
-Terminal Damage Attribution License1.0, see [LICENSE](LICENSE). Published projects
-using substantial portions must visibly credit **nyannoying - Terminal Damage**
-and link to this repository. Earlier MIT releases keep their MIT terms.
-The headers in `mod/native/include` retain the Swofty SDK's own licenses.
+**[Terminal Damage Attribution License 1.0](LICENSE)** ? a custom license.
+Published mods/projects using substantial portions must visibly show:
+
+> Uses work from Terminal Damage by nyannoying
+
+Include the [project link](https://github.com/nyannoying1337/f1-25-terminal-damage)
+and preserve the copyright/license notices in redistributed copies. See LICENSE
+for the complete terms. Earlier MIT releases retain their MIT terms.
+
+The Swofty SDK files (`mod/native/include/swofty*`) retain their own licenses;
+Terminal Damage's `terminal_damage_api.h` uses the project license.

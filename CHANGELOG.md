@@ -2,7 +2,30 @@
 
 ## Added
 
-- Player-state interface for spectator addons to observe confirmed retirement, garage return and recovery. Terminal Damage does not switch cameras itself.
+- Separate **Remove AI wheel tethers** option alongside **Remove player wheel tethers**. Both are **off by default** and require a game restart.
+- Detached wheels become loose debris in the selected scope. Suspension damage and wheel collisions stay unchanged.
+- Player-state interface for spectator addons to react to confirmed retirement and recovery. Terminal Damage does not switch cameras itself.
+
+## Improved
+
+- Reduce replay/flashback overhead when wheel-tether removal is enabled.
+- Remove temporary automatic wheel diagnostics.
+- Clarify the license and visible-credit requirements in the documentation.
+
+## Known limitations
+
+- Stopped retirement requires OnTrack; a car stranded in the pit lane or box exit does not trigger the 10-second timer.
+- Rewinding into the middle of a garage push/box animation is not fully covered.
+- Red flags during terminal damage can still cause AI/spectator camera issues.
+- **Qualifying ICE replacement / Skip repairs and practice replacement timing: NOT TESTED, MIGHT BE BROKEN.**
+- Hiding pit equipment does not guarantee collision removal. Intended for offline play; some cars and modes need more testing.
+
+## Code reuse
+
+Terminal Damage Attribution License 1.0 requires visible credit and a project link
+when publishing a mod/project that uses substantial portions of this work. See
+LICENSE. Earlier MIT releases keep their MIT terms; third-party SDK licenses stay
+unchanged.
 
 ---
 
@@ -62,7 +85,7 @@
 
 ## Code reuse
 
-This release uses the Terminal Damage Attribution License1.0. Published mods or
+This release uses the Terminal Damage Attribution License 1.0. Published mods or
 projects using substantial portions must visibly credit nyannoying and link to
 Terminal Damage. Earlier MIT releases keep their MIT terms. See LICENSE.
 

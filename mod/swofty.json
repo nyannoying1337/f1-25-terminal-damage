@@ -36,6 +36,14 @@
       "binds": "native"
     },
     {
+      "id": "ai_wheel_tethers",
+      "type": "toggle",
+      "label": "Remove AI wheel tethers",
+      "description": "AI wheels become loose debris after detaching. Independent of the player setting. Off by default. Restart required.",
+      "default": false,
+      "binds": "native"
+    },
+    {
       "id": "performance_diagnostics",
       "type": "toggle",
       "label": "Debug: performance counters",

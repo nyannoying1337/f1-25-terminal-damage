@@ -5,34 +5,18 @@ the car and deal with the failure like a real driver: limp on, pull over, or bri
 
 ## 0.51.8 beta
 
-Adds a player-state interface for spectator addons. Integrations can react to
-confirmed retirement and recovery without changing Terminal Damage's driving
-behavior. This addon does not switch cameras by itself.
+Separate **Remove player wheel tethers** and **Remove AI wheel tethers** options,
+**both off by default**. Detached wheels become loose debris in the selected
+scope. Suspension damage and wheel collisions stay unchanged. Restart the game
+after changing either setting.
 
-## 0.51.3 beta
+Replay/flashback overhead with wheel-tether removal enabled is reduced. Automatic
+temporary wheel diagnostics are removed; Debug: performance counters remains
+available when needed.
 
-Optional **Remove player wheel tethers** setting, **off by default**. Enable it
-if detached wheels pull or shake your car. Broken player wheels become loose
-debris instead of hanging from a tether; suspension damage stays unchanged.
-Restart the game after changing this setting. AI wheel tethers are unchanged.
-
-## 0.51.1 beta
-
-Fixes the AI driving away after you voluntarily retire and park on track.
-Your car keeps power while approaching your stopping place; drive is disabled
-once retirement completes. The car can still roll on a slope.
-
-Race retirement now clears tyre-stop equipment and seated tyre crew from your
-box while preserving the garage push crew and your teammate's use of the shared
-box. Garage assignments are learned directly in the race; loading practice first
-is no longer required.
-
-Restarting during a retirement push removes the additional garage crew, cancels
-old retirement work and releases the push's HUD hide reason. Flashbacks distinguish
-an earlier Retire request from later damage and discard obsolete crew/audio work.
-A normal tyre stop is available after restarting.
-
-Known limitations are listed below. This remains an offline beta.
+Includes a versioned player-state API for spectator addons, with confirmed
+retirement and recovery notifications. Terminal Damage does not change cameras
+itself. Integration details are in docs/player-state-api.md in the source tree.
 
 ## What it does
 
@@ -133,8 +117,10 @@ overwrites it). Say what you did and roughly when.
 
 ## License and reuse
 
-Terminal Damage Attribution License1.0, see LICENSE. Published mods/projects using
-substantial portions of this release must visibly credit nyannoying and link to
-https://github.com/nyannoying1337/f1-25-terminal-damage in their description, README,
-documentation or credits, with readable attribution accompanying distributions.
-Earlier MIT releases keep their MIT terms. Third-party SDK licenses are unchanged.
+**Terminal Damage Attribution License 1.0**, see LICENSE. Published mods/projects
+using substantial portions must visibly show **Uses work from Terminal Damage by
+nyannoying** and link to https://github.com/nyannoying1337/f1-25-terminal-damage.
+Redistributed copies must retain the copyright and license notices. See LICENSE
+for the complete terms. Earlier MIT releases retain their MIT terms.
+Third-party SDK files retain their own licenses; terminal_damage_api.h uses the
+Terminal Damage project license.
