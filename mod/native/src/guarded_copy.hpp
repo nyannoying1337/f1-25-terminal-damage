@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-Terminal-Damage-Attribution-1.0
 #pragma once
 
 // Copy current game memory without VirtualQuery's potentially expensive heap

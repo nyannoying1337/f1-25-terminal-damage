@@ -33,7 +33,7 @@ if ((Split-Path $stage) -ne $tempRoot -or (Split-Path $stage -Leaf) -ne 'termina
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $stage
 # Only what the manifest names plus the README; the source lives on GitHub.
 New-Item -ItemType Directory -Force "$stage\native" | Out-Null
-Copy-Item "$PSScriptRoot\mod\swofty.json", "$PSScriptRoot\mod\README.md", "$PSScriptRoot\mod\icon.png" $stage
+Copy-Item "$PSScriptRoot\mod\swofty.json", "$PSScriptRoot\mod\README.md", "$PSScriptRoot\mod\icon.png", "$PSScriptRoot\mod\LICENSE" $stage
 Copy-Item "$PSScriptRoot\mod\native\terminal_damage_probe.dll" "$stage\native"
 New-Item -ItemType Directory -Force "$stage\assets\radio" | Out-Null
 Copy-Item "$PSScriptRoot\mod\assets\radio\speech_recognition.xml" "$stage\assets\radio"

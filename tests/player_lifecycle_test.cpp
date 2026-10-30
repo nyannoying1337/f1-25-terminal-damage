@@ -65,6 +65,7 @@ int main()
     // End/start must discard requests and cap overrides, preserving the garage
     // mapping learned in practice. Ended-session callbacks cannot execute work.
     garage_of[3] = 7;
+    pit_slot_of[3] = 5;
     trigger_failure();
     garage_return_wanted = true;
     test_cap = 0;
@@ -77,7 +78,7 @@ int main()
     assert(session_ended && !pending_failure && !garage_return_wanted);
     assert(test_cap == -1 && throttle_hook.car == 0 && throttle_hook.cap == 1);
     assert(!pit_lane_system && !controller_system && retire_in == -1);
-    assert(garage_of[3] == 7);
+    assert(garage_of[3] == 7 && pit_slot_of[3] == -1);
     udp_player = 3;
     udp_speed[3] = 0;
     udp_last_ms = GetTickCount64();
@@ -116,6 +117,8 @@ int main()
     assert(on_set_controller(nullptr, 3, 1, 3) == 77);
     assert(engine_off_vehicle == 3);
     assert(on_set_controller(nullptr, 3, 1, 10) == 77);
+    assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3);
+    reset_for_session_restart(nullptr);
     assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1);
     retired_engine_off_vehicle = 3;
     engine_off_vehicle = 3;

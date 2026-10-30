@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LicenseRef-Terminal-Damage-Attribution-1.0
 //
 // Terminal Damage: preserve player control after failure, apply power loss,
 // and retire through a roadside stop or the player's garage crew.
@@ -26,6 +26,8 @@
 #include <winsock2.h>
 #include <windows.h>
 #include "performance_probe.hpp"
+#include "guarded_copy.hpp"
+#include "garage_assignment.hpp"
 
 // The SDK header casts GetProcAddress to the table getter.
 #pragma clang diagnostic push
@@ -46,6 +48,7 @@ SWOFTY_SETTING(std::string_view, debug_failure_part, "0");
 SWOFTY_SETTING(std::string_view, damaged_power, "0.3");
 SWOFTY_SETTING(bool, retire_in_pit_box, true);
 SWOFTY_SETTING(bool, garage_push, true);
+SWOFTY_SETTING(bool, pit_retire_clearance, true);
 SWOFTY_SETTING(bool, garage_crew_in_race, true);
 SWOFTY_SETTING(bool, retire_hotkey, true);
 SWOFTY_SETTING(std::string_view, retire_key, "F11");
@@ -53,6 +56,9 @@ SWOFTY_SETTING(bool, crew_asset_diagnostics, false);
 SWOFTY_SETTING(std::string_view, udp_port_choice, "20777");
 SWOFTY_SETTING(bool, garage_assets_in_race, true);
 std::atomic<bool> crew_diagnostics_active{false}; // cached for the frequently called crew callbacks
+
+void report_pit_clearance();
+bool release_retirement_box_entry();
 
 namespace {
 
@@ -86,6 +92,7 @@ uint64_t (*orig_update_vehicle)(void *, uint8_t);
 // Packed request: expiry in milliseconds << 16 | vehicle << 8 | (part + 1).
 std::atomic<uint64_t> pending_failure{0};
 std::atomic<bool> session_ended{false};
+std::atomic<bool> restart_cleanup_available{true};
 std::atomic<uint64_t> telemetry_not_before{0};
 std::atomic<bool> garage_return_wanted{false};
 std::atomic<float> test_cap{-1.0f};
@@ -137,6 +144,7 @@ throttle_hook_data throttle_hook{0, 1.0f};
 // Vehicle whose engine sound plays as switched off (failed ICE), or -1. Read by the engine audio stub.
 alignas(4) volatile int32_t engine_off_vehicle = -1;
 alignas(4) volatile int32_t replay_terminal_vehicle = -1;
+std::atomic<int> pit_clearance_hold_vehicle{-1}; // keep tyre crew hidden after the completed garage push
 std::atomic<bool> engine_off_standing{false}; // broken car pulled over and standing still for 6 s
 std::atomic<int> retired_engine_off_vehicle{-1}; // keep retirement audio off through the DNF camera
 double still_for;
@@ -271,6 +279,8 @@ bool human[max_vehicles];
 double focus_left;
 // The vehicle the game last handed to a human: the player in an offline session.
 std::atomic<int> player_vehicle{-1};
+// Encoded pit state + 1; zero means not observed this session.
+std::atomic<unsigned> observed_pit_state[max_vehicles]{};
 
 uint64_t (*orig_set_controller)(void *, uint64_t, uint32_t, int32_t);
 uint64_t (*orig_pit_state_changed)(void *, void *);
@@ -289,9 +299,10 @@ bool is_player(uint64_t vehicle)
 }
 
 std::atomic<void *> controller_system{nullptr};
-void reset_car_state(bool preserve_retirement_audio = false);
+void reset_car_state(bool preserve_retirement_audio = false, bool preserve_request_timeline = false, bool preserve_damage_timeline = false);
 // Set on SESSION_NOT_STARTED: until then power_loss checks whether the game reset the part wear (restart).
-std::atomic<uint64_t> restart_check_until{0};
+std::atomic<uint64_t> restart_check_until{0}; // retained for compatibility; flags never arm it
+std::atomic<uint32_t> player_controller_flags{0};
 
 uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t reason)
 {
@@ -309,24 +320,16 @@ uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t 
                         player_index(), human[id], ai ? "AI" : "HUMAN", reason, label(reasons, reason));
         }
     }
-    // A restart does not start a new Swofty session (review on 0.32.4: no throttle after restarting a race the
-    // car broke in). Session end takes the cars out of the session (NOT_IN_SESSION): clear the broken-car state.
-    // A restart sets SESSION_NOT_STARTED (0.32.5/0.32.6 tests) and resets the part wear; power_loss clears the
-    // state only once the wear is really reset, so a red flag or a reformed grid keeps the car broken.
+    // Controller flags are not restart evidence. The actual garage restart
+    // callback resets lifecycle state before stock crews can move grid cars.
     bool mine = id < max_vehicles && int(id) == player_vehicle.load();
-    if (mine && reason == 10 && retired_engine_off_vehicle.load() == int(id)) {
-        retired_engine_off_vehicle = -1;
-        engine_off_vehicle = -1;
-        swofty::log("[td-probe] engine: new session/restart preparation, releasing retirement audio shutdown");
+    if (mine && reason>=0 && reason<32) {
+        if (ai) player_controller_flags.fetch_or(1u<<reason);
+        else player_controller_flags.fetch_and(~(1u<<reason));
     }
-    if (mine && (player_broken || car_dead || terminal_mask.load())) {
-        if (reason == 3) {
-            swofty::log("[td-probe] session end (NOT_IN_SESSION): clearing the broken-car state");
-            reset_car_state(true);
-        } else if (reason == 10 && !restart_check_until.load()) {
-            swofty::log("[td-probe] SESSION_NOT_STARTED: checking whether the game reset your car (restart)");
-            restart_check_until = GetTickCount64() + 3000;
-        }
+    if (mine && reason == 3 && ai && (player_broken || car_dead || terminal_mask.load())) {
+        swofty::log("[td-probe] session end (NOT_IN_SESSION set): clearing gameplay, retaining DNF audio");
+        reset_car_state(true);
     }
     if (reason == reason_terminal_damage && ai && is_player(id)) {
         focus_left = 60.0;
@@ -352,6 +355,9 @@ uint64_t on_pit_state_changed(void *ai, void *msg)
     uint8_t id = 0xff;
     uint32_t state = 0xffffffff;
     auto base = reinterpret_cast<uintptr_t>(msg);
+    if (swofty::mem::read(base + 0x10, id) && id < max_vehicles &&
+        swofty::mem::read(base + 0x18, state) && state < 16)
+        observed_pit_state[id] = state + 1;
     if (swofty::mem::read(base + 0x10, id) && swofty::mem::read(base + 0x18, state) && is_player(id)) {
         swofty::log("[td-probe] pit state vehicle=%u -> %u %s", id, state, label(pit_states, state));
         player_pit = int(state);
@@ -362,7 +368,7 @@ uint64_t on_pit_state_changed(void *ai, void *msg)
             garage_part_failed = false;
         }
         bool broken = keep_control && retire_in_pit_box && player_broken && retire_in.load() > -2.0;
-        bool push = broken && garage_push && crew_event_vtable;
+        bool push = broken && garage_push && crew_event_vtable && restart_cleanup_available;
         // Any crew send-off (also the instant one) makes the pit lane put the car into its box, so the
         // race crew is spawned only once your broken car stands in the box. on_frame then walks it
         // through SendCarToTrack_Inst, PrepareToPushIntoGarage and PushIntoGarage.
@@ -501,18 +507,10 @@ std::atomic<bool> pit_stop_refused{false};
 uint64_t on_pit_stop_job(void *logic, const uint8_t *vehicle)
 {
     if (vehicle && int(*vehicle) == player_vehicle.load() && keep_control && retire_in_pit_box && garage_push &&
-        player_broken && retire_in.load() > -2.0) {
+        player_broken && retire_in.load() > -2.0 && restart_cleanup_available) {
         if (!pit_stop_refused.exchange(true)) {
             swofty::log("[td-probe] garage: no tyre stop for your broken car, the pit crew stays in the garage");
-            // Without the job nobody tells the car its crew is ready, and it waits in front of the box.
-            uintptr_t mm = 0, pitting = 0;
-            if (uintptr_t sys = pit_lane_system.load(); sys && swofty::mem::read(sys + 0x48, mm) && mm &&
-                swofty::mem::read(mm + 0x938 + uintptr_t(*vehicle) * 16, pitting) && pitting) {
-                *reinterpret_cast<volatile uint8_t *>(pitting + 0x104) = 1;
-                swofty::log("[td-probe] garage: told the pit lane your crew is ready, so the car pulls into its box");
-            } else {
-                swofty::log("[td-probe] garage: pit lane system not known yet, the car may wait in front of the box");
-            }
+            release_retirement_box_entry();
         }
         return 0;
     }
@@ -532,12 +530,56 @@ constexpr const char *sig_garage_crew_spawn =
 extern std::atomic<int> garage_of[0x20];
 extern spawn_crew_fn orig_spawn_crew;
 void on_spawn_crew(void *module, uint32_t slot);
+bool detour(const char *name, const char *sig, const uint8_t *prologue, size_t len, void *handler, void **orig);
 bool detour_at(const char *name, uintptr_t at, const uint8_t *prologue, size_t len, void *handler, void **orig);
 extern const uint8_t spawn_crew_prologue[19];
 void **crew_module;
 std::atomic<bool> crew_spawn_wanted{false};
 using destroy_crew_fn = void (*)(void *);
 destroy_crew_fn destroy_crew;
+uintptr_t owned_crew_module=0, owned_crew_instance=0;
+int owned_crew_vehicle=-1;
+void (*orig_damage_session_restart)(void *);
+void *(*hud_visibility_manager)();
+void (*update_hud_visibility)(void *);
+
+// Garage report3 adds reason2; report4 normally clears it. A restart during
+// our push skips report4. Only release that bit for the offline primary HUD.
+void release_push_hud_hide(bool owned_push)
+{
+    if (!owned_push || !hud_visibility_manager || !update_hud_visibility) return;
+    void *manager=hud_visibility_manager();
+    uint32_t before=0;
+    if (!manager || !guarded_read(reinterpret_cast<uintptr_t>(manager),before)) return;
+    if (!(before & 4)) {
+        swofty::log("[td-probe] restart HUD: own push ended, hide mask=0x%x; no push reason to clear",before);
+        return;
+    }
+    InterlockedAnd(reinterpret_cast<volatile LONG *>(manager),~LONG(4));
+    update_hud_visibility(manager);
+    uint32_t after=0;guarded_read(reinterpret_cast<uintptr_t>(manager),after);
+    swofty::log("[td-probe] restart HUD: released garage push reason2, primary hide mask 0x%x -> 0x%x; other reasons retained",before,after);
+}
+void find_hud_restart_cleanup()
+{
+    uintptr_t getter=0,update=0;
+    const char *getter_site_sig="48 8B 8E 78 02 00 00 0F B6 57 10 E8 ?? ?? ?? ?? 48 89 C3 E8 ?? ?? ?? ?? 48 85 DB";
+    const char *update_sig="56 57 53 48 83 EC 30 48 89 CE 83 39 00 0F 94 44 24 2F 48 8B 79 68 48 85 FF";
+    uintptr_t site=0;
+    if (swofty::api->scan(".xtls",getter_site_sig,&site)!=1 || !site ||
+        swofty::api->scan(".xtls",update_sig,&update)!=1 || !update) {
+        swofty::log("[td-probe] restart HUD: visibility API signatures unavailable; no override");return;
+    }
+    int32_t rel=0;memcpy(&rel,reinterpret_cast<void *>(site+20),4);
+    getter=site+24+int64_t(rel);
+    constexpr uint8_t prefix[]={0x48,0x83,0xec,0x28,0x8b,0x05};
+    if (memcmp(reinterpret_cast<void *>(getter),prefix,sizeof prefix)) return;
+    hud_visibility_manager=reinterpret_cast<void *(*)()>(getter);
+    update_hud_visibility=reinterpret_cast<void (*)(void *)>(update);
+    swofty::log("[td-probe] restart HUD: resolved visibility manager=%p update=%p",reinterpret_cast<void *>(getter),reinterpret_cast<void *>(update));
+}
+
+
 
 
 void find_garage_crew_spawn()
@@ -578,6 +620,7 @@ void find_garage_crew_spawn()
 // Garage slot of each vehicle, learned whenever the game spawns crews (training):
 // SpawnGarageCrew(slot) creates the instances module+0x68+v*8 of that garage's cars.
 std::atomic<int> garage_of[0x20];
+std::atomic<int> pit_slot_of[0x20];
 constexpr uint8_t spawn_crew_prologue[19] = {0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x56, 0x57,
                                            0x55, 0x53, 0x48, 0x81, 0xEC, 0xF8, 0x03, 0x00, 0x00};
 spawn_crew_fn orig_spawn_crew;
@@ -610,14 +653,14 @@ bool spawn_player_crew()
         swofty::log("[td-probe] garage: your crew already exists (%p), no spawn", reinterpret_cast<void *>(instance));
         return true;
     }
-    // Spawn slots are the 10 garages, not vehicles; the map comes from training.
-    int learned = garage_of[vehicle].load();
-    if (learned < 0) {
-        swofty::log("[td-probe] garage: garage slot of vehicle %d unknown (load a practice session first), no spawn",
-                    vehicle);
+    // Resolve CURRENT garage spawn assignment, not the pitstop visibility slot
+    // or a vehicle-ID cache learned in a previous session.
+    auto assignment = current_garage_assignment(reinterpret_cast<uintptr_t>(module), vehicle, guarded_copy);
+    if (assignment.slot < 0) {
+        swofty::log("[td-probe] garage: no validated current spawn assignment for vehicle %d; no spawn", vehicle);
         return false;
     }
-    uint32_t slot = uint32_t(learned);
+    uint32_t slot = uint32_t(assignment.slot);
     uintptr_t table = 0, entry = 0;
     uint32_t entry_slot = 0xffffffff;
     swofty::mem::read(reinterpret_cast<uintptr_t>(module) + 0x60, table);
@@ -638,7 +681,7 @@ bool spawn_player_crew()
     auto m = reinterpret_cast<uintptr_t>(module);
     for (int v = 0; v < 0x20; v++) {
         uintptr_t other = 0, alloc = 0, vt = 0, free_fn = 0;
-        if (v == vehicle || garage_of[v].load() != int(slot) || !swofty::mem::read(m + 0x68 + uintptr_t(v) * 8, other) ||
+        if (v != assignment.teammate || !swofty::mem::read(m + 0x68 + uintptr_t(v) * 8, other) ||
             !other)
             continue;
         if (!destroy_crew || !swofty::mem::read(m + 0x18, alloc) || !alloc || !swofty::mem::read(alloc, vt) ||
@@ -653,7 +696,65 @@ bool spawn_player_crew()
     }
     swofty::mem::read(reinterpret_cast<uintptr_t>(module) + 0x68 + uintptr_t(vehicle) * 8, instance);
     swofty::log("[td-probe] garage: crew spawn returned, instance %p", reinterpret_cast<void *>(instance));
+    if (instance) {
+        owned_crew_module=reinterpret_cast<uintptr_t>(module);
+        owned_crew_instance=instance; owned_crew_vehicle=vehicle;
+    }
     return instance != 0;
+}
+
+// This callback is part of the game's real restart path, not replay flag restore.
+// Its original loops the live module+68 vehicle table and restarts every crew.
+// Remove ONLY the instance we created before that loop can put the car in a bay.
+bool remove_owned_race_crew(void *module)
+{
+    uintptr_t base=reinterpret_cast<uintptr_t>(module), live=0, alloc=0, vt=0, free_fn=0;
+    if (!owned_crew_instance || owned_crew_module!=base || owned_crew_vehicle<0 || owned_crew_vehicle>=32) return true;
+    uintptr_t slot=base+0x68+uintptr_t(owned_crew_vehicle)*8;
+    if (!guarded_read(slot,live)) return false;
+    if (live!=owned_crew_instance) {
+        owned_crew_instance=owned_crew_module=0;owned_crew_vehicle=-1;return true;
+    }
+    if (!destroy_crew || !guarded_read(base+0x18,alloc) || !alloc ||
+        !guarded_read(alloc,vt) || !vt || !guarded_read(vt+0x38,free_fn) || !free_fn) return false;
+    *reinterpret_cast<uintptr_t *>(slot)=0;
+    destroy_crew(reinterpret_cast<void *>(live));
+    reinterpret_cast<void (*)(uintptr_t,uintptr_t)>(free_fn)(alloc,live);
+    owned_crew_instance=owned_crew_module=0;owned_crew_vehicle=-1;
+    swofty::log("[td-probe] restart: removed only our spawned race garage crew before stock restart");
+    return true;
+}
+void reset_for_session_restart(void *module)
+{
+    if (!remove_owned_race_crew(module))
+        swofty::log("[td-probe] restart: owned crew cleanup failed validation; stock restart forwarded unchanged");
+    reset_car_state();
+    player_controller_flags=0;
+    flashback_tracker.invalidate_session();damage_flashback_tracker.invalidate_session();
+    for (auto &slot:pit_slot_of) slot=-1;
+    for (auto &state:observed_pit_state) state=0;
+    telemetry_not_before=GetTickCount64();
+    swofty::log("[td-probe] restart lifecycle: cleared retirement and future work");
+}
+// Engine subsystem lifecycle callback, vtable1457f5a08. Unlike the garage-only
+// helper, this is dispatched through the general session restart lifecycle.
+void on_damage_session_restart(void *self)
+{
+    uintptr_t module=0;
+    if (crew_module) guarded_read(reinterpret_cast<uintptr_t>(crew_module),module);
+    bool owned_push=module && owned_crew_module==module && owned_crew_instance && (pushing || pushed);
+    reset_for_session_restart(reinterpret_cast<void *>(module));
+    swofty::log("[td-probe] restart lifecycle: CarbonDamage onSessionRestart, module=%p owned_remaining=%p; cleared future work before original",
+        reinterpret_cast<void *>(module),reinterpret_cast<void *>(owned_crew_instance));
+    orig_damage_session_restart(self);
+    release_push_hud_hide(owned_push);
+}
+bool hook_damage_session_restart()
+{
+    constexpr uint8_t prologue[]={0x56,0x57,0x53,0x48,0x83,0xec,0x20,0x48,0x89,0xce,0x48,0x8b,0x41,0x60};
+    return detour("CarbonDamageSystem::onSessionRestart",
+        "56 57 53 48 83 EC 20 48 89 CE 48 8B 41 60 48 8B 80 88 00 00 00 48 85 C0 74 5B",
+        prologue,sizeof prologue,reinterpret_cast<void *>(&on_damage_session_restart),reinterpret_cast<void **>(&orig_damage_session_restart));
 }
 
 void hook_pit_stop_job()
@@ -670,11 +771,22 @@ void hook_pit_stop_job()
                   reinterpret_cast<void **>(&orig_pit_stop_job));
 }
 
-// Everything about the player's broken car; the player's vehicle id stays known.
-void reset_car_state(bool preserve_retirement_audio)
+void cancel_crew_work()
 {
-    flashback_tracker.clear_lock();
+    crew_spawn_now=false; crew_spawn_wanted=false;
+    crew_seq_t=-1; crew_request=0; crew_request_in=-1;
+    crew_msg=0; crew_msg_in=-1; pending_crew=-1;
+    crew_state_now=-1; sendoff_stage=0;
+    pushing=false; pushed=false; prepare_at_box=false; pit_stop_refused=false;
+}
+
+// Everything about the player's broken car; the player's vehicle id stays known.
+void reset_car_state(bool preserve_retirement_audio, bool preserve_request_timeline, bool preserve_damage_timeline)
+{
+    if (!preserve_request_timeline) flashback_tracker.clear_lock();
+    if (!preserve_damage_timeline) damage_flashback_tracker.clear_lock();
     replay_terminal_vehicle = -1;
+    if (!preserve_retirement_audio) pit_clearance_hold_vehicle = -1;
     int silent_vehicle = preserve_retirement_audio ? retired_engine_off_vehicle.load() : -1;
     retired_engine_off_vehicle = silent_vehicle;
     pending_radio_command = 0;
@@ -691,28 +803,18 @@ void reset_car_state(bool preserve_retirement_audio)
     terminal_mask = 0;
     player_broken = false;
     retire_requested = false;
-    crew_spawn_wanted = false;
-    crew_spawn_now = false;
     player_pit = 1;
     still_for = 0;
-    prepare_at_box = false;
-    crew_seq_t = -1.0;
     retire_in = -1.0;
-    crew_request = 0;
-    crew_request_in = -1.0;
-    crew_msg = 0;
-    crew_msg_in = -1.0;
-    crew_state_now = -1;
-    pit_stop_refused = false;
-    pending_crew = -1;
-    sendoff_stage = 0;
-    pushing = false;
-    pushed = false;
+    cancel_crew_work();
 }
 
 void reset_session(bool preserve_retirement_audio = false)
 {
     reset_car_state(preserve_retirement_audio);
+    flashback_tracker.invalidate_session();damage_flashback_tracker.invalidate_session();
+    player_controller_flags=0;
+    owned_crew_instance=owned_crew_module=0;owned_crew_vehicle=-1;
     throttle_hook.car = 0;
     telemetry_not_before = GetTickCount64();
     swofty::mem::invalidate();
@@ -720,6 +822,8 @@ void reset_session(bool preserve_retirement_audio = false)
         last_ai[i] = -1;
         last_reason[i] = -1;
         human[i] = false;
+        observed_pit_state[i] = 0;
+        pit_slot_of[i] = -1;
     }
     focus_left = 0;
     player_vehicle = -1;
@@ -787,6 +891,47 @@ void power_loss(uintptr_t car)
                     reinterpret_cast<void *>(car), double(thr));
         last_car = car;
     }
+    FlashbackTracker::Rewind damage_rewind;
+    if (car && damage_flashback_tracker.damage_rewind(GetTickCount64(), damage_rewind) &&
+        damage_rewind.mask != terminal_mask.load()) {
+        uintptr_t engine=0, gearbox=0;
+        bool restored=guarded_read(car+0x530,engine) && engine && guarded_read(car+0x538,gearbox) && gearbox;
+        for (int i=0; restored && i<7; ++i) {
+            float wear=1;
+            uint32_t retained_bit = i==0 ? 1u : i==6 ? 4u : 2u;
+            restored=guarded_read(i<6 ? engine+part_offsets[i] : gearbox+0x674,wear) &&
+                     std::isfinite(wear) && wear>=0 && (wear<0.9f || (damage_rewind.mask & retained_bit));
+        }
+        if (restored && damage_flashback_tracker.commit_damage(damage_rewind)) {
+            bool retain_request=retire_requested && !flashback_tracker.ready(GetTickCount64());
+            int pit=player_pit.load();
+            bool keep_timeline=retain_request || damage_rewind.mask;
+            reset_car_state(false,keep_timeline,damage_rewind.mask!=0);
+            terminal_mask=damage_rewind.mask;
+            retire_requested=retain_request;
+            player_broken=retain_request || damage_rewind.mask;
+            if (player_broken) player_pit=pit;
+            swofty::log("[td-probe] flashback: restored damage mask=0x%x; earlier retirement=%d",damage_rewind.mask,int(retain_request));
+        }
+    }
+    if (car && player_broken && player_pit.load() >= 1 && player_pit.load() <= 3 &&
+        flashback_tracker.consume_retained_resume(GetTickCount64())) {
+        int pit = player_pit.load();
+        // Resuming after the lock preserves the failure/request. Re-arm only
+        // the approach stage; old future garage reports must not fire again.
+        if (pit >= 1 && pit <= 3) {
+            cancel_crew_work();
+            retire_in = -1.0;
+            still_for = 0;
+            engine_off_standing = false;
+            retired_engine_off_vehicle = -1;
+            engine_off_vehicle = -1;
+            pushing = pit >= 2; prepare_at_box = pit >= 2;
+            pit_clearance_hold_vehicle = -1;
+            garage_return_wanted = false; exit_check_at = 0;
+            swofty::log("[td-probe] flashback: resumed after damage/request in pit state %d; keeping retirement and rearming approach", pit);
+        }
+    }
     if (car && flashback_tracker.ready(GetTickCount64())) {
         uintptr_t engine = 0, gearbox = 0;
         bool restored = guarded_read(car + 0x530, engine) && engine &&
@@ -799,24 +944,6 @@ void power_loss(uintptr_t car)
         if (restored) {
             swofty::log("[td-probe] flashback: resumed before damage/request with restored parts; clearing the lock");
             reset_car_state();
-        }
-    }
-    uint64_t check = restart_check_until.load();
-    if (check && car) {
-        bool readable = true, failed = false;
-        uintptr_t eng = 0, gb = 0;
-        float v = 0;
-        readable = guarded_read(car + 0x530, eng) && eng && guarded_read(car + 0x538, gb) && gb;
-        for (int i = 0; readable && i < 7; i++) {
-            readable = i < 6 ? guarded_read(eng + part_offsets[i], v) : guarded_read(gb + 0x674, v);
-            failed = failed || v >= 0.9f;
-        }
-        if (readable && !failed) {
-            swofty::log("[td-probe] restart: the game reset your car, clearing the broken-car state");
-            reset_car_state();
-        } else if (GetTickCount64() >= check) {
-            swofty::log("[td-probe] SESSION_NOT_STARTED without a part reset (red flag?): your car stays broken");
-            restart_check_until = 0;
         }
     }
     // Repair research: while the dead car sits in its practice garage, log its part wear (ICE, MGU-K, MGU-H, ES,
@@ -852,10 +979,9 @@ void power_loss(uintptr_t car)
             garage_part_failed = true;
         if (readable && !failed && garage_part_failed && !(terminal_mask.load() & 0x18)) {
             swofty::log("[td-probe] repair: the failed part was replaced, your car may leave the garage again");
-            flashback_tracker.clear_lock();
-            car_dead = false;
-            garage_part_failed = false;
-            terminal_mask = 0;
+            int pit=player_pit.load();
+            reset_car_state();
+            player_pit=pit;
             // Engine state flags at engine+0x2530 (UDP snapshot writer 0x142d00a63): bit 0 blown, bit 1 seized. The
             // swap resets the wear but keeps them, and a seized engine made the out-lap AI stop (0.32.1 test).
             uint8_t flags = 0;
@@ -1875,6 +2001,7 @@ void return_to_garage()
         orig_set_vehicle_status(reinterpret_cast<void *>(sys), uint64_t(vehicle), 9);
         post_crew_event(5);
     }
+    cancel_crew_work();
     player_broken = false;
     retire_requested = false;
     pushing = false;
@@ -1966,6 +2093,7 @@ void apply_pending_failure(void *system, uint8_t update_vehicle)
         }
     }
     flashback_tracker.mark(GetTickCount64());
+    damage_flashback_tracker.record_damage(part==0 ? 1u : part==6 ? 4u : 2u, GetTickCount64());
     player_broken = true;
     *reinterpret_cast<volatile float *>(slot) = value;
     swofty::log("[td-probe] debug failure: vehicle %d part %d at %p: %.3f -> %.3f", vehicle, part,
@@ -2314,6 +2442,7 @@ DWORD WINAPI udp_thread(void *)
         if (format != 2026)
             continue;
         flashback_tracker.packet(b, size_t(n), GetTickCount64());
+        damage_flashback_tracker.packet(b, size_t(n), GetTickCount64());
         udp_player = b[27];
         if (b[6] == 10 && n == 29 + udp_cars * udp_damage_size && b[27] < udp_cars) {
             const uint8_t *car = b + 29 + b[27] * udp_damage_size;
@@ -2361,7 +2490,7 @@ int player_speed()
 void standstill_retire(double dt)
 {
     int speed = player_speed();
-    if (!player_broken || retire_in.load() != -1.0 || player_pit.load() != 1 || speed < 0) {
+    if ((player_controller_flags.load() & ((1u<<3)|(1u<<4)|(1u<<5)|(1u<<10)|(1u<<11))) || !player_broken || retire_in.load() != -1.0 || player_pit.load() != 1 || speed < 0) {
         still_for = 0;
         // Once retiring the engine stays off; it only comes back for a car that is no longer broken.
         if (!player_broken)
@@ -2460,10 +2589,22 @@ void abandon_unavailable_push()
         swofty::hud::toast("NO GARAGE CREW", "Load practice first; retiring in your box", 5);
 }
 
+bool expire_timer(std::atomic<double> &timer,double dt,double inactive=-1.0)
+{
+    double old=timer.load();
+    while (old>=0) {
+        double next=old-dt;
+        if (timer.compare_exchange_weak(old,next<0 ? inactive : next)) return next<0;
+    }
+    return false;
+}
+bool active_push_work() { return !session_ended && keep_control && player_broken && pushing; }
+
 void on_frame(double dt, void *)
 {
     static double since;
     td_perf::report();
+    report_pit_clearance();
     if (session_ended)
         return;
     process_radio_command();
@@ -2474,46 +2615,26 @@ void on_frame(double dt, void *)
     probe_crew_entry(dt);
     probe_speed(dt);
     probe_engine(dt);
-    double crew = crew_request_in.load();
-    if (crew >= 0) {
-        crew -= dt;
-        crew_request_in = crew < 0 ? -1.0 : crew;
-        if (crew < 0)
-            post_crew_event(crew_request.exchange(0));
-    }
-    if (int request = pending_crew.exchange(-1);
-        request >= 0 && !session_ended && player_broken && pushing && crew_spawn_wanted)
+    if (player_controller_flags.load() & (1u<<5)) return;
+    if (expire_timer(crew_request_in,dt) && active_push_work()) post_crew_event(crew_request.exchange(0));
+    if (int request=pending_crew.exchange(-1); request>=0 && active_push_work() && crew_spawn_wanted)
         post_crew_event(uint32_t(request));
-    double report = crew_msg_in.load();
-    if (report >= 0) {
-        report -= dt;
-        crew_msg_in = report < 0 ? -1.0 : report;
-        if (report < 0)
-            post_crew_msg(crew_msg.exchange(0));
+    if (expire_timer(crew_msg_in,dt) && active_push_work()) post_crew_msg(crew_msg.exchange(0));
+    if (spawn_crew && crew_spawn_now.exchange(false) && active_push_work() && !crew_spawn_wanted.exchange(true)) {
+        if (spawn_player_crew()) crew_seq_t=0.0;
+        else abandon_unavailable_push();
     }
-    if (spawn_crew && crew_spawn_now.exchange(false) && !crew_spawn_wanted.exchange(true)) {
-        if (spawn_player_crew())
-            crew_seq_t = 0.0;
-        else
-            abandon_unavailable_push();
-    }
-    if (double t = crew_seq_t.load(); t >= 0) {
-        double n = t + dt;
-        if (t < 0.3 && n >= 0.3)
-            post_crew_event(crew_prepare_push);
-        if (t < 0.8 && n >= 0.8)
-            post_crew_event(crew_push);
-        crew_seq_t = n >= 0.8 ? -1.0 : n;
+    if (double t=crew_seq_t.load(); t>=0 && active_push_work() && crew_spawn_wanted) {
+        double n=t+dt;
+        if (crew_seq_t.compare_exchange_strong(t,n>=0.8 ? -1.0 : n)) {
+            if (t<0.3 && n>=0.3 && active_push_work()) post_crew_event(crew_prepare_push);
+            if (t<0.8 && n>=0.8 && active_push_work()) post_crew_event(crew_push);
+        }
     }
     standstill_retire(dt);
-    double r = retire_in.load();
-    if (r >= 0) {
-        r -= dt;
-        retire_in = r < 0 ? -2.0 : r; // -2: done for this session
-        if (r < 0 && practice_like())
-            garage_return_wanted = true;
-        else if (r < 0)
-            retire_player();
+    if (expire_timer(retire_in,dt,-2.0) && player_broken) {
+        if (practice_like()) garage_return_wanted=true;
+        else retire_player();
     }
     if (!log_telemetry)
         return;
@@ -2570,7 +2691,7 @@ SWOFTY_WRAP(Ne_Post_BusMessage, uint64_t, void *bus, void *msg)
     if (pit_entry_vtable && crew_event_vtable && msg && *static_cast<const void *const *>(msg) == pit_entry_vtable) {
         uint8_t vehicle = static_cast<const uint8_t *>(msg)[0x10];
         if (int(vehicle) == player_vehicle.load() && keep_control && retire_in_pit_box && garage_push &&
-            player_broken && retire_in.load() > -2.0) {
+            player_broken && retire_in.load() > -2.0 && restart_cleanup_available) {
             // Like practice: no box stop, the crew waits to push the car into the garage.
             struct {
                 const void *vtable;
@@ -2609,8 +2730,9 @@ SWOFTY_WRAP(Ne_Post_BusMessage, uint64_t, void *bus, void *msg)
             focus_left = 60.0;
             if (keep_control) {
                 swofty::log("[td-probe] keep_control: dropped terminal damage message of vehicle %u", vehicle);
-                terminal_mask = terminal_mask.load() | mask;
+                terminal_mask.fetch_or(mask);
                 flashback_tracker.mark(GetTickCount64());
+                damage_flashback_tracker.record_damage(mask, GetTickCount64());
                 player_broken = true;
                 return 0;
             }
@@ -2634,6 +2756,8 @@ SWOFTY_ON_CHANGE(crew_asset_diagnostics, bool on)
 {
     crew_diagnostics_active = on;
 }
+
+#include "pit_retirement_clearance.hpp"
 
 // Diagnostic test build: locate the real replay-entry gate, without overriding
 // session, multiplayer, replay-buffer or flashback-limit restrictions.
@@ -2705,7 +2829,14 @@ SWOFTY_ON_LOAD
     find_pit_entry();
     find_crew_msg();
     hook_pit_stop_job();
+    hook_pit_clearance();
     find_garage_crew_spawn();
+    find_hud_restart_cleanup();
+    if (!hook_damage_session_restart()) {
+        restart_cleanup_available=false;
+        spawn_crew=nullptr;
+        swofty::log("[td-probe] garage: restart cleanup unavailable; selective race spawning disabled");
+    }
     hook_crew_states();
     detour("PitLaneSystem::setVehicleStatus", sig_set_vehicle_status, set_vehicle_status_prologue,
            sizeof set_vehicle_status_prologue, reinterpret_cast<void *>(&on_set_vehicle_status),
@@ -2714,7 +2845,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.50.2, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.0, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

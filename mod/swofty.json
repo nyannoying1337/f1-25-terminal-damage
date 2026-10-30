@@ -2,10 +2,10 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.50.2",
+  "version": "0.51.0",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
-  "license": "MIT",
+  "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
   "homepage": "https://github.com/nyannoying1337/f1-25-terminal-damage",
   "icon": "icon.png",
   "kind": [
@@ -168,6 +168,14 @@
       "type": "toggle",
       "label": "Retire in the pit box",
       "description": "With keep control: when you bring your broken car into your pit box, it retires there, as with Retire in the pause menu.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "pit_retire_clearance",
+      "type": "toggle",
+      "label": "Experimental: clear retirement pit box",
+      "description": "Hides tyre-stop equipment during a race retirement approach. Preserves the shared box while your teammate is pitting. Garage push crew remains visible.",
       "default": true,
       "binds": "native"
     },

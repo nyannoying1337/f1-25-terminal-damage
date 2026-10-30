@@ -1,3 +1,30 @@
+# Terminal Damage 0.51.0 beta
+
+## Changed
+
+- Clear tyre-stop equipment and seated tyre crew during race retirement, preserving the garage push crew and your teammate's stop.
+- Learn garage assignments directly in the race; practice no longer needs to be loaded first.
+- Fix restarting during a retirement push leaving the car in the garage or the HUD hidden.
+- Improve flashback handling when retirement requests and later damage overlap, and cancel old crew/audio work after a rewind, restart or garage return.
+- Keep the teammate-safe box-entry signal working when equipment clearance is disabled.
+- Reduce temporary diagnostic logging during normal play.
+
+## Known limitations
+
+- Stopped retirement requires OnTrack; a car stranded in the pit lane or box exit does not trigger the 10-second timer.
+- Rewinding into the middle of a garage push/box animation is not fully covered.
+- Red flags during terminal damage can still cause AI/spectator camera issues.
+- **Qualifying ICE replacement / Skip repairs and practice replacement timing: NOT TESTED, MIGHT BE BROKEN.**
+- Collision removal is not guaranteed by hiding pit equipment. Offline sessions only; some cars and modes need more coverage.
+
+## Code reuse
+
+This release uses the Terminal Damage Attribution License1.0. Published mods or
+projects using substantial portions must visibly credit nyannoying and link to
+Terminal Damage. Earlier MIT releases keep their MIT terms. See LICENSE.
+
+---
+
 # Terminal Damage 0.50.2 beta
 
 ## Fixed

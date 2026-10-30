@@ -8,17 +8,16 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
 
-## 0.50.2 beta
+## 0.51.0 beta
 
-Instant Replay / flashbacks can now be opened after terminal damage. Rewind before
-the failure to continue driving. Confirmed in practice, qualifying and race.
+Race retirement clears tyre-stop equipment while preserving the garage push crew
+and teammate stops. Load directly into a race; practice is no longer required.
+Restart and flashback cleanup also covers old crew work, power/audio locks and
+the HUD hide reason left by an interrupted push.
 
-**Known issue:** a red flag while terminally damaged can cause AI/spectator control
-and delayed retirement. This remains under investigation.
-
-**Not tested, might be broken:** qualifying ICE replacement / Skip repairs and
-practice replacement timing. The latest pit-entry audio and missing-crew fallback
-also need runtime confirmation.
+Known limitations include stopped retirement in the pit lane, rewinding into the
+middle of a push, red-flag camera/control behavior, and untested qualifying ICE
+replacement / Skip repairs and practice repair timing.
 
 Read the [changelog](CHANGELOG.md) for changes and limitations.
 
@@ -35,4 +34,7 @@ The DLL lands in `mod/native/`. Zip the contents of the `mod` folder (swofty.jso
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The headers in `mod/native/include` belong to the Swofty addon SDK.
+Terminal Damage Attribution License1.0, see [LICENSE](LICENSE). Published projects
+using substantial portions must visibly credit **nyannoying - Terminal Damage**
+and link to this repository. Earlier MIT releases keep their MIT terms.
+The headers in `mod/native/include` retain the Swofty SDK's own licenses.

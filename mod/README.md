@@ -3,17 +3,19 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
-## 0.50.2 beta
+## 0.51.0 beta
 
-Instant Replay / flashbacks can now be opened after terminal damage while you still
-control your car. Rewind before the damage to continue driving. Confirmed in practice,
-qualifying and race sessions.
+Race retirement now clears tyre-stop equipment and seated tyre crew from your
+box while preserving the garage push crew and your teammate's use of the shared
+box. Garage assignments are learned directly in the race; loading practice first
+is no longer required.
 
-**Known issue:** a red flag while terminally damaged can lead to AI/spectator control
-and delayed retirement. This is not fixed in this update.
+Restarting during a retirement push removes the additional garage crew, cancels
+old retirement work and releases the push's HUD hide reason. Flashbacks distinguish
+an earlier Retire request from later damage and discard obsolete crew/audio work.
+A normal tyre stop is available after restarting.
 
-**NOT TESTED, MIGHT BE BROKEN:** qualifying ICE replacement / Skip repairs and
-practice replacement timing. See the [changelog](https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/CHANGELOG.md).
+Known limitations are listed below. This remains an offline beta.
 
 ## What it does
 
@@ -50,7 +52,7 @@ practice replacement timing. See the [changelog](https://github.com/nyannoying13
 
 ## Setup (once)
 
-1. Steam version of F1 25 and the Swofty Launcher (tested with 1.5.8).
+1. Steam version of F1 25 and Swofty Launcher 1.5.13 or newer.
 2. Import the zip in the Swofty Launcher and restart the game.
 3. In the game: Options > Settings > Telemetry Settings:
    UDP Telemetry **On**, Broadcast **Off**, IP **127.0.0.1**, Port **20777**, Send Rate **20 Hz**,
@@ -66,9 +68,8 @@ changing the port.
 
 ## Each game start
 
-**Load a practice session first, then the race.** The mod learns which garage belongs to which car
-in practice. Without it, the crew does not come out in the race (the car is put into the garage
-without a usable crew, the car retires in its box without a push).
+Restart the game after installing or updating the addon. You can load a race
+directly; no practice session or saved vehicle-ID mapping is needed.
 
 ## Settings
 
@@ -81,7 +82,13 @@ without a usable crew, the car retires in its box without a push).
 
 ## Known issues (beta)
 
-- Race garage pushing needs a practice session loaded first in the same game process.
+- Stopped retirement requires the car to be OnTrack. A car stranded in the pit lane
+  or box exit (LeavingPitLane) does not start the 10-second timer.
+- Rewinding into the middle of the garage push or box animation is not fully covered.
+- A red flag during terminal damage can still cause AI/spectator camera issues.
+- Qualifying ICE replacement / Skip repairs and practice replacement timing are
+  **NOT TESTED, MIGHT BE BROKEN**.
+- Hiding pit equipment does not establish that all associated collision is removed.
 - AI cars with terminal damage can stop at the pit exit or on track.
 - Terminal crash damage keeps the practice/qualifying car in its garage even after repairs.
 - Career replacement is checked on send-out; without a new part the car can briefly reach the
@@ -95,50 +102,22 @@ is required. Radio menu retirement disables the native action; Retirement radio 
 voice/silent XML after restart. A repeated selection can request speech again. Other retirement
 routes do not add a voice reply. Disable the addon to remove its command-file operation.
 
-## Testing 0.50.2 beta
+## Checks when reporting a problem
 
-1. Race: pull over, wait for the 10 s retirement, check the DNF camera stays silent, then restart
-   from results and check normal engine sound and grid position. DNF audio passed Nick's .17 test.
-2. Career qualifying: change the ICE and skip repairs. At least 60 minutes should consume the
-   remaining qualifying time. Practice should retain the game's usual replacement time.
-   **Not tested, might be broken:** qualifying ICE replacement/Skip repairs and practice timing.
-   Nick cannot currently test this because all available engines have been used.
-3. Radio: Retire should stay last and work with its voice reply both on and off after restart.
-4. Performance: enable Debug: performance counters, drive the affected scene for at least
-   30 seconds, and send loader.log plus perf.log. New `[td-probe] perf:` summaries report only
-   addon work in private vehicle, crew, stopped-car and repair hooks every 10 seconds. They
-   exclude original game calls and GPU/asset costs. Counters are off by default.
-
-0.32.22 adds flashback recovery using the game's UDP FLBK event (format 2026 required).
-After rewinding before the damage/retirement request, resumed telemetry plus healthy live
-parts clears the addon's power/audio/garage lock and pending retirement/crew requests.
-Rewinding to a point after the failure retains the lock. No parts are repaired by the addon.
-Test ICE failure -> rewind before failure -> normal throttle/audio and no delayed retirement;
-also test a rewind that leaves the failure in the timeline. Runtime verification is pending.
-
-0.32.21 also uses guarded process-memory copies for live player vehicle resolution and
-power-loss/repair reads. Vehicle and component pointers are still resolved on every update;
-no sampling delay or cross-frame pointer cache was introduced. Verify healthy driving,
-terminal power loss and component replacement, with counters enabled for a paired capture.
-
-0.32.20 batches the stopped-car list reads and validates an index hint against the live vehicle ID.
-It uses guarded process-memory copies instead of repeated heap-region queries; no game pointer
-is retained across callbacks. The temporary stopped-car exclusion flag is unchanged.
-Capture loader.log and perf.log with counters on after terminal damage to measure the gain.
-
-0.32.19 adds two pit-lane checks: with a failed ICE, engine sound should stay off at pit entry;
-with radio Retire and a usable crew, the car should be pushed into the garage. Load practice
-first in the same game process for the race animation. If no crew is available, a HUD message
-explains the fallback: retirement in the box, without fabricated push reports/garage teleport.
-Both changes still need in-game verification.
-
-0.32.18 removes obsolete AI-update limp-setting work, skips healthy crew inspection, gates
-engine/repair/crew detail logs behind diagnostics, and avoids installing the diagnostic-only
-Debris hook by default. It does not change the loaded crew assets or claim a measured FPS gain.
-If lag remains, compare the same scene with Garage crew assets in the race off after a full
-restart. This disables the real garage-push animation for that comparison.
+Include the session type, car, what happened before the failure, and whether you
+used a flashback or restart. For a retirement problem, say whether the car was
+fully on track or still in the pit lane. For a pit problem, mention a teammate stop.
+Enable Debug: performance counters only when collecting a performance report.
 
 ## Reporting problems
 
 Send `<F1 25 folder>/swofty/loader.log` **before** starting the game again (every start
 overwrites it). Say what you did and roughly when.
+
+## License and reuse
+
+Terminal Damage Attribution License1.0, see LICENSE. Published mods/projects using
+substantial portions of this release must visibly credit nyannoying and link to
+https://github.com/nyannoying1337/f1-25-terminal-damage in their description, README,
+documentation or credits, with readable attribution accompanying distributions.
+Earlier MIT releases keep their MIT terms. Third-party SDK licenses are unchanged.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-Terminal-Damage-Attribution-1.0
 // Optional timing of this addon's private-hook work. Original game calls are excluded.
 #pragma once
 namespace td_perf {

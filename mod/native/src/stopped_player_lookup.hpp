@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-Terminal-Damage-Attribution-1.0
 #pragma once
 
 // Re-read every pointer in the current callback. Only an array index is retained
