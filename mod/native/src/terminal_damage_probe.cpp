@@ -146,6 +146,7 @@ alignas(4) volatile int32_t engine_off_vehicle = -1;
 alignas(4) volatile int32_t replay_terminal_vehicle = -1;
 std::atomic<int> pit_clearance_hold_vehicle{-1}; // keep tyre crew hidden after the completed garage push
 std::atomic<bool> engine_off_standing{false}; // broken car pulled over and standing still for 6 s
+std::atomic<int> retired_drive_lock_vehicle{-1}; // independent of the optional audio shutdown
 std::atomic<int> retired_engine_off_vehicle{-1}; // keep retirement audio off through the DNF camera
 double still_for;
 
@@ -786,11 +787,12 @@ void reset_car_state(bool preserve_retirement_audio, bool preserve_request_timel
     if (!preserve_request_timeline) flashback_tracker.clear_lock();
     if (!preserve_damage_timeline) damage_flashback_tracker.clear_lock();
     replay_terminal_vehicle = -1;
+    if (!preserve_retirement_audio) retired_drive_lock_vehicle = -1;
     if (!preserve_retirement_audio) pit_clearance_hold_vehicle = -1;
     int silent_vehicle = preserve_retirement_audio ? retired_engine_off_vehicle.load() : -1;
     retired_engine_off_vehicle = silent_vehicle;
     pending_radio_command = 0;
-    throttle_hook.cap = 1.0f;
+    throttle_hook.cap = retired_drive_lock_vehicle.load() == player_vehicle.load() && player_vehicle.load()>=0 ? 0.0f : 1.0f;
     engine_off_vehicle = engine_off_sound ? silent_vehicle : -1;
     engine_off_standing = false;
     pending_failure = 0;
@@ -1032,7 +1034,8 @@ void power_loss(uintptr_t car)
     replay_terminal_vehicle = keep_control && player_broken && player_pit.load() == 1 && !session_ended ?
                                   player_vehicle.load() : -1;
     float t = test_cap.load();
-    throttle_hook.cap = t >= 0 ? t : cap;
+    bool parked_retirement = retired_drive_lock_vehicle.load() >= 0 && retired_drive_lock_vehicle.load() == player_vehicle.load();
+    throttle_hook.cap = parked_retirement ? 0.0f : t >= 0 ? t : cap;
     if (why != logged) {
         static const char *const names[] = {"none", "ICE", "gearbox", "MGU-K", "MGU-H", "ES", "turbo", "CE", "crash damage",
                                              "power unit (mask)", "other terminal damage (mask)"};
@@ -1935,6 +1938,13 @@ void post_crew_msg(uint32_t code)
     swofty::game::Ne_Post_BusMessage(reinterpret_cast<void *>(bus), &msg);
 }
 
+void latch_retirement_drive(int vehicle)
+{
+    if (vehicle<0 || vehicle>=max_vehicles) return;
+    retired_drive_lock_vehicle=vehicle;
+    throttle_hook.cap=0.0f;
+}
+
 // What the pause menu's Retire does, for the player's car.
 void retire_player()
 {
@@ -1953,6 +1963,7 @@ void retire_player()
     } msg{};
     msg.vtable = status_request_vtable;
     msg.packed = uint32_t(vehicle) | status_retired << 8 | 2u << 16 | 1u << 24;
+    latch_retirement_drive(vehicle);
     // Posting retirement can synchronously deliver NOT_IN_SESSION. Arm the
     // shutdown first; lifecycle cleanup must not restart the DNF car's audio.
     if (engine_off_sound) {
@@ -2845,7 +2856,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.0, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.1, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

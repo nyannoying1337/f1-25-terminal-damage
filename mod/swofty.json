@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.51.0",
+  "version": "0.51.1",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",

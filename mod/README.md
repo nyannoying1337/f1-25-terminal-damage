@@ -3,7 +3,11 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
-## 0.51.0 beta
+## 0.51.1 beta
+
+Fixes the AI driving away after you voluntarily retire and park on track.
+Your car keeps power while approaching your stopping place; drive is disabled
+once retirement completes. The car can still roll on a slope.
 
 Race retirement now clears tyre-stop equipment and seated tyre crew from your
 box while preserving the garage push crew and your teammate's use of the shared

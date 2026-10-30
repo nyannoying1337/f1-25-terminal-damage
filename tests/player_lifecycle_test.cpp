@@ -106,6 +106,7 @@ int main()
     *observed_failure = 0;
     player_broken = true;
     terminal_mask = 8;
+    latch_retirement_drive(3);
     retired_engine_off_vehicle = 3;
     engine_off_vehicle = 3;
     orig_set_controller = [](void *, uint64_t, uint32_t, int32_t) -> uint64_t { return 77; };
@@ -113,13 +114,13 @@ int main()
     assert(!player_broken && !car_dead && !terminal_mask && retire_in == -1);
     assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3);
     power_loss(reinterpret_cast<uintptr_t>(car.data()));
-    assert(throttle_hook.cap == 1 && engine_off_vehicle == 3);
+    assert(throttle_hook.cap == 0 && engine_off_vehicle == 3 && retired_drive_lock_vehicle==3);
     assert(on_set_controller(nullptr, 3, 1, 3) == 77);
     assert(engine_off_vehicle == 3);
     assert(on_set_controller(nullptr, 3, 1, 10) == 77);
     assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3);
     reset_for_session_restart(nullptr);
-    assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1);
+    assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1 && retired_drive_lock_vehicle==-1 && throttle_hook.cap==1);
     retired_engine_off_vehicle = 3;
     engine_off_vehicle = 3;
     ev.name = SWOFTY_EVENT_SESSION_END;
@@ -128,6 +129,14 @@ int main()
     ev.name = SWOFTY_EVENT_SESSION_START;
     on_event(&ev, nullptr);
     assert(!session_ended && engine_off_vehicle == -1 && retired_engine_off_vehicle == -1);
+    // Drive retention is independent of audio and cannot be overridden by a
+    // diagnostic cap. Other vehicle IDs are not restricted by this latch.
+    player_vehicle=3;latch_retirement_drive(3);test_cap=1;
+    retired_engine_off_vehicle=-1;engine_off_standing=false;
+    reset_car_state(true);power_loss(reinterpret_cast<uintptr_t>(car.data()));
+    assert(retired_drive_lock_vehicle==3 && throttle_hook.cap==0 && engine_off_vehicle==-1);
+    player_vehicle=2;power_loss(reinterpret_cast<uintptr_t>(car.data()));assert(throttle_hook.cap==1);
+    player_vehicle=3;reset_for_session_restart(nullptr);assert(retired_drive_lock_vehicle==-1 && throttle_hook.cap==1);
     puts("PASS: queued player failure, ordering, AI isolation, expiry and session cleanup");
     puts("PASS: DNF audio survives gameplay/session cleanup; restart/start releases shutdown");
 }

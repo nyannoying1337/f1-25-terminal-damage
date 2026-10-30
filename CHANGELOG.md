@@ -1,3 +1,20 @@
+# Terminal Damage 0.51.1 beta
+
+## Fixed
+
+- Stop the AI driving away after a voluntary retirement when you park on track.
+- Power stays available until retirement completes. The car can still roll on a slope.
+
+## Known limitations
+
+- Stopped retirement requires OnTrack; a car stranded in the pit lane or box exit does not trigger the 10-second timer.
+- Rewinding into the middle of a garage push/box animation is not fully covered.
+- Red flags during terminal damage can still cause AI/spectator camera issues.
+- **Qualifying ICE replacement / Skip repairs and practice replacement timing: NOT TESTED, MIGHT BE BROKEN.**
+- Wheel-tether instability remains under investigation. Hiding pit equipment does not guarantee collision removal.
+
+---
+
 # Terminal Damage 0.51.0 beta
 
 ## Changed
