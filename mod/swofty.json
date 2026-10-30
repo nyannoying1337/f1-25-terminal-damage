@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.51.1",
+  "version": "0.51.3",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -27,6 +27,14 @@
     }
   ],
   "options": [
+    {
+      "id": "wheel_tether_test",
+      "type": "toggle",
+      "label": "Remove player wheel tethers",
+      "description": "Optional workaround for detached wheels pulling or shaking your car. Broken player wheels become loose debris; suspension damage stays unchanged. Off by default. Restart required.",
+      "default": false,
+      "binds": "native"
+    },
     {
       "id": "performance_diagnostics",
       "type": "toggle",

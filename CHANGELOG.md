@@ -1,3 +1,21 @@
+# Terminal Damage 0.51.3 beta
+
+## Added
+
+- Optional **Remove player wheel tethers** setting, **off by default**.
+- Enable it if detached wheels pull or shake your car. Broken player wheels become loose debris; suspension damage and AI wheel tethers stay unchanged.
+- **Restart the game after changing the setting.**
+
+## Known limitations
+
+- Stopped retirement requires OnTrack; a car stranded in the pit lane or box exit does not trigger the 10-second timer.
+- Rewinding into the middle of a garage push/box animation is not fully covered.
+- Red flags during terminal damage can still cause AI/spectator camera issues.
+- **Qualifying ICE replacement / Skip repairs and practice replacement timing: NOT TESTED, MIGHT BE BROKEN.**
+- Hiding pit equipment does not guarantee collision removal. Intended for offline play; some cars and modes need more testing.
+
+---
+
 # Terminal Damage 0.51.1 beta
 
 ## Fixed

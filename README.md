@@ -8,6 +8,12 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
 
+## 0.51.3 beta
+
+Optional **Remove player wheel tethers**, **off by default**. Enable it if loose
+wheels pull or shake your car. Player wheels become loose debris; suspension
+damage and AI wheel tethers stay unchanged. Restart after changing the setting.
+
 ## 0.51.1 beta
 
 Fixes the AI driving away after a voluntary retirement when you park on track.

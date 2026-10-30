@@ -3,6 +3,13 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
+## 0.51.3 beta
+
+Optional **Remove player wheel tethers** setting, **off by default**. Enable it
+if detached wheels pull or shake your car. Broken player wheels become loose
+debris instead of hanging from a tether; suspension damage stays unchanged.
+Restart the game after changing this setting. AI wheel tethers are unchanged.
+
 ## 0.51.1 beta
 
 Fixes the AI driving away after you voluntarily retire and park on track.

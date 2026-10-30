@@ -41,6 +41,7 @@ SWOFTY_SETTING(bool, engine_off_sound, true);
 SWOFTY_SETTING(bool, pause_menu_retire, true);
 SWOFTY_SETTING(bool, radio_command_probe, true);
 SWOFTY_SETTING(bool, performance_diagnostics, false);
+SWOFTY_SETTING(bool, wheel_tether_test, false);
 SWOFTY_SETTING(bool, log_telemetry, false);
 SWOFTY_SETTING(bool, debug_failure_hotkey, false);
 SWOFTY_SETTING(std::string_view, debug_failure_key, "F10");
@@ -1355,6 +1356,74 @@ bool detour(const char *name, const char *sig, const uint8_t *prologue, size_t l
         return false;
     }
     return detour_at(name, at, prologue, len, handler, orig);
+}
+
+// Optional workaround: use the stock missing-tether-node path ONLY during
+// creation of a fresh detached player wheel. Never destroy a body/constraint
+// or alter an already connected wheel. The node is restored before returning.
+uintptr_t wheel_part_vtable = 0;
+bool wheel_tether_test_active = false; // immutable after hook installation
+void (*orig_wheel_detach)(void *, uint8_t) = nullptr;
+
+bool write_wheel_node(uintptr_t at, int32_t value)
+{
+    SIZE_T written=0;
+    return WriteProcessMemory(GetCurrentProcess(),reinterpret_cast<void *>(at),&value,sizeof value,&written) &&
+           written==sizeof value;
+}
+
+void on_wheel_detach(void *self, uint8_t notify)
+{
+    uintptr_t part=reinterpret_cast<uintptr_t>(self), vt=0, car=0, body=0, connection=0;
+    uint8_t vehicle=255, active=1;
+    int32_t node=-1;
+    bool eligible=wheel_tether_test_active && part && wheel_part_vtable &&
+        guarded_read(part,vt) && vt==wheel_part_vtable &&
+        guarded_read(part+0x10,car) && car && car==throttle_hook.car &&
+        guarded_read(car+0xe8,vehicle) && int(vehicle)==player_vehicle.load() &&
+        player_vehicle.load()>=0 && !session_ended.load() &&
+        guarded_read(part+0x40,body) && !body &&
+        guarded_read(part+0x100,connection) && !connection &&
+        guarded_read(part+0x10c,active) && !active &&
+        guarded_read(part+0xe0,node) && node>=0;
+    bool bypass=eligible && write_wheel_node(part+0xe0,-1);
+    orig_wheel_detach(self,notify);
+    if (!bypass) return;
+    bool restored=write_wheel_node(part+0xe0,node);
+    uintptr_t live_body=0, live_connection=0;
+    uint8_t live_active=1;
+    bool inspected=guarded_read(part+0x40,live_body) && guarded_read(part+0x100,live_connection) &&
+                   guarded_read(part+0x10c,live_active);
+    if (!restored || !inspected || live_connection || live_active || log_telemetry)
+        swofty::log("[td-probe] wheel tethers: vehicle=%u node_restored=%d inspected=%d body=%d connection=%d active=%u",
+            unsigned(vehicle),int(restored),int(inspected),int(live_body!=0),int(live_connection!=0),unsigned(live_active));
+}
+
+void hook_wheel_tether_test()
+{
+    if (!wheel_tether_test) return;
+    constexpr const char *sig=
+        "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 38 03 00 00 C5 78 29 BC 24 20 03 00 00 C5 78 29 B4 24 10 03 00 00 C5 78 29 AC 24 00 03 00 00 C5 78 29 A4 24 F0 02 00 00 C5 78 29 9C 24 E0 02 00 00 C5 78 29 94 24 D0 02 00 00 C5 78 29 8C 24 C0 02 00 00 C5 78 29 84 24 B0 02 00 00 C5 F8 29 BC 24 A0 02 00 00 C5 F8 29 B4 24 90 02 00 00 48 83 79 40 00 74 6E";
+    constexpr uint8_t prologue[]={0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x56,0x57,0x55,0x53,
+                                  0x48,0x81,0xec,0x38,0x03,0x00,0x00};
+    uintptr_t at=0;
+    if (swofty::api->scan(".xtls",sig,&at)!=1) {
+        swofty::log("[td-probe] tether test: detach signature unavailable; stock behavior retained");
+        return;
+    }
+    uintptr_t vt=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr))+0x5bf9420, detach=0, update=0;
+    uintptr_t expected_update=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr))+0x4664080;
+    if (!guarded_read(vt+0xa0,detach) || detach!=at || !guarded_read(vt+0x68,update) || update!=expected_update) {
+        swofty::log("[td-probe] tether test: wheel vtable mismatch; stock behavior retained");
+        return;
+    }
+    wheel_part_vtable=vt;
+    wheel_tether_test_active=true;
+    if (!detour_at("player wheel tether test",at,prologue,sizeof prologue,
+                   reinterpret_cast<void *>(&on_wheel_detach),reinterpret_cast<void **>(&orig_wheel_detach))) {
+        wheel_tether_test_active=false;
+        wheel_part_vtable=0;
+    }
 }
 
 // The engine manager schedules replacements through this AddRepair thunk
@@ -2818,6 +2887,7 @@ SWOFTY_ON_LOAD
     patch_garage_assets_in_race();
     guard_crew_scene_read();
     hook_throttle();
+    hook_wheel_tether_test();
     hook_engine_audio();
     hook_retire_local_player();
     register_radio_menu_probe();
@@ -2856,7 +2926,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.1, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.3, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }
