@@ -1,3 +1,11 @@
+# Terminal Damage 0.51.8 beta
+
+## Added
+
+- Player-state interface for spectator addons to observe confirmed retirement, garage return and recovery. Terminal Damage does not switch cameras itself.
+
+---
+
 # Terminal Damage 0.51.3 beta
 
 ## Added
