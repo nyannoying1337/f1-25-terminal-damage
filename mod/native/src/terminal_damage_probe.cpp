@@ -28,6 +28,7 @@
 #include "performance_probe.hpp"
 #include "guarded_copy.hpp"
 #include "garage_assignment.hpp"
+#include "player_state_service.hpp"
 
 // The SDK header casts GetProcAddress to the table getter.
 #pragma clang diagnostic push
@@ -281,6 +282,7 @@ bool human[max_vehicles];
 double focus_left;
 // The vehicle the game last handed to a human: the player in an offline session.
 std::atomic<int> player_vehicle{-1};
+std::atomic<int> confirmed_retired_vehicle{-1}; // observer only; never drives gameplay
 // Encoded pit state + 1; zero means not observed this session.
 std::atomic<unsigned> observed_pit_state[max_vehicles]{};
 
@@ -340,7 +342,9 @@ uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t 
             return 0;
         }
     }
-    return orig_set_controller(system, vehicle, ai, reason);
+    uint64_t result=orig_set_controller(system, vehicle, ai, reason);
+    if (mine && reason==4 && ai) confirmed_retired_vehicle=int(id);
+    return result;
 }
 
 using spawn_crew_fn = void (*)(void *, uint32_t);
@@ -788,6 +792,7 @@ void reset_car_state(bool preserve_retirement_audio, bool preserve_request_timel
     if (!preserve_request_timeline) flashback_tracker.clear_lock();
     if (!preserve_damage_timeline) damage_flashback_tracker.clear_lock();
     replay_terminal_vehicle = -1;
+    if (!preserve_retirement_audio) confirmed_retired_vehicle=-1;
     if (!preserve_retirement_audio) retired_drive_lock_vehicle = -1;
     if (!preserve_retirement_audio) pit_clearance_hold_vehicle = -1;
     int silent_vehicle = preserve_retirement_audio ? retired_engine_off_vehicle.load() : -1;
@@ -2680,8 +2685,26 @@ bool expire_timer(std::atomic<double> &timer,double dt,double inactive=-1.0)
 }
 bool active_push_work() { return !session_ended && keep_control && player_broken && pushing; }
 
+void publish_player_state()
+{
+    int vehicle=player_vehicle.load(), retired=confirmed_retired_vehicle.load();
+    uint32_t state=TD_UNAVAILABLE, mask=terminal_mask.load();
+    if (retired>=0 && retired<max_vehicles && (vehicle<0 || vehicle==retired)) {
+        vehicle=retired;state=TD_RETIRED;
+    } else if (!session_ended.load() && vehicle>=0 && vehicle<max_vehicles) {
+        if (player_pit.load()==9) state=TD_IN_GARAGE;
+        else if (retire_requested || pushing || retire_in.load()>=0) state=TD_RETIRING;
+        else if (player_broken || car_dead || mask) state=TD_LIMPING;
+        else state=TD_RUNNING;
+    } else {vehicle=-1;mask=0;}
+    td_state::service.publish(state,vehicle,mask);
+}
+
 void on_frame(double dt, void *)
 {
+    struct PublishOnExit {
+        ~PublishOnExit() {publish_player_state();td_state::service.dispatch();}
+    } publish_on_exit;
     static double since;
     td_perf::report();
     report_pit_clearance();
@@ -2736,6 +2759,11 @@ void on_frame(double dt, void *)
                 c.steer, c.world_pos[0], c.world_pos[1], c.world_pos[2]);
 }
 
+}
+
+extern "C" SWOFTY_EXPORT const TdApi *TerminalDamageGetApi(uint32_t version)
+{
+    return version==TERMINAL_DAMAGE_API_VERSION ? &td_state::api : nullptr;
 }
 
 SWOFTY_WRAP(Ne_Post_BusMessage, uint64_t, void *bus, void *msg)
@@ -2926,7 +2954,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.3, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.8, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

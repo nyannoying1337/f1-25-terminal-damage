@@ -32,6 +32,11 @@ replacement / Skip repairs and practice repair timing.
 
 Read the [changelog](CHANGELOG.md) for changes and limitations.
 
+## Addon integration
+
+Spectator addons can use the versioned [player-state API](docs/player-state-api.md)
+to observe retirement and recovery without polling game memory.
+
 ## Building
 
 Needs [zig](https://ziglang.org/) 0.15 on PATH.

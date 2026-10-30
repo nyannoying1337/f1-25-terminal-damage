@@ -3,6 +3,12 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
+## 0.51.8 beta
+
+Adds a player-state interface for spectator addons. Integrations can react to
+confirmed retirement and recovery without changing Terminal Damage's driving
+behavior. This addon does not switch cameras by itself.
+
 ## 0.51.3 beta
 
 Optional **Remove player wheel tethers** setting, **off by default**. Enable it
