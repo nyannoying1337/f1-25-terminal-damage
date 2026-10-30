@@ -3,14 +3,7 @@
   "ops": [
     {
       "op": "file.put",
-      "when": { "retire_radio_voice": true },
-      "source": "assets/radio/speech_recognition.xml",
-      "target": "audio/2025/speech_recognition.xml"
-    },
-    {
-      "op": "file.put",
-      "when": { "retire_radio_voice": false },
-      "source": "assets/radio/speech_recognition_silent.xml",
+      "source": "assets/radio/speech_recognition_voice_{{retire_radio_voice}}.xml",
       "target": "audio/2025/speech_recognition.xml"
     }
   ]

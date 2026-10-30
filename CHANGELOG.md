@@ -1,3 +1,7 @@
+# Terminal Damage 0.51.13 beta
+
+- Fix the launcher's "Could not read ops/radio-probe-assets.json" note under What it changes. The Retirement radio voice option now picks its radio file by name instead of with a condition the launcher preview cannot read. Nothing changes in game.
+
 # Terminal Damage 0.51.12 beta
 
 - Replace the separate player tether switches with **Player wheel behavior**: Stock, Reduced jolting (experimental), or Loose wheels.

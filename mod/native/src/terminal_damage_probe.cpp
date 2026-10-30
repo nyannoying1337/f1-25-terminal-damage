@@ -3120,7 +3120,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.12, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.13, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

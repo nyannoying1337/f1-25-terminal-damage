@@ -36,8 +36,8 @@ New-Item -ItemType Directory -Force "$stage\native" | Out-Null
 Copy-Item "$PSScriptRoot\mod\swofty.json", "$PSScriptRoot\mod\README.md", "$PSScriptRoot\mod\icon.png", "$PSScriptRoot\mod\LICENSE" $stage
 Copy-Item "$PSScriptRoot\mod\native\terminal_damage_probe.dll" "$stage\native"
 New-Item -ItemType Directory -Force "$stage\assets\radio" | Out-Null
-Copy-Item "$PSScriptRoot\mod\assets\radio\speech_recognition.xml" "$stage\assets\radio"
-Copy-Item "$PSScriptRoot\mod\assets\radio\speech_recognition_silent.xml" "$stage\assets\radio"
+Copy-Item "$PSScriptRoot\mod\assets\radio\speech_recognition_voice_true.xml" "$stage\assets\radio"
+Copy-Item "$PSScriptRoot\mod\assets\radio\speech_recognition_voice_false.xml" "$stage\assets\radio"
 New-Item -ItemType Directory -Force "$stage\ops" | Out-Null
 Copy-Item "$PSScriptRoot\mod\ops\radio-probe-assets.json" "$stage\ops"
 # swofty.json at the zip root and forward slashes, as the Swofty addon registry expects.

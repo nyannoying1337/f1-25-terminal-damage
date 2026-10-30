@@ -3,6 +3,10 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
+## 0.51.13 beta
+
+- Fix the launcher's "Could not read ops/radio-probe-assets.json" note under What it changes. The Retirement radio voice option now picks its radio file by name instead of with a condition the launcher preview cannot read. Nothing changes in game.
+
 ## 0.51.12 beta
 
 - Replace the separate player tether switches with **Player wheel behavior**: Stock, Reduced jolting (experimental), or Loose wheels.
