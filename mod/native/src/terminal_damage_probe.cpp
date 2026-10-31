@@ -12,7 +12,8 @@
 #include <swofty/game/core.hpp>
 #include <swofty/mem.hpp>
 #include <swofty/mixin.hpp>
-#include <swofty/telemetry.hpp>
+#include <swofty/systems/cars.hpp>
+#include <swofty/systems/sessions.hpp>
 
 #include <atomic>
 #include <cmath>
@@ -294,17 +295,9 @@ std::atomic<unsigned> observed_pit_state[max_vehicles]{};
 uint64_t (*orig_set_controller)(void *, uint64_t, uint32_t, int32_t);
 uint64_t (*orig_pit_state_changed)(void *, void *);
 
-int32_t player_index()
-{
-    swofty::telemetry::SessionState s{};
-    if (swofty::telemetry::session(&s) != swofty::telemetry::Result::ok)
-        return -1;
-    return int32_t(s.player_index);
-}
-
 bool is_player(uint64_t vehicle)
 {
-    return (vehicle < max_vehicles && human[vehicle]) || int64_t(vehicle) == player_index();
+    return vehicle < max_vehicles && human[vehicle];
 }
 
 std::atomic<void *> controller_system{nullptr};
@@ -313,10 +306,11 @@ void reset_car_state(bool preserve_retirement_audio = false, bool preserve_reque
 std::atomic<uint64_t> restart_check_until{0}; // retained for compatibility; flags never arm it
 std::atomic<uint32_t> player_controller_flags{0};
 
-uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t reason)
+// One controller switch (ai: 1 hands the car to the AI, reason: the controller flag). Called from the
+// setController hook and from the session.player.control event (Swofty 1.7); both see the same switch,
+// so everything here is idempotent. Returns true to drop the switch.
+bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
 {
-    controller_system = system;
-    uint8_t id = uint8_t(vehicle);
     if (id < max_vehicles) {
         if (!ai) {
             human[id] = true;
@@ -325,8 +319,8 @@ uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t 
         if (last_ai[id] != int32_t(ai) || last_reason[id] != reason) {
             last_ai[id] = int32_t(ai);
             last_reason[id] = reason;
-            swofty::log("[td-probe] setController vehicle=%u player_index=%d known_human=%d -> %s reason=%d %s", id,
-                        player_index(), human[id], ai ? "AI" : "HUMAN", reason, label(reasons, reason));
+            swofty::log("[td-probe] setController vehicle=%u known_human=%d -> %s reason=%d %s", id,
+                        human[id], ai ? "AI" : "HUMAN", reason, label(reasons, reason));
         }
     }
     // Controller flags are not restart evidence. The actual garage restart
@@ -344,12 +338,47 @@ uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t 
         focus_left = 60.0;
         if (keep_control) {
             swofty::log("[td-probe] keep_control: dropped TERMINAL_DAMAGE hand-over of vehicle %u", id);
-            return 0;
+            return true;
         }
     }
+    return false;
+}
+
+uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t reason)
+{
+    controller_system = system;
+    uint8_t id = uint8_t(vehicle);
+    if (note_controller_switch(id, ai, reason))
+        return 0;
     uint64_t result=orig_set_controller(system, vehicle, ai, reason);
-    if (mine && reason==4 && ai) confirmed_retired_vehicle=int(id);
+    if (id < max_vehicles && int(id) == player_vehicle.load() && reason==4 && ai) confirmed_retired_vehicle=int(id);
     return result;
+}
+
+// Swofty 1.7 hook points. They run next to the setController hook above (this build only adds them; the hook
+// stays until a test log shows the event fires): the log line says whether it does.
+std::atomic<unsigned> control_events{0}, rebuild_events{0};
+
+void attach_session_events()
+{
+    namespace sess = swofty::sessions;
+    namespace cars = swofty::cars;
+    auto control = swofty::events::on<sess::events::PlayerControl>().replace(
+        [](sess::events::PlayerControl &c, const swofty::events::Context &) {
+            if (control_events.fetch_add(1) == 0)
+                swofty::log("[td-probe] session.player.control fires (first: vehicle %d %d -> %d reason %d)",
+                            int(c.car.index()), int(c.from), int(c.to), int(c.reason));
+            return note_controller_switch(uint8_t(c.car.index()), c.to == sess::Control::ai ? 1u : 0u, c.reason);
+        });
+    auto rebuilt = swofty::events::on<cars::events::ControllersRebuilt>().after(
+        [](const cars::events::ControllersRebuilt &r, const swofty::events::Context &) {
+            if (int(r.car.index()) == player_vehicle.load() || rebuild_events.fetch_add(1) == 0)
+                swofty::log("[td-probe] car.controllers.rebuilt: vehicle %d (flashback or return to garage)",
+                            int(r.car.index()));
+        });
+    swofty::log("[td-probe] session events: player.control %s, controllers.rebuilt %s",
+                control == swofty::events::Result::ok ? "attached" : "unavailable",
+                rebuilt == swofty::events::Result::ok ? "attached" : "unavailable");
 }
 
 using spawn_crew_fn = void (*)(void *, uint32_t);
@@ -2591,8 +2620,7 @@ void on_event(const SwoftyEvent *ev, void *)
         pit_lane_system = 0;
         controller_system = nullptr;
     }
-    swofty::log("[td-probe] event %s a=%lld b=%lld player_index=%d", ev->name, (long long)ev->a, (long long)ev->b,
-                player_index());
+    swofty::log("[td-probe] event %s a=%lld b=%lld", ev->name, (long long)ev->a, (long long)ev->b);
 }
 
 // SpawnGarageCrew(module, slot) uses slot entry [[module+0x60]+0x838+slot*8];
@@ -2868,7 +2896,6 @@ void on_frame(double dt, void *)
     struct PublishOnExit {
         ~PublishOnExit() {publish_player_state();td_state::service.dispatch();}
     } publish_on_exit;
-    static double since;
     td_perf::report();
     report_pit_clearance();
     if (session_ended)
@@ -2905,21 +2932,6 @@ void on_frame(double dt, void *)
     if (!log_telemetry)
         return;
     focus_left = focus_left > dt ? focus_left - dt : 0;
-    double period = 0.5;
-    if (focus_left > 0)
-        period = 0.1;
-    since += dt;
-    if (since < period)
-        return;
-    since = 0;
-    int32_t p = player_index();
-    swofty::telemetry::CarState c{};
-    if (p < 0 || swofty::telemetry::car(uint32_t(p), &c) != swofty::telemetry::Result::ok)
-        return;
-    swofty::log("[td-probe] car%s lap=%u dist=%.1f speed=%.1f rpm=%.0f gear=%d thr=%.2f brk=%.2f steer=%.2f "
-                "pos=%.1f,%.1f,%.1f",
-                focus_left > 0 ? "*" : "", c.lap, c.lap_distance, c.speed, c.rpm, c.gear, c.throttle, c.brake,
-                c.steer, c.world_pos[0], c.world_pos[1], c.world_pos[2]);
 }
 
 }
@@ -3087,6 +3099,7 @@ SWOFTY_ON_LOAD
     register_radio_menu_probe();
     hook_radio_probe();
     hook_qualifying_engine_repair();
+    attach_session_events();
     hook_thunk("VehicleControllerSystem::setController", sig_set_controller,
                reinterpret_cast<void *>(&on_set_controller), reinterpret_cast<void **>(&orig_set_controller));
     hook_thunk("Ai MessagePitStateChanged handler", sig_pit_state_changed,
@@ -3120,7 +3133,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.13, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.14, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

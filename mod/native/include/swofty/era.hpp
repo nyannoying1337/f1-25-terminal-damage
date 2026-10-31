@@ -13,7 +13,9 @@
 // the init check of your addon (the function you pass to SWOFTY_ADDON), before the core's mixin commit;
 // the core then builds the box in the Addons row every time the picker is built, presses it like a stock
 // box and narrows the host setup mode to its entrant list when it is pressed, so Time Trial loads only
-// that list's cars.
+// that list's cars. A box can name a second, smaller list for Time Trial: a Time Trial session holds at
+// most 23 cars of the list it was picked with, and the core leaves a box off the Time Trial picker, with
+// a log line, when its list holds more.
 //
 // The data side comes from your database operations. The entrant list must exist (its
 // entrants.entrant_lists row, its teams and drivers) and must be in the entrant lists of the core's host
@@ -34,12 +36,15 @@ enum class Result { ok, late, unavailable, invalid };
 // it). title is the lng_* key the box shows; empty means lng_<entrant_list>. image is the texture path
 // the box shows, e.g. "#overrides.home_screen.tiles_solo_6x6[cs_f1_2016]"; empty means
 // #overrides.home_screen.tiles_solo_6x6[<entrant_list>], an overrides entry named after the list. Boxes
-// show in ascending order, then in registration order. Strings are copied.
+// show in ascending order, then in registration order. time_trial is the entrant list the box selects on
+// the Time Trial picker, set up like entrant_list (in swofty_f1's entrant lists); empty means
+// entrant_list; a core before launcher 1.6.2 ignores it. Strings are copied.
 struct Box {
     std::string_view entrant_list;
     std::string_view title = {};
     std::string_view image = {};
     int32_t order = 0;
+    std::string_view time_trial = {};
 };
 
 namespace detail {
@@ -90,8 +95,8 @@ inline Result add_box(const Box &box)
     auto t = detail::table();
     if (!t)
         return Result::unavailable;
-    std::string list(box.entrant_list), title(box.title), image(box.image);
-    SwoftyEraBox d{sizeof d, list.c_str(), title.c_str(), image.c_str(), box.order};
+    std::string list(box.entrant_list), title(box.title), image(box.image), tt(box.time_trial);
+    SwoftyEraBox d{sizeof d, list.c_str(), title.c_str(), image.c_str(), box.order, tt.c_str()};
     return detail::result(t->add_box(&d));
 }
 
