@@ -1,3 +1,9 @@
+# Terminal Damage 0.51.53 beta (unreleased, experimental)
+
+- **Scripted failures in Career (experimental, still being tested):** failure chances and timing stay the game's own. When the game would hand your car to the AI, you keep control and the failed part limits your power. Retire yourself (pause menu, radio, hotkey, or by stopping for 10 s with UDP telemetry on).
+- If you do not retire within 60 s, you are disqualified. The setting "After a scripted failure..." switches this to a normal retirement.
+- Grand Prix test modes "Game's own failure" and "Game's own breakdown" reuse the game's failure scheduler; for testing only.
+
 # Terminal Damage 0.51.14 beta
 
 - Requires Swofty launcher 1.7.0 or newer.

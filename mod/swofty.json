@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.51.14",
+  "version": "0.51.53",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -196,6 +196,66 @@
       "binds": "native"
     },
     {
+      "id": "gp_failures",
+      "type": "choice",
+      "label": "Mechanical failures in Grand Prix",
+      "description": "F1 World Grand Prix has no failure settings. Chance per session that one random part of your car fails once. Off by default.",
+      "values": [
+        {"value": "off", "label": "Off"},
+        {"value": "10", "label": "10%"},
+        {"value": "25", "label": "25%"},
+        {"value": "50", "label": "50%"},
+        {"value": "100", "label": "100% (test: fails after 15-60 s)"},
+        {"value": "native", "label": "Game's own failure (experimental test)"},
+        {"value": "breakdown", "label": "Game's own breakdown (experimental test)"}
+      ],
+      "default": "off",
+      "binds": "native"
+    },
+    {
+      "id": "gp_fault_type",
+      "type": "choice",
+      "label": "Test: fault type for the game's own failure",
+      "description": "Only used with 'Game's own failure' above. Picks which fault the game applies (test option).",
+      "values": [
+        {"value": "random", "label": "Random"},
+        {"value": "0", "label": "0 Engine"},
+        {"value": "1", "label": "1 Gearbox"},
+        {"value": "2", "label": "2 Missing gear"},
+        {"value": "3", "label": "3 Gear jammed"},
+        {"value": "4", "label": "4 ERS"},
+        {"value": "5", "label": "5 DRS"},
+        {"value": "6", "label": "6 Tyre"}
+      ],
+      "default": "random",
+      "binds": "native"
+    },
+    {
+      "id": "keep_game_failure",
+      "type": "toggle",
+      "label": "Keep control after a scripted failure",
+      "description": "In Career and My Team the game can pull your car over and retire it by itself after a mechanical failure. With this on, the addon keeps the car yours unless you retire it (pause menu, radio or hotkey).",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "game_failure_timeout",
+      "type": "choice",
+      "label": "After a scripted failure, if you do not retire within 60 s",
+      "description": "What happens when you keep driving for 60 s after the game's mechanical failure.",
+      "values": [{"value":"dsq","label":"Disqualified"},{"value":"retire","label":"Retired (DNF)"}],
+      "default": "dsq",
+      "binds": "native"
+    },
+    {
+      "id": "red_flag_retire",
+      "type": "toggle",
+      "label": "Retire a terminally damaged car at a red flag",
+      "description": "When a red flag stops the race and your car has terminal damage, it cannot be repaired. You see the pit stop editor with a notice, then the car retires and you do not take part in the restart.",
+      "default": true,
+      "binds": "native"
+    },
+    {
       "id": "retire_in_pit_box",
       "type": "toggle",
       "label": "Retire in the pit box",
@@ -253,10 +313,9 @@
       "id": "debug_failure_hotkey",
       "type": "toggle",
       "label": "Debug: hotkey triggers a failure",
-      "description": "Ctrl+Shift + the chosen F key breaks the chosen part of your car. Ctrl+Shift+F9 then cycles the throttle cap (0 %, 30 %, automatic).",
+      "description": "Ctrl+Shift + the chosen F key breaks the chosen part of your car. Ctrl+Shift+F7 replays a Career scripted failure (RETIRED hand-over, part fails 30 s later). Ctrl+Shift+F9 cycles the throttle cap.",
       "default": false,
-      "binds": "native",
-      "hidden": true
+      "binds": "native"
     },
     {
       "id": "debug_failure_key",

@@ -42,6 +42,7 @@ Known issues: reduced jolting is still experimental and is not a complete realis
   crash damage the engine dies after 3 to 6 s, and a broken or retiring car that stands still
   switches its engine off after 6 s (setting "Engine sound off after a failure").
 - **The game's own random failures** are handled the same way as the failures above.
+  **Experimental:** in Career and My Team the game's own failure chances and timing are used unchanged. When the game would hand your car to the AI, you keep control instead. Retire yourself within 60 s, or you are disqualified (setting "After a scripted failure..." switches this to a normal retirement). The "Game's own failure" and "Game's own breakdown" Grand Prix modes are test options for this.
 - **Stand still on track for 10 s** with a broken car: you retire.
 - **Drive into the pit lane** with a broken car (race): no tyre stop. Your garage crew comes out,
   pushes the car into the garage, then you retire.
