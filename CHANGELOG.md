@@ -1,4 +1,4 @@
-# Terminal Damage 0.51.53 beta (unreleased, experimental)
+# Terminal Damage 0.51.53 beta (experimental)
 
 - **Scripted failures in Career (experimental, still being tested):** failure chances and timing stay the game's own. When the game would hand your car to the AI, you keep control and the failed part limits your power. Retire yourself (pause menu, radio, hotkey, or by stopping for 10 s with UDP telemetry on).
 - If you do not retire within 60 s, you are disqualified. The setting "After a scripted failure..." switches this to a normal retirement.
