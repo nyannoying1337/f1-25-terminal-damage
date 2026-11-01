@@ -6,17 +6,15 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 **Download:** install it from the Addon Browser in the Swofty Launcher, or get the zip from [Releases](../../releases) and import it.
 
-Features, setup (UDP telemetry, format 2026) and known issues: [mod/README.md](mod/README.md).
+Features, setup and known issues: [mod/README.md](mod/README.md).
 
-## 0.51.12 beta
+## 0.51.79 beta
 
-Player wheel behavior now has one dropdown: Stock (default), Reduced jolting
-(experimental), or Loose wheels. AI tether removal stays separate and off by
-default. Restart after changing either setting. Reduced jolting keeps tethers,
-but detached wheels can still move oddly and clip through the chassis/cockpit.
-
-Choose your preferred player mode again after upgrading from the earlier switches.
-Garage implementation and debug controls are hidden to simplify launcher settings.
+- No UDP telemetry needed any more: the addon reads your speed from the game.
+- One broken front corner may let the car crawl back to the pits (dice roll).
+- Red flags follow the FIA rules: failed power units and abandoned cars retire, a limping car may be repaired and restart.
+- Practice and qualifying: a car that limps into its garage is rebuilt there (20-45 min); a car that did not make it back is withdrawn for the session.
+- A disqualification stays DSQ in the results.
 
 Read the [changelog](CHANGELOG.md) for changes and limitations.
 

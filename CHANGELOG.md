@@ -1,3 +1,58 @@
+# Terminal Damage 0.51.79 beta
+
+Big update since 0.51.54: crashes can now leave you limping, red flags follow the FIA rules, broken cars get repaired (or stay out) in practice and qualifying, and the mod no longer needs the game's UDP telemetry.
+
+## No UDP telemetry needed any more
+
+- The mod now reads your speed directly from the game. Standing still for 10 s with a broken car retires you even with the game's UDP telemetry switched off.
+- The mod's own UDP listener is now **off by default**, so it no longer blocks port 20777 for SimHub, CrewChief or other telemetry apps.
+- **Upgrading:** if you only switched on UDP in the game for this mod, you can switch it off again.
+
+## Crashes: limping on a broken front corner
+
+- If a crash breaks exactly **one front corner**, there is a chance the car can still crawl on: 70 % with a broken suspension, 35 % with a lost wheel. A **BROKEN FRONT CORNER** message appears and the car keeps about a third of its power. Bring it back to the pits.
+- A broken **rear** corner, or two or more broken corners: the car cannot be driven. Pull over; after 10 s standing still you retire.
+- If a limping car hits something again and breaks another corner, it stops for good.
+
+## Red flags follow the FIA rules
+
+When a red flag comes out while your car is terminally damaged, the strategy screen decides what your team may do:
+
+- **Engine, power unit or gearbox failure:** cannot be repaired during a red flag. A message tells you so and your car retires.
+- **A car that could not be driven** (stopped on track): it was abandoned, so it retires.
+- **A car limping on one broken front corner:** your team may rebuild the corner during the red flag. A dice roll decides: 80 % for a broken suspension, 50 % for a lost wheel. If it works, the corner and the front wing are repaired and you take part in the restart (**CAR REPAIRED**). If not, **REPAIRS NOT COMPLETED** and your car retires.
+- Other accident damage (wings, bodywork) is repaired by the game as before.
+
+## Practice and qualifying: repairs in the garage
+
+- **Limp into the pit lane** on a broken front corner: the car goes into your garage and the team rebuilds the corner. This takes **20-30 minutes for a broken suspension and 30-45 minutes for a lost wheel**. The game shows the repair timer and a **CORNER REPAIR** message tells you how long. You can wait, or use the game's own skip / fast forward (this uses up session time). When it is done, **CAR REPAIRED** appears and you can drive out again. If the session ends first, your session is over.
+- **A car that did not make it back** (retired on track, or Retire from Session) is **withdrawn for the rest of the session**: no repair timer, and the garage menu no longer offers drive out or flying lap. Your car is ready again in the next session. Before, the car briefly appeared at the pit exit and was sent straight back.
+- An engine or gearbox failure still works as before: fit a new part in the garage (Career), then leave.
+
+## Disqualification stays a disqualification
+
+- If you are disqualified after a scripted failure (you did not pit before the end of the lap), the results screen now shows **DSQ** instead of DNF. The game used to overwrite it at the end of the session.
+- Choosing Retire in the pause menu after a disqualification keeps the DSQ.
+
+## Performance
+
+- Fewer game memory reads every frame, and no UDP thread running unless you switch it on.
+
+## New debug settings
+
+For testing only, leave them on **Random** / **Normal**:
+
+- **Debug: crash limp roll:** force the limp chance to always succeed or always fail.
+- **Debug: red flag repair roll:** force the red flag repair to always succeed or always fail.
+- **Debug: garage corner repair time:** 1 minute instead of 20-45 minutes.
+
+## Known issues
+
+- Career has not been fully tested with these changes yet.
+- The garage repair was tested with a lost wheel; a broken suspension with the wheel still attached is not tested in game yet.
+- Qualifying engine replacement times are still **NOT TESTED, MIGHT BE BROKEN**.
+- A red flag during terminal damage can still cause AI/spectator camera issues.
+
 # Terminal Damage 0.51.54 beta
 
 Fix: a red flag could hang on a black screen in Career.

@@ -2,9 +2,9 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.51.54",
+  "version": "0.51.79",
   "author": "nyannoying",
-  "description": "Beta. A broken car is no longer taken away: it loses power or rolls out, you pull over (retire after 10 s) or drive into your box and the crew pushes it in. Needs the game's UDP telemetry.",
+  "description": "Beta. A broken car is no longer taken away: it loses power, crawls on a broken front corner or rolls out. Pull over and retire, or bring it in. FIA red flag repairs, garage repairs in practice and qualifying, DSQ kept in results.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
   "homepage": "https://github.com/nyannoying1337/f1-25-terminal-damage",
   "icon": "icon.png",
@@ -103,8 +103,9 @@
       "id": "udp_port_choice",
       "type": "choice",
       "label": "UDP telemetry port",
-      "description": "Port the mod listens on. Set the same port in the game. If another app (SimHub etc.) uses 20777, pick another one and forward to it. Needs a game restart.",
+      "description": "Not needed: the addon reads your speed from the game itself. Only for the debug telemetry log; leave it off if SimHub or another app uses the game's UDP. Needs a game restart.",
       "values": [
+        "off",
         "20777",
         "20778",
         "20779",
@@ -117,7 +118,7 @@
         "20786",
         "20787"
       ],
-      "default": "20777",
+      "default": "off",
       "binds": "native"
     },
     {
@@ -241,8 +242,8 @@
     {
       "id": "game_failure_timeout",
       "type": "choice",
-      "label": "After a scripted failure, if you do not retire within 60 s",
-      "description": "What happens when you keep driving for 60 s after the game's mechanical failure.",
+      "label": "After a scripted failure, if you neither pit nor retire",
+      "description": "Like a black flag with orange disc: after the game's mechanical failure you must get to the pits before the end of the lap or retire. Otherwise you are disqualified or retired.",
       "values": [{"value":"dsq","label":"Disqualified"},{"value":"retire","label":"Retired (DNF)"}],
       "default": "dsq",
       "binds": "native"
@@ -250,9 +251,36 @@
     {
       "id": "red_flag_retire",
       "type": "toggle",
-      "label": "Retire a terminally damaged car at a red flag",
-      "description": "When a red flag stops the race and your car has terminal damage, it cannot be repaired. You see the pit stop editor with a notice, then the car retires and you do not take part in the restart.",
+      "label": "FIA red flag rules for a terminally damaged car",
+      "description": "FIA rules at a red flag: a failed power unit or gearbox, or a crashed car that could not be driven, retires. A car still crawling on one broken front corner may be repaired by your team (dice roll) and restart.",
       "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "debug_limp_roll",
+      "type": "choice",
+      "label": "Debug: crash limp roll",
+      "description": "After a crash that broke one front corner, decides whether the car can still crawl on. Random: 70 % with a broken suspension, 35 % with a lost wheel.",
+      "values": [{"value": "random", "label": "Random"}, {"value": "success", "label": "Always succeeds"}, {"value": "fail", "label": "Always fails"}],
+      "default": "random",
+      "binds": "native"
+    },
+    {
+      "id": "debug_repair_roll",
+      "type": "choice",
+      "label": "Debug: red flag repair roll",
+      "description": "At a red flag, decides whether the team rebuilds a broken corner of a car that crawled on. Random: 80 % for a suspension, 50 % for a lost wheel.",
+      "values": [{"value": "random", "label": "Random"}, {"value": "success", "label": "Always succeeds"}, {"value": "fail", "label": "Always fails"}],
+      "default": "random",
+      "binds": "native"
+    },
+    {
+      "id": "debug_garage_repair",
+      "type": "choice",
+      "label": "Debug: garage corner repair time",
+      "description": "Practice and qualifying: a car that limped into its garage on one broken front corner is rebuilt there. Normal: 20-30 min for a suspension, 30-45 min for a lost wheel.",
+      "values": [{"value": "normal", "label": "Normal"}, {"value": "fast", "label": "1 minute"}],
+      "default": "normal",
       "binds": "native"
     },
     {

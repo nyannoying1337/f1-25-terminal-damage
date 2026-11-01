@@ -22,6 +22,7 @@
 #include <cstring>
 #include <cwchar>
 #include <initializer_list>
+#include <random>
 #include <utility>
 #include <vector>
 #include <winsock2.h>
@@ -59,6 +60,10 @@ SWOFTY_SETTING(bool, retire_in_pit_box, true);
 SWOFTY_SETTING(bool, red_flag_retire, true);
 SWOFTY_SETTING(bool, keep_game_failure, true);
 SWOFTY_SETTING(std::string_view, game_failure_timeout, "dsq");
+// Debug: force the crash dice rolls (random, success, fail) instead of playing many races.
+SWOFTY_SETTING(std::string_view, debug_limp_roll, "random");
+SWOFTY_SETTING(std::string_view, debug_repair_roll, "random");
+SWOFTY_SETTING(std::string_view, debug_garage_repair, "normal");
 SWOFTY_SETTING(std::string_view, gp_failures, "off");
 SWOFTY_SETTING(std::string_view, gp_fault_type, "random");
 SWOFTY_SETTING(bool, garage_push, true);
@@ -67,7 +72,7 @@ SWOFTY_SETTING(bool, garage_crew_in_race, true);
 SWOFTY_SETTING(bool, retire_hotkey, true);
 SWOFTY_SETTING(std::string_view, retire_key, "F11");
 SWOFTY_SETTING(bool, crew_asset_diagnostics, false);
-SWOFTY_SETTING(std::string_view, udp_port_choice, "20777");
+SWOFTY_SETTING(std::string_view, udp_port_choice, "off");
 SWOFTY_SETTING(bool, garage_assets_in_race, true);
 std::atomic<bool> crew_diagnostics_active{false}; // cached for the frequently called crew callbacks
 
@@ -147,8 +152,37 @@ bool garage_part_failed; // the dead car in its garage was seen with a failed pa
 std::atomic<uint64_t> exit_check_at{0};
 // Parts mask of the player's last dropped MessageVehicleTerminallyDamaged (bits 3/4 = crash/body damage).
 std::atomic<uint32_t> terminal_mask{0};
+// The game's terminal damage record of the player's car (VehicleTerminalDamageSystem, record sys+0x50+v*0x70), read
+// after its update while the car is broken: overall state (+0x68, 5 = terminal) and the parts at state 5 (+0x10 + i*4,
+// same bits as the terminal message: 0 engine, 1 PU, 2 gearbox, 3 wheel lost, 4 suspension, 5 tyres, 6-10 aero/body).
+std::atomic<int> live_terminal_state{-1};
+std::atomic<uint32_t> live_terminal_mask{0};
+// Pit state of the player's car when the latest red flag or safety car took control (-1 unknown).
+std::atomic<int> pit_at_suspension{-1};
+// Red flag with repairable accident damage: waiting for the game's repairs.
+std::atomic<bool> red_flag_repair_wait{false};
+// Crash damage on one front corner: the car may still be driven (limping) back to the pits. -1 undecided, 0 cannot
+// drive, 1 limping. crash_corners: the packed corner states (3 bits each) when it was decided.
+std::atomic<int> limp_state{-1};
+std::atomic<uint32_t> crash_corners{0};
+// Practice/qualifying garage repair of a limping car: 0 none, 1 wanted, 2 job running, 3 finished.
+std::atomic<int> garage_repair{0};
+// Set while the addon teleports the abandoned car into its garage: no repair for it (FIA B1.8.9).
+std::atomic<bool> garage_teleport{false};
+std::atomic<uint64_t> corner_toast_at{0};
+std::atomic<int> corner_toast_minutes{0};
+bool garage_exit_locked();
+std::atomic<float> garage_repair_left{0};  // seconds left of the job
+constexpr float limp_power = 0.35f;
+uint32_t corner_states(uintptr_t car, bool &ok);
+unsigned roll_percent();
+unsigned forced_roll(std::string_view mode, unsigned chance, unsigned roll);
+std::atomic<bool> red_flag_repaired_toast{false};
 bool practice_like();
 uintptr_t player_car();
+bool crash_repair_available();
+void garage_repair_finish(uintptr_t car);
+extern bool repair_update_hooked;
 // Player's last pit status (1 OnTrack) and how long the broken car has stood still on track.
 std::atomic<int> player_pit{1};
 double gp_clock = 0, gp_at = -1;
@@ -324,6 +358,9 @@ void trigger_failure(int forced_part = -1);
 std::atomic<int> game_planned_part{-1};
 // After the game's own failure: retire automatically once this tick passes (0 = off).
 std::atomic<uint64_t> game_failure_deadline{0};
+std::atomic<int> game_failure_lap{-1};          // game lap (0-based) the failure was announced in, -1 unknown
+std::atomic<uintptr_t> failure_planner_obj{0};  // the player's failure object, seen by the planner
+int game_lap();
 
 bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
 {
@@ -342,6 +379,11 @@ bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
     // Controller flags are not restart evidence. The actual garage restart
     // callback resets lifecycle state before stock crews can move grid cars.
     bool mine = id < max_vehicles && int(id) == player_vehicle.load();
+    // A red flag starts as SAFETY_CAR for every car (Sess_ScRedFlagDeploy_Update): remember where the car was then.
+    if (mine && ai && reason == 11 && !(player_controller_flags.load() & (1u << 11))) {
+        pit_at_suspension = player_pit.load();
+        swofty::log("[td-probe] suspension/safety car: your car was in pit state %d", pit_at_suspension.load());
+    }
     if (mine && reason>=0 && reason<32) {
         if (ai) player_controller_flags.fetch_or(1u<<reason);
         else player_controller_flags.fetch_and(~(1u<<reason));
@@ -369,9 +411,12 @@ bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
             part = 0;
         swofty::log("[td-probe] game failure: breaking part %d for the addon's broken-car handling", part);
         trigger_failure(part);
-        game_failure_deadline = GetTickCount64() + 60000;
-        if (swofty::hud::available())
-            swofty::hud::toast("MECHANICAL FAILURE", "Find a safe place and retire within 60 s", 6);
+        // Like a black flag with orange disc: get to the pits before the end of this lap, or retire. 10 min is only a
+        // fallback when the lap number cannot be read.
+        game_failure_lap = game_lap();
+        game_failure_deadline = player_pit.load() == 1 ? GetTickCount64() + 600000 : 0;
+        if (game_failure_deadline.load() && swofty::hud::available())
+            swofty::hud::toast("MECHANICAL FAILURE", "Pit before the end of this lap or retire", 6);
         return true;
     }
     if (reason == reason_terminal_damage && ai && is_player(id)) {
@@ -443,9 +488,19 @@ uint64_t on_pit_state_changed(void *ai, void *msg)
         player_pit = int(state);
         focus_left = focus_left > 30.0 ? focus_left : 30.0;
         if (state == 9 && player_broken && keep_control && practice_like()) {
-            swofty::log("[td-probe] practice/qualifying: your broken car is in its garage and stays there");
+            // It came in under its own power on one broken front corner: the team rebuilds the corner.
+            bool rebuild = !garage_teleport && limp_state.load() == 1 && crash_corners.load() &&
+                           !(terminal_mask.load() & 0x7) && crash_repair_available() && repair_update_hooked;
+            if (rebuild)
+                garage_repair = 1;
             car_dead = true;
             garage_part_failed = false;
+            if (rebuild) {
+                swofty::log("[td-probe] garage repair: your car limped into its garage (corners 0x%03x), the team "
+                            "rebuilds the broken corner", crash_corners.load());
+            } else {
+                swofty::log("[td-probe] practice/qualifying: your broken car is in its garage and stays there");
+            }
         }
         bool broken = keep_control && retire_in_pit_box && player_broken && retire_in.load() > -2.0;
         bool push = broken && garage_push && crew_event_vtable && restart_cleanup_available;
@@ -883,6 +938,9 @@ void reset_car_state(bool preserve_retirement_audio, bool preserve_request_timel
     exit_check_at = 0;
     restart_check_until = 0;
     terminal_mask = 0;
+    limp_state = -1;
+    crash_corners = 0;
+    garage_repair = 0;
     player_broken = false;
     retire_requested = false;
     player_pit = 1;
@@ -894,6 +952,10 @@ void reset_car_state(bool preserve_retirement_audio, bool preserve_request_timel
 void reset_session(bool preserve_retirement_audio = false)
 {
     reset_car_state(preserve_retirement_audio);
+    pit_at_suspension = -1;
+    red_flag_repair_wait = false;
+    live_terminal_state = -1;
+    live_terminal_mask = 0;
     gp_clock = 0; gp_at = -1;
     flashback_tracker.invalidate_session();damage_flashback_tracker.invalidate_session();
     player_controller_flags=0;
@@ -960,6 +1022,57 @@ void game_failure_dsq_now();
 // Throttle cap for the player's broken car (game thread, inside updateVehicle): a failed ICE or gearbox gives no
 // drive (cap 0, the car rolls out), a failed MGU-K, MGU-H, ES, turbo or CE leaves `damaged_power` of the throttle.
 // Ctrl+Shift+F9 (test) overrides it.
+
+// Game thread. A crash broke a corner: decide once whether the car can still be driven. Only a single broken front
+// corner can limp (state >= 2: suspension broken or wheel coming off); a lost wheel less often. Corner order is
+// RL, RR, FL, FR like the UDP format (visual_wheel_fl reads owner+0x138 = corner 2), so the fronts are 2 and 3.
+void decide_limp(uintptr_t car)
+{
+    if (limp_state.load() == 1 && car) {
+        static uint64_t next_check = 0;
+        uint64_t now = GetTickCount64();
+        if (now < next_check)
+            return;
+        next_check = now + 500;
+        bool ok = false;
+        uint32_t packed = corner_states(car, ok);
+        int broken = 0, rear = 0;
+        for (int i = 0; ok && i < 4; ++i)
+            if (((packed >> (3 * i)) & 7) >= 2) {
+                ++broken;
+                rear += i < 2;
+            }
+        if (ok && (broken > 1 || rear)) {
+            crash_corners = packed;
+            limp_state = 0;
+            swofty::log("[td-probe] crash: corners 0x%03x, another corner broke, the car cannot be driven any more",
+                        packed);
+        }
+        return;
+    }
+    if (limp_state.load() != -1 || !car)
+        return;
+    bool ok = false;
+    uint32_t packed = corner_states(car, ok);
+    if (!ok)
+        return;  // retried next update; the component may not be readable this frame
+    int broken = 0, corner = -1;
+    for (int i = 0; i < 4; ++i)
+        if (((packed >> (3 * i)) & 7) >= 2) {
+            ++broken;
+            corner = i;
+        }
+    unsigned chance = 0, roll = roll_percent();
+    if (broken == 1 && corner >= 2)
+        chance = ((packed >> (3 * corner)) & 7) >= 3 ? 35 : 70;
+    roll = forced_roll(debug_limp_roll, chance, roll);
+    crash_corners = packed;
+    limp_state = roll < chance ? 1 : 0;
+    swofty::log("[td-probe] crash: corners 0x%03x, %d broken (last %d), limp chance %u%%, roll %u -> %s", packed, broken,
+                corner, chance, roll, limp_state.load() ? "the car can limp on" : "the car cannot be driven");
+    if (limp_state.load() == 1 && swofty::hud::available())
+        swofty::hud::toast("BROKEN FRONT CORNER", "The car can still crawl. Bring it back to the pits.", 6);
+}
 
 void power_loss(uintptr_t car)
 {
@@ -1083,8 +1196,12 @@ void power_loss(uintptr_t car)
     if (keep_control && player_broken && car) {
         float v = 0, pu = fraction(damaged_power);
         // Terminal crash damage (broken suspension): the game makes the car near undrivable, so it only rolls out.
-        if (terminal_mask.load() & 0x18)
+        if (terminal_mask.load() & 0x18) {
             why = 8;
+            decide_limp(car);
+            if (limp_state.load() == 1)
+                why = 11;
+        }
         if (!why && guarded_read(car + 0x530, engine) && engine) {
             if (guarded_read(engine + part_offsets[0], v) && v >= 1.0f)
                 why = 1;
@@ -1100,7 +1217,7 @@ void power_loss(uintptr_t car)
         uint32_t mask = terminal_mask.load();
         if (!why && mask)
             why = mask & 1 ? 1 : mask & 4 ? 2 : mask & 2 ? 9 : 10;
-        cap = why == 1 || why == 2 || why == 8 || why == 10 ? 0.0f : why ? pu : 1.0f;
+        cap = why == 1 || why == 2 || why == 8 || why == 10 ? 0.0f : why == 11 ? limp_power : why ? pu : 1.0f;
     }
     // Terminal crash damage (suspension): the engine physics keeps idling, so the engine sound stops after a random
     // 3-6 s, as a stalled engine would.
@@ -1120,10 +1237,156 @@ void power_loss(uintptr_t car)
     throttle_hook.cap = parked_retirement ? 0.0f : t >= 0 ? t : cap;
     if (why != logged) {
         static const char *const names[] = {"none", "ICE", "gearbox", "MGU-K", "MGU-H", "ES", "turbo", "CE", "crash damage",
-                                             "power unit (mask)", "other terminal damage (mask)"};
+                                             "power unit (mask)", "other terminal damage (mask)",
+                                             "limping on a broken front corner"};
         swofty::log("[td-probe] power: failed part %s, throttle cap %.2f", names[why], double(cap));
         logged = why;
     }
+}
+
+// Crash damage repair, the way the game's multiplayer damage sync (network::VehicleMechanicalManager::update,
+// 0x1432495e0) mirrors a remote car: the car's F1SuspensionDamage component (car+0x5d0, owner+8 = car, vtable
+// 0x145bf8bd0) packs 3 bits per corner (0x1446568e0: 0 intact, 1 puncture, 2 suspension broken, 3-5 detach stages; corners RL, RR, FL, FR), and
+// 0x144656a80(component, packed) moves every corner to the given state. State 0 reattaches the wheel (part+0x38 = 0,
+// slot 0xa8 removes the loose body), clears the broken suspension flags (wheel+0x20), the suspension damage
+// (wheel+0x98) and a puncture. The front wing (car+0x5c8) takes Car_Damage_SetComponentDamage 0x144660cd0(wing, 0).
+using wheel_state_get_fn = uint32_t (*)(void *);
+using wheel_state_apply_fn = void (*)(void *, uint32_t);
+using component_damage_fn = void (*)(void *, uint32_t);
+wheel_state_get_fn wheel_state_get = nullptr;
+wheel_state_apply_fn wheel_state_apply = nullptr;
+component_damage_fn front_wing_damage_set = nullptr;
+std::atomic<bool> red_flag_fix_now{false};  // set by the red flag tick, done on the game thread
+bool crash_repair_available() { return wheel_state_get && wheel_state_apply; }
+void find_crash_repair()
+{
+    uintptr_t get = 0, apply = 0, wing = 0;
+    int a = swofty::api->scan(".xtls", "56 57 48 83 EC 28 48 89 CE 48 8B 0D ?? ?? ?? ?? FF 15 ?? ?? ?? ?? B8 01 00 00 00 87 05 "
+                              "?? ?? ?? ?? 48 8B 46 08 8B 4E 68 33 4E 70", &get);
+    int b = swofty::api->scan(".xtls", "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 98 00 00 00 C5 78 29 84 24 80 00 00 00 "
+                              "C5 F8 29 7C 24 70 C5 F8 29 74 24 60 89 D6 48 89 CF 48 8B 0D ?? ?? ?? ?? FF 15 ?? ?? ?? ?? "
+                              "B8 01 00 00 00 87 05 ?? ?? ?? ?? 4C 8B 6F 08 48 89 F9 E8", &apply);
+    int c = swofty::api->scan(".xtls", "56 57 48 83 EC 58 C5 F8 29 7C 24 40 C5 F8 29 74 24 30 89 D7 48 89 CE C5 FA 10 41 38 "
+                              "C5 FA 10 49 48 C5 F2 58 71 4C", &wing);
+    if (a == 1 && b == 1) {
+        wheel_state_get = reinterpret_cast<wheel_state_get_fn>(get);
+        wheel_state_apply = reinterpret_cast<wheel_state_apply_fn>(apply);
+    }
+    if (c == 1)
+        front_wing_damage_set = reinterpret_cast<component_damage_fn>(wing);
+    swofty::log("[td-probe] crash repair: corner state %d/%d hits, front wing %d hits", a, b, c);
+}
+// The car's suspension damage component (checked: its owner pointer +8 is the car), or 0.
+uintptr_t suspension_damage_of(uintptr_t car)
+{
+    uintptr_t owner = 0, back = 0;
+    if (!car || !guarded_read(car + 0x5d0, owner) || !owner || !guarded_read(owner + 8, back) || back != car)
+        return 0;
+    return owner;
+}
+// Game thread. Packed corner states of the car (3 bits per corner, 0 intact).
+uint32_t corner_states(uintptr_t car, bool &ok)
+{
+    uintptr_t owner = suspension_damage_of(car);
+    ok = owner && wheel_state_get;
+    return ok ? wheel_state_get(reinterpret_cast<void *>(owner)) : 0;
+}
+// Debug override of a dice roll: "success" passes whenever there is a chance at all, "fail" never passes.
+unsigned forced_roll(std::string_view mode, unsigned chance, unsigned roll)
+{
+    if (mode == "success" && chance)
+        return 0;
+    if (mode == "fail")
+        return 100;
+    return roll;
+}
+unsigned roll_percent()
+{
+    static std::mt19937 rng{static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId())};
+    return unsigned(rng() % 100);
+}
+bool has_detached_corner(uint32_t packed)
+{
+    for (int i = 0; i < 4; ++i)
+        if (((packed >> (3 * i)) & 7) >= 3)
+            return true;
+    return false;
+}
+// Game thread. Number of corners not intact, -1 unknown.
+int damaged_corners(uintptr_t car)
+{
+    uintptr_t owner = suspension_damage_of(car);
+    if (!owner || !wheel_state_get)
+        return -1;
+    uint32_t packed = wheel_state_get(reinterpret_cast<void *>(owner)), n = 0;
+    for (int i = 0; i < 4; ++i)
+        n += ((packed >> (3 * i)) & 7) >= 2;  // 1 is only a puncture
+    return int(n);
+}
+// Game thread: the team replaces the broken corner and the front wing.
+void repair_crash_damage(uintptr_t car)
+{
+    uintptr_t owner = suspension_damage_of(car), wing = 0;
+    if (!owner || !crash_repair_available()) {
+        swofty::log("[td-probe] crash repair: not possible (car %p, component %p)", reinterpret_cast<void *>(car),
+                    reinterpret_cast<void *>(owner));
+        return;
+    }
+    uint32_t before = wheel_state_get(reinterpret_cast<void *>(owner));
+    wheel_state_apply(reinterpret_cast<void *>(owner), 0);
+    uint32_t after = wheel_state_get(reinterpret_cast<void *>(owner));
+    bool wing_done = false;
+    if ((terminal_mask.load() & 0x40) && front_wing_damage_set && guarded_read(car + 0x5c8, wing) && wing) {
+        front_wing_damage_set(reinterpret_cast<void *>(wing), 0);
+        wing_done = true;
+    }
+    swofty::log("[td-probe] crash repair: corners 0x%03x -> 0x%03x, front wing %s", before, after,
+                wing_done ? "repaired" : "untouched");
+}
+
+// Game thread, right after the game updated the record. During a red flag repair wait, a record that is no longer
+// terminal means the game's repairs fixed the car: clear the addon's broken state so it takes part in the restart.
+void read_terminal_record(uintptr_t sys, uint8_t vehicle)
+{
+    uint64_t count = 0;
+    uint32_t overall = 0, live = 0, states[23] = {};  // record +0x10 .. +0x6c: parts at +0x10, overall at +0x68
+    uintptr_t rec = sys + 0x50 + uint64_t(vehicle) * 0x70;
+    if (!sys || !guarded_read(sys + 0xc20, count) || vehicle >= count || !guarded_copy(rec + 0x10, states, sizeof states))
+        return;
+    overall = states[(0x68 - 0x10) / 4];
+    for (int i = 0; i < 11; ++i)
+        if (states[i] == 5)
+            live |= 1u << i;
+    if (player_broken && (int(overall) != live_terminal_state.load() || live != live_terminal_mask.load()))
+        swofty::log("[td-probe] terminal record: state %u, parts at terminal 0x%x", overall, live);
+    live_terminal_state = int(overall);
+    live_terminal_mask = live;
+    if (red_flag_repair_wait.load() && overall != 5 && !live && red_flag_repair_wait.exchange(false)) {
+        swofty::log("[td-probe] red flag: the game repaired your car (mask was 0x%x), it takes part in the restart",
+                    terminal_mask.load());
+        reset_car_state(false);
+        red_flag_repaired_toast = true;
+    }
+}
+
+// The player's speed straight from the game, so the addon does not need the game's UDP telemetry. The game's own
+// car telemetry writer (0x142cf9820) reads it like this: body = [[car+0x558]+0x340]+0x18, velocity (m/s) at body+0x220,
+// speed in km/h = |velocity| * 3600 * 0.001.
+std::atomic<int> game_speed{-1};
+std::atomic<uint64_t> game_speed_ms{0};
+void read_game_speed(uintptr_t car)
+{
+    uintptr_t physics = 0, rigid = 0, body = 0;
+    float v[4] = {};
+    if (!car || !guarded_read(car + 0x558, physics) || !physics || !guarded_read(physics + 0x340, rigid) || !rigid ||
+        !guarded_read(rigid + 0x18, body) || !body || !swofty::mem::readable(body + 0x220, sizeof v))
+        return;
+    memcpy(v, reinterpret_cast<const void *>(body + 0x220), sizeof v);
+    float kmh = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]) * 3.6f;
+    if (!std::isfinite(kmh) || kmh > 1000.0f)
+        return;
+    game_speed = int(kmh);
+    game_speed_ms = GetTickCount64();
 }
 
 uint64_t on_update_vehicle(void *system, uint8_t vehicle)
@@ -1138,6 +1401,12 @@ uint64_t on_update_vehicle(void *system, uint8_t vehicle)
     if (int(vehicle) == player_vehicle.load()) {
         uintptr_t car = car_of(reinterpret_cast<uintptr_t>(system), vehicle);
         throttle_hook.car = car;
+        if (player_broken || log_telemetry)
+            read_game_speed(car);
+        if (red_flag_fix_now.exchange(false))
+            repair_crash_damage(car);
+        garage_repair_finish(car);
+        read_terminal_record(reinterpret_cast<uintptr_t>(system), vehicle);
         power_loss(car);
         return_to_garage();
         game_failure_dsq_now();
@@ -1652,6 +1921,275 @@ void hook_qualifying_engine_repair()
     repair_session_kind = session_site + 6 + int64_t(session_rel);
     hook_thunk_at("qualifying ICE replacement repair time", site + 10 + int64_t(target_rel),
                   reinterpret_cast<void *>(&on_add_repair), reinterpret_cast<void **>(&orig_add_repair));
+}
+
+// Practice and qualifying: a car that limped into its garage on one broken front corner gets the game's own
+// "detached wheel" repair job (kind 16, lng_ft_detached_wheel) with a long time: 20-30 min for a broken suspension,
+// 30-45 min for a lost wheel. The game shows it as its repair timer. RepairTimes (update 0x142bf50a0, `this` rcx,
+// dt xmm1) keeps per-vehicle records at +0x48..+0x50 (stride 0x58: +0x10 active, +0x16 vehicle, +0x20..+0x28 jobs
+// {u32 kind, float seconds}) and counts the jobs of active records down. A finished job calls 0x142bf03e0(record,
+// kind) and is erased; for kinds 3..16 that resets the game's terminal damage record. When our job finishes, the
+// addon rebuilds the corner (repair_crash_damage) and the car may leave again. A car that could not be driven
+// (abandoned on track, FIA B1.8.9) gets no job and stays in its garage for the session.
+using repair_update_fn = void (*)(void *, float);
+repair_update_fn orig_repair_update;
+using repair_done_fn = void (*)(void *, uint32_t);
+repair_done_fn orig_repair_done;
+bool repair_update_hooked = false;
+constexpr uint8_t repair_update_prologue[] = {0x56, 0x57, 0x53, 0x48, 0x83, 0xEC, 0x70, 0xC5, 0x78, 0x29,
+                                              0x4C, 0x24, 0x60, 0xC5, 0x78, 0x29, 0x44, 0x24, 0x50};
+constexpr uint8_t repair_done_prologue[] = {0x56, 0x48, 0x83, 0xEC, 0x30, 0x48, 0x8B, 0x41, 0x08,
+                                            0x4C, 0x8B, 0x40, 0x30, 0x0F, 0xB6, 0x71, 0x16};
+
+float garage_repair_time(uint32_t corners)
+{
+    if (debug_garage_repair == std::string_view("fast"))
+        return 60.0f;
+    bool wheel = has_detached_corner(corners);
+    float lo = wheel ? 1800.0f : 1200.0f, hi = wheel ? 2700.0f : 1800.0f;
+    return lo + (hi - lo) * float(roll_percent()) / 99.0f;
+}
+
+// The player's RepairTimes record, or 0.
+uintptr_t player_repair_record(uintptr_t manager)
+{
+    uintptr_t first = 0, last = 0;
+    int vehicle = player_vehicle.load();
+    if (vehicle < 0 || !swofty::mem::read(manager + 0x48, first) || !swofty::mem::read(manager + 0x50, last) ||
+        !first || last < first || (last - first) % 0x58 || (last - first) / 0x58 > 64)
+        return 0;
+    for (uintptr_t at = first; at < last; at += 0x58) {
+        uint8_t id = 0xff;
+        if (swofty::mem::read(at + 0x16, id) && int(id) == vehicle)
+            return at;
+    }
+    return 0;
+}
+
+void on_repair_update(void *manager, float dt)
+{
+    int state = garage_repair.load();
+    if (corner_toast_at.load() && GetTickCount64() >= corner_toast_at.load()) {
+        corner_toast_at = 0;
+        if (state == 2 && swofty::hud::available()) {
+            char text[160];
+            snprintf(text, sizeof text, "The team rebuilds the broken corner. This takes %d minutes.",
+                     corner_toast_minutes.load());
+            swofty::hud::toast("CORNER REPAIR", text, 8);
+        }
+    }
+    // A withdrawn car is not repaired: drop the game's own repair jobs (their timer and Skip Repair Time). A failed
+    // power unit or gearbox keeps them, the part change runs through them.
+    static bool cleared_logged = false;
+    if (state == 0 && garage_exit_locked()) {
+        uintptr_t record = player_repair_record(reinterpret_cast<uintptr_t>(manager)), first = 0, last = 0;
+        if (record && swofty::mem::read(record + 0x20, first) && swofty::mem::read(record + 0x28, last) && first &&
+            last > first && (last - first) % 8 == 0 && (last - first) / 8 <= 32) {
+            *reinterpret_cast<volatile uintptr_t *>(record + 0x28) = first;
+            if (!cleared_logged) {
+                cleared_logged = true;
+                swofty::log("[td-probe] garage: your car is withdrawn, removed %d repair jobs of the game",
+                            int((last - first) / 8));
+            }
+        }
+    } else {
+        cleared_logged = false;
+    }
+    if ((state == 1 || state == 2) && !session_ended && orig_add_repair) {
+        uintptr_t record = player_repair_record(reinterpret_cast<uintptr_t>(manager)), item = 0;
+        float seconds = 0;
+        if (record && repair_item(record, 16, item)) {
+            if (state == 1) {
+                if (!item)
+                    orig_add_repair(reinterpret_cast<void *>(record), 16);
+                uint8_t active = 0;
+                if (repair_item(record, 16, item) && item && swofty::mem::read(item + 4, seconds) &&
+                    std::isfinite(seconds) && swofty::mem::read(record + 0x10, active)) {
+                    float t = garage_repair_time(crash_corners.load());
+                    *reinterpret_cast<volatile float *>(item + 4) = t;
+                    garage_repair_left = t;
+                    if (!active)
+                        *reinterpret_cast<volatile uint8_t *>(record + 0x10) = 1;
+                    garage_repair = 2;
+                    swofty::log("[td-probe] garage repair: detached wheel job %.0f -> %.0f s (record %p, active %u, %s)",
+                                double(seconds), double(t), reinterpret_cast<void *>(record), unsigned(active),
+                                has_detached_corner(crash_corners.load()) ? "lost wheel" : "broken suspension");
+                    // Shown 3 s later: right now the garage camera is still fading in.
+                    corner_toast_minutes = int(t / 60.0f + 0.5f);
+                    corner_toast_at = GetTickCount64() + 3000;
+                }
+            } else if (item && swofty::mem::read(item + 4, seconds)) {
+                garage_repair_left = seconds;
+                static uint64_t next_log = 0;
+                if (GetTickCount64() >= next_log) {
+                    next_log = GetTickCount64() + 30000;
+                    swofty::log("[td-probe] garage repair: %.0f s left", double(seconds));
+                }
+            }
+        }
+    }
+    orig_repair_update(manager, dt);
+}
+
+void on_repair_done(void *record, uint32_t kind)
+{
+    uint8_t id = 0xff;
+    bool ours = kind == 16 && garage_repair.load() == 2 &&
+                swofty::mem::read(reinterpret_cast<uintptr_t>(record) + 0x16, id) && int(id) == player_vehicle.load();
+    orig_repair_done(record, kind);
+    if (ours) {
+        garage_repair = 3;
+        swofty::log("[td-probe] garage repair: the detached wheel job finished");
+    }
+}
+
+// Game thread (updateVehicle of the player's car).
+void garage_repair_finish(uintptr_t car)
+{
+    if (garage_repair.load() != 3 || !car)
+        return;
+    repair_crash_damage(car);
+    int pit = player_pit.load();
+    reset_car_state();
+    player_pit = pit;
+    swofty::log("[td-probe] garage repair: your car is rebuilt and may leave the garage");
+    if (swofty::hud::available())
+        swofty::hud::toast("CAR REPAIRED", "The broken corner is rebuilt. Your car may leave the garage.", 6);
+}
+
+void hook_garage_crash_repair()
+{
+    repair_update_hooked =
+        detour("RepairTimes update",
+               "56 57 53 48 83 EC 70 C5 78 29 4C 24 60 C5 78 29 44 24 50 C5 F8 29 7C 24 40 C5 F8 29 74 24 30 48 89 CE "
+               "48 8B 41 70 48 8B 48 20 48 8B 89 F0 00 00",
+               repair_update_prologue, sizeof repair_update_prologue, reinterpret_cast<void *>(&on_repair_update),
+               reinterpret_cast<void **>(&orig_repair_update)) &&
+        detour("RepairTimes job finished",
+               "56 48 83 EC 30 48 8B 41 08 4C 8B 40 30 0F B6 71 16 49 39 B0 80 01 00 00 0F 86 84 00 00 00 49 83 BC F0 "
+               "B0 00 00 00 00 74 79 8D 4A FD 83 F9 0E 73",
+               repair_done_prologue, sizeof repair_done_prologue, reinterpret_cast<void *>(&on_repair_done),
+               reinterpret_cast<void **>(&orig_repair_done));
+    if (!repair_update_hooked)
+        swofty::log("[td-probe] garage repair: not available, a limping car stays in its garage");
+}
+
+// Practice/qualifying: a car that cannot be repaired in this session (crash damage, a plain retirement) or whose
+// corner is still being rebuilt may not leave its garage at all. GarageComponent handles the menu's drive out
+// request MessageRequestVehicleExitGarage (handler 0x142a41120, rcx component, rdx message: +0x10 vehicle,
+// +0x14 type 0/1); swallowing it stops the exit before the crew or the pit lane start anything. Refusing it later
+// (pit state OnTrack, crew request 2) froze the camera or left the car half way (0.32.2/0.32.3 tests). A failed
+// power unit or gearbox keeps the old path: the part swap only shows on a send-out attempt.
+bool garage_exit_locked()
+{
+    return car_dead && keep_control && !session_ended && !(terminal_mask.load() & 0x7) && !garage_part_failed;
+}
+// The garage menu (view model update 0x141bc0940: rcx view model, xmm1 dt, r8d) binds its buttons to bool nodes
+// whose handles it keeps at vm+0x390 goto_track_visible, +0x3d0 drive_out_enabled, +0x3f0 flying_lap_enabled,
+// +0x470 pp_flying_lap_enabled, +0x490 pp_drive_out_enabled (created in 0x141bc2f9f), and sets them every update
+// with Vm_NodeSet_Bool(node, &value, 0, 0) (0x140973e20, called at +0x4db) after the checks at +0x4f1 (node not the
+// empty node, +0x26 bit 0 clear, vtable +0x20 true). It already hides "go to track" while the RepairTimes record
+// has jobs (vm+0x33b). For a locked car the addon sets these nodes to false after each update, so the menu offers
+// no way out of the garage and its camera never leaves.
+using garage_vm_update_fn = uint64_t (*)(void *, float, uint64_t, uint64_t);
+garage_vm_update_fn orig_garage_vm_update;
+using vm_node_set_bool_fn = void *(*)(void *, uint8_t *, uint64_t, uint64_t);
+vm_node_set_bool_fn vm_node_set_bool;
+uintptr_t vm_empty_node = 0;  // address of the global holding the empty node
+bool garage_menu_hooked = false;
+constexpr uint8_t garage_vm_update_prologue[] = {0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x56, 0x57,
+                                                 0x55, 0x53, 0x48, 0x81, 0xEC, 0x58, 0x01, 0x00, 0x00};
+void vm_bool_off(uintptr_t vm, uint32_t offset)
+{
+    uintptr_t node = 0, empty = 0, vtable = 0, valid = 0;
+    uint8_t flags = 0;
+    if (!swofty::mem::read(vm + offset, node) || !node || !swofty::mem::read(vm_empty_node, empty) || node == empty ||
+        !swofty::mem::read(node + 0x26, flags) || (flags & 1) || !swofty::mem::read(node, vtable) || !vtable ||
+        !swofty::mem::read(vtable + 0x20, valid) || !valid || !reinterpret_cast<bool (*)(void *)>(valid)(
+                                                                  reinterpret_cast<void *>(node)))
+        return;
+    uint8_t off = 0;
+    vm_node_set_bool(reinterpret_cast<void *>(node), &off, 0, 0);
+}
+uint64_t on_garage_vm_update(void *vm, float dt, uint64_t r8, uint64_t r9)
+{
+    uint64_t r = orig_garage_vm_update(vm, dt, r8, r9);
+    static bool logged = false;
+    if (!garage_exit_locked()) {
+        logged = false;
+    } else {
+        if (!logged) {
+            logged = true;
+            swofty::log("[td-probe] garage: drive out and flying lap buttons switched off in the garage menu");
+        }
+        for (uint32_t offset : {0x390u, 0x3d0u, 0x3f0u, 0x470u, 0x490u})
+            vm_bool_off(reinterpret_cast<uintptr_t>(vm), offset);
+    }
+    return r;
+}
+void hook_garage_menu()
+{
+    uintptr_t at = 0;
+    int n = swofty::api->scan(".xtls",
+                              "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 58 01 00 00 C5 F8 29 B4 24 40 01 00 00 44 "
+                              "89 C3 C5 F8 28 F1 48 89 CE 4C 8B",
+                              &at);
+    uint8_t call = 0, cmp[3] = {};
+    int32_t rel = 0, empty_rel = 0;
+    bool ok = n == 1 && swofty::mem::read(at + 0x4db, call) && call == 0xE8 && swofty::mem::read(at + 0x4dc, rel) &&
+              swofty::mem::readable(at + 0x4f1, 7) && swofty::mem::read(at + 0x4f4, empty_rel);
+    if (ok)
+        memcpy(cmp, reinterpret_cast<void *>(at + 0x4f1), 3);
+    if (!ok || cmp[0] != 0x48 || cmp[1] != 0x3B || cmp[2] != 0x3D) {
+        swofty::log("[td-probe] garage menu: update not found (%d hits), drive out stays possible", n);
+        return;
+    }
+    vm_node_set_bool = reinterpret_cast<vm_node_set_bool_fn>(at + 0x4e0 + int64_t(rel));
+    vm_empty_node = at + 0x4f8 + int64_t(empty_rel);
+    garage_menu_hooked = detour_at("garage menu update", at, garage_vm_update_prologue, sizeof garage_vm_update_prologue,
+                                   reinterpret_cast<void *>(&on_garage_vm_update),
+                                   reinterpret_cast<void **>(&orig_garage_vm_update));
+}
+
+using exit_garage_fn = uint64_t (*)(void *, void *);
+exit_garage_fn orig_exit_garage;
+constexpr uint8_t exit_garage_prologue[] = {0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x56, 0x57,
+                                            0x55, 0x53, 0x48, 0x81, 0xEC, 0x08, 0x01, 0x00, 0x00};
+uint64_t on_exit_garage(void *component, void *msg)
+{
+    uint8_t vehicle = 0xff;
+    uint32_t type = 0;
+    // Only with the menu buttons switched off: a refused drive out leaves the menu's camera stuck in the car.
+    if (!garage_menu_hooked || !garage_exit_locked() ||
+        !swofty::mem::read(reinterpret_cast<uintptr_t>(msg) + 0x10, vehicle) ||
+        int(vehicle) != player_vehicle.load())
+        return orig_exit_garage(component, msg);
+    swofty::mem::read(reinterpret_cast<uintptr_t>(msg) + 0x14, type);
+    int state = garage_repair.load();
+    swofty::log("[td-probe] garage: refused drive out (type %u), %s", type,
+                state == 1 || state == 2 ? "the corner is still being rebuilt" : "your car is out for this session");
+    static uint64_t toast_after = 0;
+    if (swofty::hud::available() && GetTickCount64() >= toast_after) {
+        toast_after = GetTickCount64() + 3000;
+        if (state == 1 || state == 2) {
+            char text[160];
+            snprintf(text, sizeof text, "The team is still rebuilding the broken corner: %d minutes left.",
+                     int(garage_repair_left.load() / 60.0f + 0.99f));
+            swofty::hud::toast("REPAIR IN PROGRESS", text, 4);
+        } else {
+            swofty::hud::toast("CAR WITHDRAWN",
+                               "Your car cannot be repaired in this session. It is ready for the next session.", 5);
+        }
+    }
+    return 0;
+}
+void hook_exit_garage()
+{
+    detour("GarageComponent drive out request",
+           "41 57 41 56 41 55 41 54 56 57 55 53 48 81 EC 08 01 00 00 48 89 D6 48 89 CF 48 8B 89 F8 01 00 00 4C 8B 87 "
+           "00 02 00 00",
+           exit_garage_prologue, sizeof exit_garage_prologue, reinterpret_cast<void *>(&on_exit_garage),
+           reinterpret_cast<void **>(&orig_exit_garage));
 }
 
 template <int... I> void crew_handlers(std::integer_sequence<int, I...>, void **out)
@@ -2254,8 +2792,61 @@ void latch_retirement_drive(int vehicle)
     throttle_hook.cap=0.0f;
 }
 
+// Sess_Result_ChangeVehicleStatus 0x142c7bae0 (result in rcx; u8 vehicle +0, status +0x18, reason +0x19, pending
+// request status +0x11d, reason +0x11e, pending flag +0x11f) commits the pending request. At the session end the race
+// ruleset (0x142d2b7b0, loop at 0x142d2c26c) requests DNF for every car short of the classification distance, without
+// checking for a disqualification, so the player's DSQ became DNF (0.51.64/0.51.65 tests). Keep a disqualified player
+// car disqualified: turn that pending DNF back into DSQ.
+using change_vehicle_status_fn = uint64_t (*)(void *, double, float, uint8_t, uint32_t, uint32_t);
+change_vehicle_status_fn orig_change_vehicle_status = nullptr;
+uint64_t on_change_vehicle_status(void *result, double a, float b, uint8_t c, uint32_t d, uint32_t e)
+{
+    uintptr_t r = reinterpret_cast<uintptr_t>(result);
+    uint8_t vehicle = 0xff, status = 0, pending = 0, flag = 0;
+    if (r && guarded_read(r, vehicle) && int(vehicle) == player_vehicle.load() &&
+        (player_controller_flags.load() & (1u << 2)) && guarded_read(r + 0x18, status) && status == 5 &&
+        guarded_read(r + 0x11f, flag) && flag && guarded_read(r + 0x11d, pending) && pending == 4) {
+        *reinterpret_cast<volatile uint8_t *>(r + 0x11d) = 5;
+        swofty::log("[td-probe] result: kept vehicle %u disqualified (the game asked for DNF)", vehicle);
+    }
+    return orig_change_vehicle_status(result, a, b, c, d, e);
+}
+bool hook_change_vehicle_status()
+{
+    constexpr uint8_t prologue[] = {0x56, 0x48, 0x83, 0xEC, 0x60, 0xC5, 0xF8, 0x29, 0x74, 0x24, 0x50,
+                                    0xC5, 0xF9, 0x6F, 0xF1};
+    return detour("Sess_Result_ChangeVehicleStatus",
+                  "56 48 83 EC 60 C5 F8 29 74 24 50 C5 F9 6F F1 48 89 CE 0F B6 41 18 3C 02 75 69 C5 F9 6E 84 24 98 00 00 00",
+                  prologue, sizeof prologue, reinterpret_cast<void *>(&on_change_vehicle_status),
+                  reinterpret_cast<void **>(&orig_change_vehicle_status));
+}
+
+// MessageVehicleStatusRequest {vtable, 0, u8 vehicle, u8 status, u8 reason, u8 apply}: the session result handler
+// (0x14e716f20, "onStatusRequest() for Vehicle %d") passes it to Sess_Result_ChangeVehicleStatus 0x142c7bae0, which
+// sets result+0x18/+0x19 and posts the status-changed message. Status (0x14565c1f8): 2 active, 3 finished, 4 DNF,
+// 5 disqualified, 6 not classified, 7 retired. Reason (0x1456e6a28): 1 retired, 3 terminal damage, 6 black flagged,
+// 8 canned event failure. A request for the current status is ignored.
+bool post_vehicle_status(int vehicle, uint32_t status, uint32_t reason)
+{
+    uintptr_t holder = 0, bus = 0;
+    if (!status_request_vtable || vehicle < 0 || !swofty::mem::read(bus_holder, holder) || !holder ||
+        !swofty::mem::read(holder + 8, bus) || !bus)
+        return false;
+    struct {
+        const void *vtable;
+        uint64_t zero;
+        uint32_t packed;
+        uint8_t pad[0x2c];
+    } msg{};
+    msg.vtable = status_request_vtable;
+    msg.packed = uint32_t(vehicle) | status << 8 | reason << 16 | 1u << 24;
+    swofty::log("[td-probe] status request: vehicle %d status %u reason %u (0x%08x)", vehicle, status, reason, msg.packed);
+    swofty::game::Ne_Post_BusMessage(reinterpret_cast<void *>(bus), &msg);
+    return true;
+}
+
 // What the pause menu's Retire does, for the player's car.
-void retire_player()
+void retire_player(bool after_dsq = false)
 {
     int vehicle = player_vehicle;
     uintptr_t holder = 0, bus = 0;
@@ -2265,7 +2856,7 @@ void retire_player()
         return;
     }
     // A disqualified car stays DSQ; a retirement would overwrite the result with DNF.
-    if (player_controller_flags.load() & (1u << 2)) {
+    if (!after_dsq && (player_controller_flags.load() & (1u << 2))) {
         swofty::log("[td-probe] retire: skipped, vehicle %d is disqualified", vehicle);
         return;
     }
@@ -2292,38 +2883,78 @@ void retire_player()
 }
 
 // Red flag: the game's RedFlagRaceStrategy state (Enter 0x142dfbf80, Update 0x142dfcdc0, `this` in rcx) shows the
-// pit stop editor where the team repairs and changes tyres. A car with terminal damage cannot be repaired: the
-// screen opens as usual with a notice, and the car retires once the player closes it (the close callback
-// 0x142dfd2b0 sets state+0xdb1, which Update tests).
+// pit stop editor where the team repairs and changes tyres. The close callback 0x142dfd2b0 sets state+0xdb1, which
+// Update tests. What the team may do follows the FIA Sporting Regulations, B5.14.4 a: during a suspension only the
+// listed work is allowed. Item viii is the repair of genuine accident damage including the replacement of
+// assemblies; power unit or gearbox work is not listed. So:
+//  - mechanical damage (mask bits 0-2): popup, no editor, retire.
+//  - lost wheel / broken suspension (bits 3-4): the car limps on only with one broken front corner (decide_limp, a
+//    dice roll). A car that could not be driven was abandoned on the circuit (B1.8.9): popup, no editor, retire.
+//    A limping car is accident damage the team may repair: a second dice roll (80 %, lost wheel 50 %) decides whether
+//    it is done in time. Yes: the editor runs; when it closes, the addon rebuilds the corner (and the front wing) the
+//    way the game's multiplayer damage sync does (repair_crash_damage). No: popup, no editor, retire.
+//  - other accident damage (tyres, aero, bodywork): the editor runs and the game's own red flag repair (loop at
+//    0x1435847da, vehicle status 3 "Repaired") restores it.
+// Afterwards the addon reads the game's terminal damage record (read_terminal_record): no longer terminal, the car
+// takes part in the restart; still terminal 20 s after the editor closed, it retires.
 void (*orig_red_flag_strategy_enter)(void *) = nullptr;
 std::atomic<uintptr_t> red_flag_state{0};
 constexpr bool red_flag_skip_editor = true;
 std::atomic<uint64_t> red_flag_toast_at{0};
 std::atomic<bool> red_flag_screen_open{false};
-std::atomic<uint64_t> red_flag_probe_until{0}, red_flag_probe_next{0};
-void log_red_flag_repairs(const char *when, void *state);
+std::atomic<int> red_flag_verdict{0};               // 1 mechanical, 2 corner repair failed, 3 abandoned
+std::atomic<uint64_t> red_flag_repair_deadline{0};  // repair wait: retire if still terminal after this tick
+std::atomic<bool> red_flag_fix_pending{false};      // corner/front wing repair due when the editor closes
 void red_flag_toast_tick()
 {
     uint8_t closed = 0;
     uintptr_t st = red_flag_state.load();
-    if (uint64_t now = GetTickCount64(); st && now < red_flag_probe_until.load() && now >= red_flag_probe_next.load()) {
-        red_flag_probe_next = now + 2000;
-        log_red_flag_repairs("poll", reinterpret_cast<void *>(st));
-    }
     if (red_flag_screen_open.load() && st && guarded_read(st + 0xdb1, closed) && closed &&
         red_flag_screen_open.exchange(false)) {
         swofty::log("[td-probe] red flag: strategy screen closed, retiring your car");
         red_flag_toast_at = GetTickCount64() + 3000;
         retire_player();
     }
+    if (red_flag_repaired_toast.exchange(false) && swofty::hud::available())
+        swofty::hud::toast("CAR REPAIRED", "Your team repaired the accident damage. You take part in the restart.", 8);
+    if (red_flag_repair_wait.load()) {
+        uint64_t now = GetTickCount64();
+        // The editor closed: the team works now. Give the repairs 20 s.
+        if (st && guarded_read(st + 0xdb1, closed) && closed && red_flag_repair_deadline.load() > now + 20000) {
+            red_flag_repair_deadline = now + 20000;
+            if (red_flag_fix_pending.exchange(false))
+                red_flag_fix_now = true;
+            swofty::log("[td-probe] red flag: strategy screen closed, waiting for the repairs");
+        }
+        if (confirmed_retired_vehicle.load() >= 0) {
+            red_flag_repair_wait = false;
+        } else if (now >= red_flag_repair_deadline.load() && red_flag_repair_wait.exchange(false)) {
+            swofty::log("[td-probe] red flag: still terminal after the repairs (state %d, parts 0x%x), retiring your car",
+                        live_terminal_state.load(), live_terminal_mask.load());
+            retire_player();
+            if (swofty::hud::available())
+                swofty::hud::toast("REPAIRS NOT COMPLETED",
+                                   "The damage could not be repaired before the restart. You will not take part.", 10);
+        }
+    }
     uint64_t at = red_flag_toast_at.load();
     if (!at || GetTickCount64() < at)
         return;
     red_flag_toast_at = 0;
+    const char *title = "CAR SEVERELY DAMAGED";
+    const char *text = "Your car was severely damaged and cannot be repaired. You will not take part in the restart.";
+    if (red_flag_verdict.load() == 1) {
+        title = "POWER UNIT FAILURE";
+        text = "Power unit and gearbox failures cannot be repaired during a red flag. "
+               "You will not take part in the restart.";
+    } else if (red_flag_verdict.load() == 2) {
+        text = "Your team cannot rebuild the broken corner before the restart. You will not take part in the restart.";
+    } else if (red_flag_verdict.load() == 3) {
+        title = "CAR ABANDONED ON TRACK";
+        text = "Your car could not be driven after the crash. A car abandoned on the circuit is withdrawn from the race.";
+    }
     if (red_flag_screen_open.load() && swofty::popup::available()) {
-        auto r = swofty::popup::show("CAR SEVERELY DAMAGED",
-                                     "Your car was severely damaged and cannot be repaired. "
-                                     "You will not take part in the restart.");
+        auto r = swofty::popup::show(title, text);
         swofty::log("[td-probe] red flag: popup %s", swofty::popup::name(r));
         if (r == swofty::popup::Result::ok) {
             // Skip the pit stop editor: what its close callback (0x142dfd2b0) does. The next tick retires the car.
@@ -2336,31 +2967,7 @@ void red_flag_toast_tick()
         }
     }
     if (swofty::hud::available())
-        swofty::hud::toast("CAR SEVERELY DAMAGED",
-                           "It cannot be repaired. You will not take part in the restart.", 10);
-}
-// Probe: what the red flag repair queue holds (state+0xdb0 object, entries between +0xe0 and +0xe8, 2 bytes each).
-void log_red_flag_repairs(const char *when, void *state)
-{
-    uintptr_t st = reinterpret_cast<uintptr_t>(state), obj = 0, first = 0, last = 0;
-    if (!st || !guarded_read(st + 0xdb0, obj) || !obj || !guarded_read(obj + 0xe0, first) ||
-        !guarded_read(obj + 0xe8, last) || last < first || last - first > 0x200) {
-        swofty::log("[td-probe] red flag repairs (%s): no queue (object %p)", when, reinterpret_cast<void *>(obj));
-        return;
-    }
-    std::string bytes;
-    for (uintptr_t a = first; a < last; ++a) {
-        uint8_t b = 0;
-        char t[8];
-        snprintf(t, sizeof t, "%02x ", guarded_read(a, b) ? b : 0xee);
-        bytes += t;
-    }
-    uint8_t flags[3] = {0, 0, 0};
-    for (int i = 0; i < 3; ++i)
-        guarded_read(st + 0xdb0 + i - 0 * 1, flags[i]);
-    swofty::log("[td-probe] red flag repairs (%s): queue %llu bytes [%s], terminal mask 0x%x, broken %d",
-                when, (unsigned long long)(last - first), bytes.c_str(), terminal_mask.load(),
-                int(player_broken.load()));
+        swofty::hud::toast(title, text, 10);
 }
 void on_red_flag_strategy_enter(void *state)
 {
@@ -2373,19 +2980,59 @@ void on_red_flag_strategy_enter(void *state)
         orig_red_flag_strategy_enter(state);
         return;
     }
-    uint32_t mask = terminal_mask.load();
-    swofty::log("[td-probe] red flag: strategy screen opens (player vehicle %d, broken %d, terminal mask 0x%x)",
-                player_vehicle.load(), int(player_broken.load()), mask);
-    orig_red_flag_strategy_enter(state);
-    log_red_flag_repairs("strategy screen open", state);
-    red_flag_state = reinterpret_cast<uintptr_t>(state);
-    red_flag_probe_until = GetTickCount64() + 120000;
-    if (red_flag_retire && keep_control && player_broken && (mask & 0x7) && confirmed_retired_vehicle.load() < 0 &&
-        !red_flag_screen_open.exchange(true)) {
-        red_flag_state = reinterpret_cast<uintptr_t>(state);
-        swofty::log("[td-probe] red flag: your car has terminal damage and cannot be repaired; it retires when you close the screen");
-        red_flag_toast_at = GetTickCount64() + 1500;
+    // The game sends its terminal damage message only after a delay: a crash just before the red flag is already in
+    // the record but not yet known to the addon. Take it from the record.
+    if (keep_control && !player_broken && live_terminal_state.load() == 5 && live_terminal_mask.load()) {
+        terminal_mask.fetch_or(live_terminal_mask.load());
+        player_broken = true;
+        decide_limp(throttle_hook.car);
+        swofty::log("[td-probe] red flag: terminal damage 0x%x from the game's record (message still pending)",
+                    live_terminal_mask.load());
     }
+    uint32_t mask = terminal_mask.load();
+    int corners = damaged_corners(throttle_hook.car);
+    swofty::log("[td-probe] red flag: strategy screen opens (player vehicle %d, broken %d, terminal mask 0x%x, "
+                "game record state %d parts 0x%x, damaged corners %d, pit state at the suspension %d)",
+                player_vehicle.load(), int(player_broken.load()), mask, live_terminal_state.load(),
+                live_terminal_mask.load(), corners, pit_at_suspension.load());
+    orig_red_flag_strategy_enter(state);
+    red_flag_state = reinterpret_cast<uintptr_t>(state);
+    if (!red_flag_retire || !keep_control || !player_broken || !mask || confirmed_retired_vehicle.load() >= 0)
+        return;
+    bool corner_damage = mask & 0x18;
+    int verdict = 0;
+    unsigned chance = 0, roll = 0;
+    if (mask & 0x7) {
+        verdict = 1;
+    } else if (corner_damage && limp_state.load() != 1) {
+        verdict = 3;  // could not be driven: abandoned on the circuit
+    } else if (corner_damage) {
+        // The car crawled on: whether the team can rebuild the corner in time is a dice roll; a lost wheel is harder.
+        chance = ((crash_corners.load() & 0xfff) && corners == 1 && crash_repair_available())
+                     ? (has_detached_corner(crash_corners.load()) ? 50 : 80) : 0;
+        roll = forced_roll(debug_repair_roll, chance, roll_percent());
+        if (roll >= chance)
+            verdict = 2;
+        swofty::log("[td-probe] red flag: corner repair chance %u%%, roll %u -> %s", chance, roll,
+                    verdict ? "not repairable in time" : "the team repairs it");
+    }
+    if (verdict) {
+        if (red_flag_screen_open.exchange(true))
+            return;
+        red_flag_verdict = verdict;
+        swofty::log("[td-probe] red flag: %s; your car retires when you close the screen",
+                    verdict == 1 ? "mechanical failure, not repairable under a red flag (FIA B5.14.4 a)" :
+                    verdict == 2 ? "broken corner, the team cannot repair it before the restart" :
+                                   "broken corner, the car could not be driven: abandoned on the circuit (FIA B1.8.9)");
+        red_flag_toast_at = GetTickCount64() + 1500;
+        return;
+    }
+    // Accident damage the team may repair (FIA B5.14.4 a viii): the editor runs as usual.
+    red_flag_fix_pending = corner_damage || (mask & 0x40);
+    red_flag_repair_deadline = GetTickCount64() + 600000;
+    red_flag_repair_wait = true;
+    swofty::log("[td-probe] red flag: accident damage 0x%x may be repaired (%s); waiting for the editor to close", mask,
+                red_flag_fix_pending.load() ? "the addon replaces the corner / front wing" : "the game's repairs");
 }
 bool hook_red_flag_strategy()
 {
@@ -2408,7 +3055,7 @@ void on_failure_planner(void *self)
     uint64_t car = 0;
     uint8_t part = 0xff;
     if (a && guarded_read(a + 0x70, car) && car && car == uint64_t(player_car()) && guarded_read(a + 0xa0, part) &&
-        game_planned_part.exchange(int(part)) != int(part))
+        (failure_planner_obj = a, game_planned_part.exchange(int(part)) != int(part)))
         swofty::log("[td-probe] player failure planned by the game: part %u (0 ICE,1 MGU-K,2 MGU-H,3 ES,4 TC,5 CE,6 gearbox)", part);
     orig_failure_planner(self);
 }
@@ -2575,6 +3222,18 @@ void game_failure_dsq_now()
     }
     swofty::log("[td-probe] game failure: disqualifying car %d (rules %p)", id, reinterpret_cast<void *>(rules));
     reinterpret_cast<void (*)(void *, uint32_t)>(fn)(reinterpret_cast<void *>(rules), uint32_t(id));
+    // Rules_IssueDisqualification (0x143572f90) also sets the car's bit in the rule manager's DSQ masks +0x1d08 and
+    // +0x1d0c. The session end (ruleset finalisation 0x142d2f440) reads +0x1d08: with the bit the car is classified
+    // disqualified (black flagged), without it a car that has not finished becomes a DNF.
+    for (uintptr_t off : {uintptr_t(0x1d08), uintptr_t(0x1d0c)}) {
+        uint32_t mask = 0;
+        if (id < 32 && guarded_read(rules + off, mask))
+            *reinterpret_cast<volatile uint32_t *>(rules + off) = mask | (1u << id);
+    }
+    // Rules_Disqualify only marks the car and hands it to the AI, which stops it on track (DISQUALIFIED sends the AI
+    // to its PreLights state). The result status is what takes a car out of the session: the pause menu's Retire
+    // requests status 7 (retired). Request 5 (disqualified, black flagged) the same way.
+    post_vehicle_status(id, 5, 6);
 }
 
 bool hook_failure_register()
@@ -2618,7 +3277,9 @@ void return_to_garage()
     swofty::log("[td-probe] practice/qualifying: sending your broken car back to its garage (pit state was %d)",
                 player_pit.load());
     if (player_pit.load() != 9) {
+        garage_teleport = true;  // the InGarage message arrives inside this call
         orig_set_vehicle_status(reinterpret_cast<void *>(sys), uint64_t(vehicle), 9);
+        garage_teleport = false;
         post_crew_event(5);
     }
     cancel_crew_work();
@@ -2894,6 +3555,13 @@ extern "C" bool on_retire_local_player(void *, uint32_t reason)
         own_retire_until = GetTickCount64() + 10000;
         return false;
     }
+    if (player_controller_flags.load() & (1u << 2)) {
+        // Disqualified: the AI holds the car. Ask again for the disqualified result, which ends your session; a
+        // retirement would turn the DSQ into a DNF.
+        swofty::log("[td-probe] pause menu retire: car is disqualified, requesting the DSQ result again");
+        post_vehicle_status(player_vehicle.load(), 5, 6);
+        return true;
+    }
     if (player_broken) {
         // Already retiring: no shortcut, you still pull over or drive into your box.
         swofty::log("[td-probe] pause menu retire again: still pull over or box");
@@ -2928,27 +3596,53 @@ void hook_retire_local_player()
                 reinterpret_cast<void *>(at));
 }
 
+// Lap (0-based) the game counts for the player, read like the failure update does (getter 0x46046a0 with the failure
+// object's car lookup). -1 when it cannot be read.
+int game_lap()
+{
+    uintptr_t obj = failure_planner_obj.load();
+    uint64_t c98 = 0, c20 = 0;
+    uint8_t idx = 0xff;
+    if (!obj || !guarded_read(obj + 0x98, c98) || !c98 || !guarded_read(c98 + 0x20, c20) || !c20 || !guarded_read(obj + 0x78, idx) || idx == 0xff)
+        return -1;
+    uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    uintptr_t a = reinterpret_cast<uintptr_t (*)(uint64_t, uint32_t)>(base + 0x46046a0)(c20, idx);
+    uint16_t l1 = 0, l2 = 0;
+    if (!a || !guarded_read(a + 8, l1) || !guarded_read(a + 0x10, l2))
+        return -1;
+    return int(int16_t(l1 ^ l2));
+}
+
 // Grand Prix failures (modes without the game's failure options): once the player has driven a while, roll once per
 // session whether a part fails and when, then break a random part the same way the debug failure does. Also ends the
-// 60 s window after the game's own scripted failure: disqualify (or retire) a car that did not retire in time.
+// window after the game's own scripted failure: disqualify (or retire) a car that neither pitted nor retired in time.
 void gp_failure_tick(double dt)
 {
     if (uint64_t deadline = game_failure_deadline.load()) {
         if (session_ended || confirmed_retired_vehicle.load() >= 0 || player_vehicle.load() < 0) {
             game_failure_deadline = 0;
-        } else if (GetTickCount64() >= deadline) {
+        } else if (player_pit.load() != 1) {
+            // In the pit lane: the car is allowed to be there, the garage handling takes over.
             game_failure_deadline = 0;
-            if (std::string_view(game_failure_timeout) == "dsq") {
-                swofty::log("[td-probe] game failure: 60 s passed without retiring, disqualifying the car");
-                if (swofty::hud::available())
-                    swofty::hud::toast("DISQUALIFIED", "Did not retire within 60 s", 4);
-                dsq_pending = true;
-            } else {
-                swofty::log("[td-probe] game failure: 60 s passed without retiring, retiring the car");
-                if (swofty::hud::available())
-                    swofty::hud::toast("RETIRED", "Mechanical failure", 4);
-                player_broken = true;
-                retire_in = 0.0;
+            swofty::log("[td-probe] game failure: car reached the pits, no disqualification");
+        } else {
+            int start = game_failure_lap.load(), now_lap = start >= 0 ? game_lap() : -1;
+            bool lap_over = start >= 0 && now_lap > start;
+            if (lap_over || GetTickCount64() >= deadline) {
+                game_failure_deadline = 0;
+                const char *why = lap_over ? "the lap ended" : "time ran out";
+                if (std::string_view(game_failure_timeout) == "dsq") {
+                    swofty::log("[td-probe] game failure: %s without pitting or retiring, disqualifying the car", why);
+                    if (swofty::hud::available())
+                        swofty::hud::toast("DISQUALIFIED", "Ignored the call to the pits", 4);
+                    dsq_pending = true;
+                } else {
+                    swofty::log("[td-probe] game failure: %s without pitting or retiring, retiring the car", why);
+                    if (swofty::hud::available())
+                        swofty::hud::toast("RETIRED", "Mechanical failure", 4);
+                    player_broken = true;
+                    retire_in = 0.0;
+                }
             }
         }
     }
@@ -3175,13 +3869,18 @@ DWORD WINAPI udp_thread(void *)
     }
 }
 
-// Player speed from UDP in km/h, or -1 if there is no fresh packet (paused, UDP off).
+// Player speed in km/h, read from the game's car every frame (read_game_speed); UDP telemetry is the fallback. -1 if
+// neither is fresh (paused, between sessions).
 int player_speed()
 {
+    if (session_ended)
+        return -1;
+    uint64_t now = GetTickCount64(), game = game_speed_ms.load();
+    if (game && game > telemetry_not_before.load() && now - game <= 500)
+        return game_speed.load();
     int p = udp_player.load();
     uint64_t last = udp_last_ms.load();
-    if (session_ended || p < 0 || p >= udp_cars || !last || last <= telemetry_not_before.load() ||
-        GetTickCount64() - last > 500)
+    if (p < 0 || p >= udp_cars || !last || last <= telemetry_not_before.load() || now - last > 500)
         return -1;
     return udp_speed[p].load();
 }
@@ -3219,17 +3918,23 @@ void probe_speed(double dt)
     int p = udp_player.load(), v = player_vehicle.load();
     bool fresh = p >= 0 && p < udp_cars && udp_last_ms.load() && GetTickCount64() - udp_last_ms.load() < 1000;
     waited = v >= 0 && !fresh && player_pit.load() == 1 ? waited + dt : 0;
-    if (waited > 15 && warned_vehicle != v && !udp_last_ms.load()) {
+    if (waited > 15 && warned_vehicle != v && !udp_last_ms.load() && player_speed() < 0) {
         warned_vehicle = v;
-        swofty::log("[td-probe] udp: no car telemetry from the game (packets %llu). Set Telemetry Settings: UDP on, "
+        swofty::log("[td-probe] speed: no speed from the game's car and no UDP car telemetry (packets %llu). Set Telemetry Settings: UDP on, "
                     "127.0.0.1, port %u, format 2026. Without it, standing still does not retire a broken car (use the "
                     "retire hotkey).",
                     (unsigned long long)udp_packets.load(), unsigned(udp_port()));
     }
     since += dt;
-    if (!log_telemetry || since < 3.0 || !fresh)
+    if (!log_telemetry || since < 3.0)
         return;
     since = 0;
+    if (!fresh) {
+        if (player_speed() >= 0)
+            swofty::log("[td-probe] speed: %d km/h from the game's car (no UDP), cap=%.2f", player_speed(),
+                        double(throttle_hook.cap));
+        return;
+    }
     swofty::log("[td-probe] udp: player %d (vehicle %d) speed=%d km/h rpm=%d gear=%d throttle=%.2f cap=%.2f", p, v,
                 udp_speed[p].load(), udp_rpm[p].load(), udp_gear[p].load(), udp_throttle[p].load(),
                 double(throttle_hook.cap));
@@ -3512,7 +4217,10 @@ SWOFTY_ON_LOAD
 {
     td_perf::enabled = bool(performance_diagnostics);
     crew_diagnostics_active = bool(crew_asset_diagnostics);
-    CloseHandle(CreateThread(nullptr, 0, udp_thread, nullptr, 0, nullptr));
+    if (udp_port_choice != std::string_view("off"))
+        CloseHandle(CreateThread(nullptr, 0, udp_thread, nullptr, 0, nullptr));
+    else
+        swofty::log("[td-probe] udp: off (speed comes from the game)");
     reset_session();
     hook_asset_diagnostics();
     patch_garage_assets_in_race();
@@ -3527,6 +4235,9 @@ SWOFTY_ON_LOAD
     register_radio_menu_probe();
     hook_radio_probe();
     hook_qualifying_engine_repair();
+    hook_garage_crash_repair();
+    hook_garage_menu();
+    hook_exit_garage();
     attach_session_events();
     hook_thunk("VehicleControllerSystem::setController", sig_set_controller,
                reinterpret_cast<void *>(&on_set_controller), reinterpret_cast<void **>(&orig_set_controller));
@@ -3555,6 +4266,8 @@ SWOFTY_ON_LOAD
     }
     hook_crew_states();
     hook_red_flag_strategy();
+    find_crash_repair();
+    hook_change_vehicle_status();
     hook_failure_planner();
     hook_rules_enter();
     hook_failure_register();
@@ -3566,7 +4279,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.54, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.79, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }
