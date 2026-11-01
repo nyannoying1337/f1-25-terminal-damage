@@ -352,7 +352,11 @@ bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
     }
     // The game's own scripted mechanical failure (career, My Team) pulls the car over and hands it to the AI with
     // RETIRED, with no terminal-damage message first. Keep the car yours unless you or the addon retire it.
+    // Only while racing on track with a failure the game planned for this car (planner hook): a red flag, safety car or
+    // garage hand-over must pass through, or the game's flow can wait for a car that never retires.
+    constexpr uint32_t not_racing = (1u << 3) | (1u << 10) | (1u << 11);
     if (mine && reason == 4 && ai && keep_control && keep_game_failure && !session_ended &&
+        game_planned_part.load() >= 0 && player_pit.load() == 1 && !(player_controller_flags.load() & not_racing) &&
         GetTickCount64() >= own_retire_until.load() && GetTickCount64() >= status7_at.load() + 3000 && !player_broken && !retire_requested &&
         retire_in.load() == -1.0 && confirmed_retired_vehicle.load() < 0) {
         swofty::log("[td-probe] keep_control: dropped the game's RETIRED hand-over of vehicle %u (not requested by you)", id);
@@ -361,7 +365,7 @@ bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
         // The game already broke a part (planner). Run the addon's own broken-car flow for that part: throttle cap,
         // retire after standing still, pause menu / hotkey retire.
         int part = game_planned_part.exchange(-1);
-        if (part < 0 || part > 6)
+        if (part > 6)
             part = 0;
         swofty::log("[td-probe] game failure: breaking part %d for the addon's broken-car handling", part);
         trigger_failure(part);
@@ -2360,6 +2364,15 @@ void log_red_flag_repairs(const char *when, void *state)
 }
 void on_red_flag_strategy_enter(void *state)
 {
+    // If the game enters this state again and again, stay out of the way: no logging, no probing.
+    static uint64_t last_enter = 0;
+    uint64_t now_enter = GetTickCount64();
+    bool repeat = now_enter - last_enter < 1000;
+    last_enter = now_enter;
+    if (repeat) {
+        orig_red_flag_strategy_enter(state);
+        return;
+    }
     uint32_t mask = terminal_mask.load();
     swofty::log("[td-probe] red flag: strategy screen opens (player vehicle %d, broken %d, terminal mask 0x%x)",
                 player_vehicle.load(), int(player_broken.load()), mask);
@@ -3553,7 +3566,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.53, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.54, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

@@ -1,3 +1,10 @@
+# Terminal Damage 0.51.54 beta
+
+Fix: a red flag could hang on a black screen in Career.
+
+- The game's RETIRED hand-over is only kept for a failure the game planned for your car while you race on track. At a red flag, safety car or in the garage it passes through unchanged.
+- If the red flag strategy screen is entered repeatedly, the addon no longer logs or probes it.
+
 # Terminal Damage 0.51.53 beta (experimental)
 
 - **Scripted failures in Career (experimental, still being tested):** failure chances and timing stay the game's own. When the game would hand your car to the AI, you keep control and the failed part limits your power. Retire yourself (pause menu, radio, hotkey, or by stopping for 10 s with UDP telemetry on).
