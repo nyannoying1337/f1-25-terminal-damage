@@ -8,6 +8,10 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup and known issues: [mod/README.md](mod/README.md).
 
+## 0.51.80 beta
+
+- Fix: a car withdrawn for the session could still go on track through a practice programme.
+
 ## 0.51.79 beta
 
 - No UDP telemetry needed any more: the addon reads your speed from the game.

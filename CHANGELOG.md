@@ -1,3 +1,7 @@
+# Terminal Damage 0.51.80 beta
+
+- **Fix:** a car withdrawn for the rest of a practice or qualifying session could still go on track by starting a practice programme. The garage menu now switches off Practice Programmes too, next to drive out and flying lap.
+
 # Terminal Damage 0.51.79 beta
 
 Big update since 0.51.54: crashes can now leave you limping, red flags follow the FIA rules, broken cars get repaired (or stay out) in practice and qualifying, and the mod no longer needs the game's UDP telemetry.
@@ -26,7 +30,7 @@ When a red flag comes out while your car is terminally damaged, the strategy scr
 ## Practice and qualifying: repairs in the garage
 
 - **Limp into the pit lane** on a broken front corner: the car goes into your garage and the team rebuilds the corner. This takes **20-30 minutes for a broken suspension and 30-45 minutes for a lost wheel**. The game shows the repair timer and a **CORNER REPAIR** message tells you how long. You can wait, or use the game's own skip / fast forward (this uses up session time). When it is done, **CAR REPAIRED** appears and you can drive out again. If the session ends first, your session is over.
-- **A car that did not make it back** (retired on track, or Retire from Session) is **withdrawn for the rest of the session**: no repair timer, and the garage menu no longer offers drive out or flying lap. Your car is ready again in the next session. Before, the car briefly appeared at the pit exit and was sent straight back.
+- **A car that did not make it back** (retired on track, or Retire from Session) is **withdrawn for the rest of the session**: no repair timer, and the garage menu no longer offers drive out or flying lap (practice programmes too since 0.51.80). Your car is ready again in the next session. Before, the car briefly appeared at the pit exit and was sent straight back.
 - An engine or gearbox failure still works as before: fit a new part in the garage (Career), then leave.
 
 ## Disqualification stays a disqualification

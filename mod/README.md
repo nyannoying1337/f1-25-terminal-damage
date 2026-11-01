@@ -3,6 +3,11 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
+## 0.51.80 beta
+
+- **Fix:** a withdrawn car (practice/qualifying) could still go on track through a practice
+  programme. The garage menu now switches off Practice Programmes as well.
+
 ## 0.51.79 beta
 
 - **No UDP telemetry needed any more.** The mod reads your speed from the game. Its own UDP
@@ -58,8 +63,8 @@ Full details: https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/
     broken suspension, 30-45 minutes for a lost wheel (the game's repair timer). Wait, or use
     the game's skip / fast forward (uses session time). Then you can drive out again.
   - **did not make it back** (retired on track or Retire from Session): withdrawn for the rest of
-    the session. The garage menu offers no drive out or flying lap; the car is ready again in the
-    next session.
+    the session. The garage menu offers no drive out, flying lap or practice programme; the car is
+    ready again in the next session.
   - **engine or gearbox failure:** Career: fit a new part (e.g. a new engine) in the garage, then
     leave the garage. Without a new part the car is sent straight back to the garage.
 - **Engine changes in qualifying:** a newly scheduled player ICE replacement takes at least

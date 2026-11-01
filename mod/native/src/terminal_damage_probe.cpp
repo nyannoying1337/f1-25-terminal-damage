@@ -2086,7 +2086,7 @@ bool garage_exit_locked()
 }
 // The garage menu (view model update 0x141bc0940: rcx view model, xmm1 dt, r8d) binds its buttons to bool nodes
 // whose handles it keeps at vm+0x390 goto_track_visible, +0x3d0 drive_out_enabled, +0x3f0 flying_lap_enabled,
-// +0x470 pp_flying_lap_enabled, +0x490 pp_drive_out_enabled (created in 0x141bc2f9f), and sets them every update
+// +0x450 practice_programmes_enabled, +0x470 pp_flying_lap_enabled, +0x490 pp_drive_out_enabled (created in 0x141bc2f9f), and sets them every update
 // with Vm_NodeSet_Bool(node, &value, 0, 0) (0x140973e20, called at +0x4db) after the checks at +0x4f1 (node not the
 // empty node, +0x26 bit 0 clear, vtable +0x20 true). It already hides "go to track" while the RepairTimes record
 // has jobs (vm+0x33b). For a locked car the addon sets these nodes to false after each update, so the menu offers
@@ -2120,9 +2120,9 @@ uint64_t on_garage_vm_update(void *vm, float dt, uint64_t r8, uint64_t r9)
     } else {
         if (!logged) {
             logged = true;
-            swofty::log("[td-probe] garage: drive out and flying lap buttons switched off in the garage menu");
+            swofty::log("[td-probe] garage: drive out, flying lap and practice programme buttons switched off in the garage menu");
         }
-        for (uint32_t offset : {0x390u, 0x3d0u, 0x3f0u, 0x470u, 0x490u})
+        for (uint32_t offset : {0x390u, 0x3d0u, 0x3f0u, 0x450u, 0x470u, 0x490u})
             vm_bool_off(reinterpret_cast<uintptr_t>(vm), offset);
     }
     return r;
@@ -4279,7 +4279,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.51.79, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.51.80, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }
