@@ -3,6 +3,17 @@
 When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
 the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
 
+## 0.51.85 beta
+
+- **Flashbacks work without UDP telemetry.** Back before the damage, the car is whole again with
+  full power. A retirement request without damage is cancelled by a flashback.
+- **The game's own mechanical failures:** a flashback to just before one no longer takes your power
+  away or lets the AI retire or disqualify your car. If the failure comes back, you keep the car.
+- A flashback after a retirement gives you your car back.
+- **A broken car stranded in the pit lane** (pit entry, pit exit, drive-through) retires after 10 s
+  standing still, like on track.
+- **Engine off means no drive:** gear changes no longer move a broken car whose engine is off.
+
 ## 0.51.80 beta
 
 - **Fix:** a withdrawn car (practice/qualifying) could still go on track through a practice
@@ -47,7 +58,7 @@ Full details: https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/
   pits before the end of the lap or retire, otherwise you are disqualified (setting "After a
   scripted failure..." switches this to a normal retirement). The results screen shows DSQ.
   The "Game's own failure" and "Game's own breakdown" Grand Prix modes are test options for this.
-- **Stand still on track for 10 s** with a broken car: you retire.
+- **Stand still for 10 s** with a broken car, on track or stranded in the pit lane: you retire.
 - **Drive into the pit lane** with a broken car (race): no tyre stop. Your garage crew comes out,
   pushes the car into the garage, then you retire.
 - **Red flag** while your car is terminally damaged (FIA rules):
@@ -104,9 +115,8 @@ directly; no practice session or saved vehicle-ID mapping is needed.
 - Career has not been fully tested with the limping, red flag and garage repair rules yet.
 - The garage repair was tested with a lost wheel; a broken suspension with the wheel still attached
   is not tested in game yet.
-- Stopped retirement requires the car to be OnTrack. A car stranded in the pit lane
-  or box exit (LeavingPitLane) does not start the 10-second timer.
-- Rewinding into the middle of the garage push or box animation is not fully covered.
+- Flashback during the box stop or the garage push: the mod resets its own retirement work, but a
+  race garage crew that was already called out stays in the box. Not tested in game.
 - A red flag during terminal damage can still cause AI/spectator camera issues.
 - Qualifying ICE replacement / Skip repairs and practice replacement timing are
   **NOT TESTED, MIGHT BE BROKEN**.

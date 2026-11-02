@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.51.80",
+  "version": "0.51.85",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: it loses power, crawls on a broken front corner or rolls out. Pull over and retire, or bring it in. FIA red flag repairs, garage repairs in practice and qualifying, DSQ kept in results.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",

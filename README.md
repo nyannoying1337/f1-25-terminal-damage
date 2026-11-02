@@ -8,6 +8,12 @@ or bring it to your box where your garage crew pushes it into the garage.
 
 Features, setup and known issues: [mod/README.md](mod/README.md).
 
+## 0.51.85 beta
+
+- Flashbacks work without UDP telemetry: back before the damage, the car is whole again with full power.
+- A flashback before one of the game's own mechanical failures no longer takes your power away or lets the AI retire or disqualify your car.
+- A broken car stranded in the pit lane retires after 10 s standing still; an engine that is off gives no drive.
+
 ## 0.51.80 beta
 
 - Fix: a car withdrawn for the session could still go on track through a practice programme.

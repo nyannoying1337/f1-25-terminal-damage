@@ -1,3 +1,21 @@
+# Terminal Damage 0.51.85 beta
+
+Flashback fixes on top of 0.51.80.
+
+## Flashbacks
+
+- **Flashbacks work without UDP telemetry.** Since 0.51.79 the mod no longer needs UDP, but a flashback still did: after a flashback to before a crash or failure the car stayed without throttle. The mod now sees the game's own flashback: back before the damage, the car is whole again with full power. A retirement you only requested (nothing broken) is cancelled by a flashback.
+- **The game's own mechanical failures** (Random failures on): a flashback to just before the failure took all power away, and the AI then retired the car. Now the car is whole again with full power. If the game's failure comes back, it is handled like the first time: you keep the car.
+- A flashback right after such a failure no longer loses the failure, and a healthy car can no longer be disqualified for "not pitting" after it.
+- A flashback after a retirement (the game allows it) gives you your car back.
+- After a flashback the mod reads your pit state back from the game.
+
+## Other
+
+- **A broken car stranded in the pit lane** (pit entry, pit exit or driving through) now retires after 10 s standing still, like on track. The box and garage have their own flow.
+- **Engine off means no drive:** when the engine of a broken car is off, it gives no drive torque at all, so changing gears no longer moves the car slightly.
+- Cleanup: unused code removed (one game hook less) and safer checks before the mod touches fixed game addresses.
+
 # Terminal Damage 0.51.80 beta
 
 - **Fix:** a car withdrawn for the rest of a practice or qualifying session could still go on track by starting a practice programme. The garage menu now switches off Practice Programmes too, next to drive out and flying lap.

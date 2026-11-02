@@ -50,7 +50,7 @@ int main()
     pit_clearance_hold_vehicle = 9; retired_engine_off_vehicle = 9;
     orig_set_controller = +[](void *,uint64_t,uint32_t,int32_t)->uint64_t{return 17;};
     assert(on_set_controller(nullptr,9,0,10)==17);
-    assert(!restart_check_until && pit_clearance_hold_vehicle==9 && retired_engine_off_vehicle==9);
+    assert(pit_clearance_hold_vehicle==9 && retired_engine_off_vehicle==9);
     power_loss(c);assert(player_broken && retire_requested && player_pit==3);
     retire_in=-2; crew_msg=4; crew_msg_in=2; pushing=false; prepare_at_box=false;
     packet(180, 380, true, 120); packet(120, 381); power_loss(c);
@@ -61,7 +61,7 @@ int main()
     // Controller preparation alone is not proof of restart. Actual callback resets.
     player_broken=true;retire_requested=true;pit_clearance_hold_vehicle=9;retired_engine_off_vehicle=9;
     assert(on_set_controller(nullptr,9,1,10)==17);
-    assert(!restart_check_until && pit_clearance_hold_vehicle==9 && retired_engine_off_vehicle==9);
+    assert(pit_clearance_hold_vehicle==9 && retired_engine_off_vehicle==9);
     power_loss(c);assert(player_broken && retire_requested);
     reset_for_session_restart(nullptr);
     assert(!player_broken && !retire_requested && pit_clearance_hold_vehicle==-1 && retired_engine_off_vehicle==-1);

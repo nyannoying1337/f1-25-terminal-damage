@@ -54,13 +54,11 @@ int main()
     void *module = module_bytes.data();
     crew_module = &module;
     spawn_crew = spawn;
-    garage_of[3] = -1;
     assert(!spawn_player_crew() && spawns == 0);
     // An existing real instance is usable without needing a learned map.
     put(module_bytes, 0x68 + 3 * 8, uintptr_t(1));
     assert(spawn_player_crew() && spawns == 0);
     put(module_bytes, 0x68 + 3 * 8, uintptr_t(0));
-    garage_of[3] = 7;
     assert(!spawn_player_crew() && spawns == 0); // Missing asset-table entry.
     pushing = true;
     crew_spawn_wanted = true;

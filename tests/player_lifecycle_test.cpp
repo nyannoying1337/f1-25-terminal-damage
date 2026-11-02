@@ -62,9 +62,7 @@ int main()
     apply_pending_failure(system.data(), 3);
     assert(!pending_failure && *observed_failure == 0);
 
-    // End/start must discard requests and cap overrides, preserving the garage
-    // mapping learned in practice. Ended-session callbacks cannot execute work.
-    garage_of[3] = 7;
+    // End/start must discard requests and cap overrides. Ended-session callbacks cannot execute work.
     pit_slot_of[3] = 5;
     trigger_failure();
     garage_return_wanted = true;
@@ -78,7 +76,7 @@ int main()
     assert(session_ended && !pending_failure && !garage_return_wanted);
     assert(test_cap == -1 && throttle_hook.car == 0 && throttle_hook.cap == 1);
     assert(!pit_lane_system && !controller_system && retire_in == -1);
-    assert(garage_of[3] == 7 && pit_slot_of[3] == -1);
+    assert(pit_slot_of[3] == -1);
     udp_player = 3;
     udp_speed[3] = 0;
     udp_last_ms = GetTickCount64();
@@ -89,7 +87,7 @@ int main()
     assert(on_update_vehicle(system.data(), 3) == 42 && *observed_failure == 0);
     ev.name = SWOFTY_EVENT_SESSION_START;
     on_event(&ev, nullptr);
-    assert(!session_ended && player_vehicle == -1 && garage_of[3] == 7);
+    assert(!session_ended && player_vehicle == -1);
     udp_last_ms = telemetry_not_before.load();
     assert(player_speed() == -1); // A cached packet from before reset is not fresh.
     player_vehicle = 3;

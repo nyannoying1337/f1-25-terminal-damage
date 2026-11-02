@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LicenseRef-Terminal-Damage-Attribution-1.0
 // Pitstop scene model visibility; GarageCrewModule/car proxies are excluded.
-std::atomic<uint64_t> pit_show_calls{0}, pit_show_requested_calls{0}, pit_show_owned_calls{0}, pit_show_hide_calls{0};
+std::atomic<uint64_t> pit_show_requested_calls{0}, pit_show_owned_calls{0}, pit_show_hide_calls{0};
 std::atomic<int> pit_show_last_slot{-1};
 std::atomic<unsigned> pit_clearance_count{0};
 std::atomic<uint64_t> pit_update_calls{0}, pit_update_approach_calls{0};
@@ -290,10 +290,10 @@ void report_pit_clearance()
     int teammate = -1, encoded = 0;
     if (slot >= 0) for (int i = 0; i < max_vehicles; ++i)
         if (i != player && pit_slot_of[i].load() == slot) { teammate = i; encoded = int(observed_pit_state[i].load()); break; }
-    swofty::log("[td-probe] pit clearance diagnostic: player=%d pit=%d slot=%d teammate=%d teammate_state=%d enabled=%d keep=%d box=%d push=%d retire=%.1f callbacks=%llu requested=%llu owned=%llu eligible=%llu last_slot=%d updates=%llu approach_updates=%llu",
+    swofty::log("[td-probe] pit clearance diagnostic: player=%d pit=%d slot=%d teammate=%d teammate_state=%d enabled=%d keep=%d box=%d push=%d retire=%.1f requested=%llu owned=%llu eligible=%llu last_slot=%d updates=%llu approach_updates=%llu",
                 player, player_pit.load(), slot, teammate, encoded - 1, bool(pit_retire_clearance), bool(keep_control),
                 bool(retire_in_pit_box), bool(garage_push), retire_in.load(),
-                (unsigned long long)pit_show_calls.load(), (unsigned long long)pit_show_requested_calls.load(),
+                (unsigned long long)pit_show_requested_calls.load(),
                 (unsigned long long)pit_show_owned_calls.load(), (unsigned long long)pit_show_hide_calls.load(), pit_show_last_slot.load(),
                 (unsigned long long)pit_update_calls.load(), (unsigned long long)pit_update_approach_calls.load());
 }
