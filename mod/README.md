@@ -4,8 +4,9 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
-## New in 0.75.4
+## New in 0.75.5
 
+- **Realistic failures work in Career and My Team too** (experimental, see Realistic failures).
 - *Suspension damage from hits* works together with Heavier Damage (see Suspension damage from hits).
 - The pause menu stops the failure clocks: no failure or warning sign moves on while the game is paused.
 - Less work per frame in races with realistic failures.
@@ -73,13 +74,13 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 - **Engine sound:** a failed engine goes silent at once; after terminal crash damage the engine dies after 3-6 s; a broken car standing still switches off after 6 s.
 - Your stopped car brings out no safety car or red flag.
 
-## Realistic failures (Grand Prix and custom races)
+## Realistic failures (Grand Prix, custom races and Career)
 
 - *Mechanical failures in Grand Prix*: **Realistic** (default) uses the real failure rate of the season in *Failure season* (2012-2026; pick your car mod's season). Short races have fewer failures. Also: a fixed chance (10-50 %) or Off.
 - Many failures give **warning signs** first: power loss, cut-outs, slow or rough shifts, a lost gear, rear brake trouble. **Lift and coast** to nurse the part: it lasts longer.
 - Some faults stay partial: slow shifts, a missing or jammed gear, DRS, ERS or lean fuel trouble, a rear brake-by-wire fault (from 2014).
 - AI cars break down at the season's rate too.
-- Career and My Team keep the game's own failures (see Career).
+- **Career and My Team** get them too (new in 0.75.5, experimental: only short tests so far): with Realistic on, they replace the game's own rolled failures and its temporary fault for your car, so the teams' R&D reliability no longer decides who breaks down. The AI cars keep the game's temporary faults.
 
 ## Retirement
 
@@ -104,7 +105,7 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 
 ## Career and My Team (experimental)
 
-- The game's own failure chances and timing stay unchanged.
+- Realistic failures work here too (see above). With the option on Off, the game's own failure chances and timing stay unchanged; a fixed chance adds to them.
 - When the game would hand your car to the AI after a failure, you keep it: pit by the end of the next lap or retire, otherwise you are disqualified (or retired, see the options). A DSQ stays DSQ in the results.
 
 ## Suspension damage from hits (experimental, off by default)
@@ -141,7 +142,7 @@ Every part has its own option. Turn off only the part that gives you trouble for
 ## Known issues (beta)
 
 - Suspension damage is experimental: its tuning can still change.
-- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- Career is not fully tested with the limping, red flag and garage repair rules yet. The realistic failures there (0.75.5) are new: one from the real rates has not been seen in a Career race yet (the test setting has), and in Career an AI car that fails stayed where it stopped for about two minutes before the game took it to its garage.
 - No safety car HUD while your car is terminally damaged: the game shows it only to cars it does not count as terminally damaged.
 - A red flag during terminal damage can still cause AI or spectator camera issues.
 - AI cars with terminal damage can stop at the pit exit or on track.

@@ -4638,11 +4638,10 @@ void on_failure_scheduler(void *self)
         if (guarded_read(reinterpret_cast<uintptr_t>(self) + 0xf0, mgr) && mgr)
             failure_mgr = mgr;
         log_race_settings(mgr);
-        // Realistic failures (not Career): the season's rates replace the failures the game rolled from its own
-        // database for every car (part 7 = none); gp_ai_failure_tick plans them instead.
-        swofty::career::State st{};
-        bool career = swofty::career::state(&st) == swofty::career::Result::ok && st.loaded;
-        if (mode == "realistic" && !career) {
+        // Realistic failures (0.75.5: Career too): the season's rates replace the failures the game rolled from its own
+        // database for every car (part 7 = none); gp_ai_failure_tick plans the AI's instead. A fixed chance plans only
+        // your car, so in Career the game's rolls stay for the AI (and add to yours there).
+        if (mode == "realistic") {
             int cleared = 0;
             for_each_failure_obj([&](int, uintptr_t obj) {
                 uint8_t part = 7, state = 0;
@@ -4731,6 +4730,29 @@ void *on_failure_register(void *list, const void *rec)
             memcpy(dst + 8, &frac, 4);
             VirtualProtect(dst, 12, old, &old);
             swofty::log("[td-probe] failure RECORD: lap %u -> lap 1 fraction 0.30 (native test)", w[1]);
+        }
+    }
+    // 0.75.5: Realistic replaces the game's own system in Career too. The game plans one temporary fault for a human
+    // driver (phase D, record template word 0x63ff at +0x30: wheel 0x63) and writes it into the career save; yours come
+    // from gp_fault_tick instead (registered through orig_failure_register, not through this hook). The game's
+    // record is not registered: its caller gets a scratch record to fill in. AI cars (phase B) keep the game's faults,
+    // the addon plans no partial faults for them.
+    if (rec && std::string_view(gp_failures) == "realistic") {
+        uint8_t wheel = 0;
+        swofty::career::State st{};
+        if (guarded_read(reinterpret_cast<uintptr_t>(rec) + 0x31, wheel) && wheel == 0x63 &&
+            swofty::career::state(&st) == swofty::career::Result::ok && st.loaded) {
+            alignas(8) static uint8_t scratch[0x40];
+            memset(scratch, 0, sizeof scratch);
+            static bool logged = false;
+            if (!logged) {
+                logged = true;
+                uint32_t type = 99;
+                guarded_read(reinterpret_cast<uintptr_t>(rec), type);
+                swofty::log("[td-probe] failure RECORD: the game's own fault (type %u) for your car dropped (Realistic "
+                            "in Career: the addon plans them)", type);
+            }
+            return scratch;
         }
     }
     return orig_failure_register(list, rec);
@@ -5646,6 +5668,18 @@ void heavy_damage_tick()
         return;
     heavy_damage_call(mask);
 }
+// The part the 100 % test breaks: any power unit part or the gearbox that the Failure season's cars have (a 2026 car
+// has no MGU-H, a V8 from 2012-2013 no turbo or MGU-H; 0.75.5: the test broke an MGU-H in a 2026 car).
+int test_failure_part()
+{
+    const fm::Era &era = fm::era_of(fm::season_of(failure_era));
+    int present[fm::gearbox + 1], n = 0;
+    for (int i = fm::ice; i <= fm::gearbox; ++i)
+        if (era.share[i] > 0)
+            present[n++] = i;
+    return n ? present[std::min(n - 1, int(uniform01() * n))] : int(fm::ice);
+}
+
 void gp_failure_tick(double dt)
 {
     gearbox_decline_tick(dt);
@@ -5767,10 +5801,12 @@ void gp_failure_tick(double dt)
                         : percent >= 100 ? "a part will fail within a minute (test)"
                                          : "a part will fail within 15 minutes of driving (the race length is unknown)");
     }
+    if (percent >= 100)
+        gp_ai_failure_tick();  // the 100 % test fails two AI cars as well (0.75.5)
     gp_point_tick();
     if (gp_at >= 0 && gp_clock >= gp_at && gp_at < 1e17) {
         gp_at = 1e18;
-        int part = std::min(6, int(uniform01() * 7));
+        int part = test_failure_part();
         swofty::log("[td-probe] gp failures: breaking part %d", part);
         trigger_failure(part);
     }
@@ -5932,20 +5968,39 @@ void gp_plan_realistic()
 
 // AI cars: each car fails with the season's rate on the same drive clock (a full Grand Prix is about 90 minutes of
 // driving), the part from the era's shares; suspension and brake failures, which the game's sequence cannot do,
-// become one of the power unit parts. Not in Career (the game's own model with the teams' R&D).
+// become one of the power unit parts. Career too since 0.75.5 (the game's own rolls, with the teams' R&D, are removed
+// at the scheduler).
 void gp_ai_failure_tick()
 {
     if (!failure_mgr.load())
         return;
     const fm::Season &season = fm::season_of(failure_era);
-    if (!ai_failures_rolled) {
-        swofty::career::State st{};
-        if (swofty::career::state(&st) == swofty::career::Result::ok && st.loaded) {
-            ai_failures_rolled = true;
-            for (double &t : ai_fail_at)
-                t = 1e18;
-            return;
+    if (!ai_failures_rolled && std::string_view(gp_failures) == "100") {
+        // The 100 % test (0.75.5): two AI cars fail 15-60 s into the race too, the first an engine, the second a
+        // gearbox, so one short race shows the AI path (the game's breakdown sequence) also in Career.
+        int cars[32], n = 0, player = player_vehicle.load();
+        for_each_failure_obj([&](int v, uintptr_t) {
+            if (v != player && v >= 0 && v < 32 && n < 32)
+                cars[n++] = v;
+        });
+        if (n < 2)
+            return;  // the cars are not there yet: try again next frame
+        ai_failures_rolled = true;
+        for (double &t : ai_fail_at)
+            t = 1e18;
+        int picked[2] = {-1, -1};
+        for (int k = 0; k < 2; ++k) {
+            int i = int(uniform01() * n) % n, v = cars[i];
+            cars[i] = cars[--n];
+            ai_fail_at[v] = gp_clock + 15.0 + uniform01() * 45.0;
+            ai_fail_part[v] = k == 0 ? fm::ice : fm::gearbox;
+            picked[k] = v;
         }
+        swofty::log("[td-probe] gp failures (100, test): AI car %d (%s) fails after %.0f s, AI car %d (%s) after %.0f s",
+                    picked[0], fm::outcome_name(fm::ice), ai_fail_at[picked[0]] - gp_clock, picked[1],
+                    fm::outcome_name(fm::gearbox), ai_fail_at[picked[1]] - gp_clock);
+    }
+    if (!ai_failures_rolled) {
         ai_failures_rolled = true;
         const fm::Era &era = fm::era_of(season);
         fm::Era pu = era;
@@ -5986,21 +6041,18 @@ void gp_ai_failure_tick()
                 ai_fail_at[v] = 1e18;
 }
 
-// One partial failure per session at most, with the era's chance, as the game's own temporary faults. Not in
-// Career: there the game plans its own faults, and a registered fault is written into the career save.
+// One partial failure per session at most, with the era's chance, as the game's own temporary faults. Career too
+// since 0.75.5: a registered fault is written into the career save like the game's own (its "last fault" data).
 void gp_fault_tick()
 {
     if (gp_fault_at < 0) {
         const fm::Season &season = fm::season_of(failure_era);
         const fm::FaultEra &fe = fm::fault_era_of(season);
-        swofty::career::State st{};
-        bool career = swofty::career::state(&st) == swofty::career::Result::ok && st.loaded;
-        double in = career ? 1e18 : fm::seconds_until_fault(season, std::max(uniform01(), 1e-12));
+        double in = fm::seconds_until_fault(season, std::max(uniform01(), 1e-12));
         gp_fault_at = gp_clock + in;
         gp_fault_type_rolled = fm::pick_fault(fe, uniform01());
-        swofty::log("[td-probe] gp failures: partial failure (%.1f %% per Grand Prix)%s: %s after %.0f more minutes",
-                    fm::fault_race_chance(season) * 100.0, career ? " off in Career" : "", fm::fault_name(gp_fault_type_rolled),
-                    in / 60.0);
+        swofty::log("[td-probe] gp failures: partial failure (%.1f %% per Grand Prix): %s after %.0f more minutes",
+                    fm::fault_race_chance(season) * 100.0, fm::fault_name(gp_fault_type_rolled), in / 60.0);
     }
     if (gp_fault_at >= 1e17 || gp_clock < gp_fault_at)
         return;
@@ -6832,21 +6884,46 @@ struct overlay_pen {
 void paint_damage_panel(SwoftyPaint *paint, void *)
 {
     namespace ov = swofty::overlay;
+    // One log line whenever the panel changes between drawing and not drawing, and why (0.75.5: a Career test showed
+    // no panel after an engine failure and the log could not say why). Render thread only.
+    static int last_state = -1;
+    auto note = [&](int state, const char *what, int tiles = 0, float x = 0, float y = 0, float scale = 0) {
+        if (state == last_state)
+            return;
+        last_state = state;
+        if (state == 5)
+            swofty::log("[td-probe] damage panel: drawing %d tile(s) at x %.0f y %.0f, scale %.2f", tiles, double(x),
+                        double(y), double(scale));
+        else
+            swofty::log("[td-probe] damage panel: not drawing (%s)", what);
+    };
     std::string_view mode = damage_panel;
-    if (mode == "off" || session_ended || player_vehicle.load() < 0)
+    if (mode == "off") {
+        note(0, "the option is off");
         return;
+    }
+    if (session_ended || player_vehicle.load() < 0) {
+        note(1, session_ended ? "no session" : "your car is not known yet");
+        return;
+    }
     // The session is over for you (NOT_IN_SESSION: finished or retired, the results and the replays after them):
     // no panel (0.51.124: it stayed up after the finish and over the replay).
-    if (player_controller_flags.load() & (1u << 3))
+    if (player_controller_flags.load() & (1u << 3)) {
+        note(2, "your session is over: NOT_IN_SESSION");
         return;
+    }
     dicons::badge b[dicons::n_icons];
     int n = damage_badges(b, mode == "always");
-    if (n == 0)
+    if (n == 0) {
+        note(3, "nothing wrong with the car");
         return;
+    }
     // Top right, under the lap timing box (21 % down the safe area).
     ov::Rect safe = ov::safe_area(paint);
     overlay_pen pen{paint};
-    dicons::draw_panel(pen, safe.x + safe.w, safe.y + safe.h * 0.21f, ov::ui_scale(paint), b, n);
+    float x = safe.x + safe.w, y = safe.y + safe.h * 0.21f, scale = ov::ui_scale(paint);
+    note(5, "", n, x, y, scale);
+    dicons::draw_panel(pen, x, y, scale, b, n);
 }
 
 void on_event(const SwoftyEvent *ev, void *)
@@ -7989,7 +8066,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.75.4, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.75.5, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

@@ -1,3 +1,30 @@
+# Terminal Damage 0.75.5 beta
+
+Realistic failures now work in Career and My Team too (experimental). Everything from 0.75.4 and 0.75.3 is in this release.
+
+## Read this first
+
+- **Career and My Team now use the realistic failures.** With *Mechanical failures in Grand Prix* on **Realistic** (the default), the game's own random failures are replaced by the season's real rates, for you and for the AI cars. It is new and has had only short tests in Career. If it gets in your way, set that option to Off: the game's own Career failures then stay as they were.
+- **Updating from 0.75.4:** nothing to set up. Your options stay as they are.
+
+## New
+
+- **Realistic failures in Career and My Team:** yours, the AI cars' and the partial faults (slow shifts, a lost gear and so on), with the season's real rates (*Failure season*) and the warning signs. The game's own rolled failures are removed, and so is the game's own temporary fault for your car (it would be written into the save next to ours). So the teams' R&D reliability no longer decides who breaks down: every car gets the season's average rate. The AI cars keep the game's temporary faults.
+- The *100 % (test)* setting of *Mechanical failures in Grand Prix* now fails you and two AI cars 15-60 s into the race, and it only breaks parts the season's cars have (no MGU-H in a 2026 car).
+
+## Something not working?
+
+Every part has its own option. Turn off only the part that gives you trouble for now (for example *Mechanical failures in Grand Prix*, *Damage status panel*, *Engineer radio* or *Suspension damage from hits*), keep the rest, and send me your log: loader.log in the newest folder of %LOCALAPPDATA%\Swofty\sessions. Post it on OverTake or open an issue on GitHub, and say what happened and roughly when.
+
+## Known issues
+
+- Realistic failures in Career are new: a failure of yours, or of an AI car, from the real rates has not been seen in a Career race yet (the test setting has). In Career an AI car that fails stayed where it stopped for about two minutes before the game took it to its garage.
+- Suspension damage is experimental: its tuning can still change.
+- Career: the "PART FITTED" message named in the 0.75.0 notes may not show when you fit the new part.
+- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- No safety car HUD while your car is terminally damaged.
+- Qualifying ICE replacement, Skip repairs and practice replacement timing: **not tested, might be broken**.
+
 # Terminal Damage 0.75.4 beta
 
 Realistic failures work again with the default settings. Everything from 0.75.3 is in this release too: suspension damage from hits works together with Heavier Damage, and the pause menu stops the failure clocks.

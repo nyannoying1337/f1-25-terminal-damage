@@ -448,5 +448,139 @@ int main()
         game_speed_ms = was_ms;
     }
 
+    // ---- 0.75.5: Career gets the realistic failures too: the AI plan and the partial fault plan no longer switch
+    // off while a Career is loaded (before, every AI slot was 1e18 and the partial fault came after 1e18 s) ----
+    {
+        static SwoftyCareer cr{};
+        cr.state = [](SwoftyCareerState *out) {
+            *out = {};
+            out->loaded = 1;
+            return int(SWOFTY_ASSET_OK);
+        };
+        uint32_t was_version = api.version;
+        api.version = 7;
+        api.career = &cr;
+        swofty::career::State st{};
+        assert(swofty::career::state(&st) == swofty::career::Result::ok && st.loaded);  // the test really is in Career
+        reset_session();
+        player_vehicle = 0;
+        gp_clock = 30;
+        failure_mgr = 1;  // the plan needs a failure manager; nothing is due, so nothing walks it
+        gp_ai_failure_tick();
+        failure_mgr = 0;
+        assert(ai_failures_rolled);
+        for (int v = 0; v < 32; ++v)
+            assert(ai_fail_at[v] > 30 && ai_fail_at[v] < 1e17);
+        gp_fault_at = -1;
+        gp_fault_tick();
+        assert(gp_fault_at > 30 && gp_fault_at < 1e17);
+
+        // The game's own temporary fault for a human driver (record wheel byte 0x63) is not registered in Career with
+        // Realistic: its caller gets a scratch record. AI records (phase B) and every record outside Career go through.
+        static int registered;
+        registered = 0;
+        orig_failure_register = [](void *, const void *) -> void * {
+            ++registered;
+            return nullptr;
+        };
+        alignas(8) uint8_t player_rec[0x34] = {}, ai_rec[0x34] = {};
+        player_rec[0x30] = 0xff;
+        player_rec[0x31] = 0x63;
+        ai_rec[0x31] = 0x02;
+        void *kept = on_failure_register(nullptr, player_rec);
+        assert(kept != nullptr && registered == 0);
+        assert(on_failure_register(nullptr, ai_rec) == nullptr && registered == 1);
+        api.career = nullptr;  // Grand Prix: the game's records are untouched
+        assert(on_failure_register(nullptr, player_rec) == nullptr && registered == 2);
+        orig_failure_register = nullptr;
+        api.version = was_version;
+        reset_session();
+    }
+
+    // ---- 0.75.5: the 100 % test fails two AI cars as well (15-60 s after the clock starts), never the player's ----
+    {
+        uint32_t was_version = api.version;
+        auto was_setting = api.setting;
+        auto was_watch = api.watch_setting;
+        api.version = 4;
+        api.setting = [](const char *id, uint32_t type, SwoftySettingValue *out) -> int {
+            if (strcmp(id, "gp_failures") || type != SWOFTY_SETTING_CHOICE)
+                return 0;
+            out->type = type;
+            out->choice = "100";
+            return 1;
+        };
+        api.watch_setting = [](const char *, SwoftySettingFn, void *) -> int { return 0; };
+        alignas(16) static uint8_t mgr[0x200]{}, objs[4][0x100]{};
+        alignas(16) static uint64_t entries[8]{};
+        for (int i = 0; i < 4; ++i) {
+            objs[i][0x78] = uint8_t(i * 4);  // vehicles 0, 4, 8, 12
+            entries[i * 2 + 1] = reinterpret_cast<uint64_t>(objs[i]);
+        }
+        uint64_t b = reinterpret_cast<uint64_t>(entries), e = b + sizeof entries;
+        memcpy(mgr + 0x198, &b, 8);
+        memcpy(mgr + 0x1a0, &e, 8);
+        reset_session();
+        player_vehicle = 0;
+        gp_clock = 30;
+        failure_mgr = reinterpret_cast<uintptr_t>(mgr);
+        gp_ai_failure_tick();
+        assert(ai_failures_rolled);
+        int planned = 0;
+        for (int v = 0; v < 32; ++v) {
+            if (ai_fail_at[v] >= 1e17)
+                continue;
+            ++planned;
+            assert(v != 0 && v % 4 == 0 && ai_fail_at[v] >= 45 && ai_fail_at[v] <= 90);
+        }
+        assert(planned == 2);
+        // One AI car only: no plan yet (the cars are not all there), tried again on the next frame.
+        reset_session();
+        player_vehicle = 0;
+        gp_clock = 30;
+        uint64_t two = b + 2 * 0x10;
+        memcpy(mgr + 0x1a0, &two, 8);  // vehicles 0 and 4 only: the player's and one AI car
+        gp_ai_failure_tick();
+        assert(!ai_failures_rolled);
+        failure_mgr = 0;
+        api.setting = was_setting;
+        api.watch_setting = was_watch;
+        api.version = was_version;
+        reset_session();
+    }
+
+    // ---- 0.75.5: the 100 % test breaks only parts the Failure season's cars have (it broke an MGU-H in a 2026 car) ----
+    {
+        static const char *era_id = "2026";
+        uint32_t was_version = api.version;
+        auto was_setting = api.setting;
+        auto was_watch = api.watch_setting;
+        api.version = 4;
+        api.setting = [](const char *id, uint32_t type, SwoftySettingValue *out) -> int {
+            if (strcmp(id, "failure_era") || type != SWOFTY_SETTING_CHOICE)
+                return 0;
+            out->type = type;
+            out->choice = era_id;
+            return 1;
+        };
+        api.watch_setting = [](const char *, SwoftySettingFn, void *) -> int { return 0; };
+        for (const char *y : {"2026", "2025", "2018", "2014", "2012"}) {
+            era_id = y;
+            const fm::Era &era = fm::era_of(fm::season_of(y));
+            bool seen[fm::gearbox + 1] = {};
+            for (int k = 0; k < 800; ++k) {
+                int p = test_failure_part();
+                assert(p >= fm::ice && p <= fm::gearbox && era.share[p] > 0);
+                seen[p] = true;
+            }
+            for (int i = fm::ice; i <= fm::gearbox; ++i)
+                assert(seen[i] == (era.share[i] > 0));  // every part the cars have comes up, none they lack
+        }
+        assert(fm::era_of(fm::season_of("2026")).share[fm::mguh] == 0);
+        api.setting = was_setting;
+        api.watch_setting = was_watch;
+        api.version = was_version;
+    }
+
     std::puts("realistic failures ok");
 }
