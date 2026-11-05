@@ -1,3 +1,63 @@
+# Terminal Damage 0.75.0 beta
+
+The biggest update so far: realistic failures with warning signs, a damage HUD, engineer radio, presets and more FIA rules. Everything since 0.51.85 is in this release.
+
+## Read this first
+
+- **Presets:** the first option sets the main options at once: Casual, **Realistic (default)** or Hardcore. A one-time message on the main menu points to it.
+- **The defaults are now the Realistic preset.** *Mechanical failures in Grand Prix* is **Realistic** (was Off), unless you set it yourself. Options you changed before stay as they are; the preset then shows Custom.
+- **Suspension damage from hits is experimental and off by default.** Turn it on in the options if you want to try it (restart the game). Using Heavier Damage? Keep it off, or set Heavier Damage's *Suspension & wheel damage* to *Stock*: both mods damage the suspension, and the two add up.
+- **Debug options** are now at the bottom of the list, and all of them are off, the test keys too.
+
+## New
+
+- **Realistic failures** (*Mechanical failures in Grand Prix: Realistic*, the default): parts fail at the real rate of the season you pick in *Failure season* (2012-2026), fewer in short races. Many give warning signs first: power loss, cut-outs, slow or rough shifts, a lost gear, rear brake trouble. Lift and coast to nurse the part. Some faults stay partial (slow shifts, a missing or jammed gear, DRS, ERS, lean fuel, a rear brake-by-wire fault). AI cars break down too. Not in Career, which keeps the game's own failures.
+- **Damage status panel** (option *Damage status panel*: Auto, Always on track, Off): icon tiles at the top right of the race HUD for engine, ERS, gearbox, brakes, suspension and power, yellow, orange or red by how bad, with a short label (OUT, -15%, CUTS, x6, NO 3, FL, LIMP). Auto shows only what is wrong.
+- **Engineer radio** for warning signs, failures, brake problems and broken corners, with the game's own voice lines. Messages titled ENGINEER give advice on screen.
+- **Presets** (Casual, Realistic, Hardcore). Picked in the game: reopen ADDON SETTINGS to see the changes. Picked in the launcher: they apply at the next game start.
+- **Crashes:** one broken corner may let the car crawl on: a collapsed suspension 85 % at the front, now also 60 % at the rear; a front wheel coming loose 35 %. Never once the game tears the wheel off (that stops the engine) or the wheel is gone. Losing the wheel or breaking another corner while crawling stops the car. Crash messages name the broken corners.
+- **Race, broken corner (FIA):** "STOP THE CAR". Pull over as soon as it is safe or get to the pit lane; after 20 s of driving on track the car retires as unsafe. In practice and qualifying you still crawl back to the garage.
+- **Heavy aero or body damage** that the game calls terminal (front wing, sidepods, floor, rear wing, diffuser): the car keeps its drive and you get "HEAVY DAMAGE": pit by the end of the next lap or retire. At a red flag it may be repaired. Before, the car lost all drive without a word.
+- **More FIA rules:** after the game's own scripted failure, pit by the end of the next lap or retire (black flag with an orange disc). A car stopped on track in practice or qualifying stays withdrawn. A car left on track without drive at a red flag is abandoned.
+- **Garage (practice and qualifying):** the "minutes left" of a corner rebuild now counts down; a withdrawn car says so ("CAR WITHDRAWN"). Career: a car with a failed engine or gearbox stays in the garage until you fit a new part in the Power Unit menu ("PART FITTED").
+- **Fixed-chance failures** (10-50 %) now come at a random point of the race distance, using the game's own lap count.
+- **Suspension damage from hits (experimental, off by default):** a clear hit on a wheel can bend that corner (the car pulls), weaken it, leave a hidden crack that lets go later, or break it. A badly damaged corner can collapse within minutes, usually over a kerb. Scrapes, boards and normal kerbs do not break a healthy corner. With it on, the game tears a wheel off only in big crashes. Shown on the damage panel and the game's damage MFD page, repaired in the practice and qualifying garage (4-20 minutes; the car stays in until it is done), undone by a flashback. *Suspension damage for AI cars* is a separate experimental option.
+
+## Fixes
+
+- After heavy damage a flashback could be watched but not resumed (X did nothing). Now it can, as long as the game itself has a flashback for you (flashbacks on, some left).
+- A wheel the game only damaged (a flat tyre) counted as a broken corner: a broken front corner then could not limp, and the damage panel showed that wheel in red.
+- The replay after a retirement has your car's engine sound again.
+- A race restart clears the previous race's failures, warning signs and damage.
+- Starting a practice programme with a car that may not leave its garage froze the garage screen. The car now comes straight back, with a message that says why.
+- A "corner bent" message no longer hides a failure message shown a moment before.
+- A flashback during the box stop or the garage push removes the race crew the addon called out.
+- A retirement timer or pit deadline no longer runs out while the game holds your car at a red flag.
+- Less work per frame, also after a retirement.
+
+## Something not working?
+
+Every part has its own option. Turn off only the part that gives you trouble for now (for example *Mechanical failures in Grand Prix*, *Damage status panel*, *Engineer radio* or *Suspension damage from hits*), keep the rest, and send me your log: loader.log in the newest folder of %LOCALAPPDATA%\Swofty\sessions. Post it on OverTake or open an issue on GitHub, and say what happened and roughly when.
+
+## Known issues
+
+- Suspension damage is experimental; it adds up with other damage mods.
+- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- No safety car HUD while your car is terminally damaged.
+- Qualifying ICE replacement, Skip repairs and practice replacement timing: **not tested, might be broken**.
+
+## Debug options
+
+All at the bottom of the list, labelled *Debug:*, and off. Leave them alone unless you are asked to test something.
+
+- *Debug: UDP telemetry port* (was *UDP telemetry port*): only for the debug telemetry log; the addon reads your speed from the game itself.
+- *Debug: fault type for the game's own failure*: only with *Game's own failure* in *Mechanical failures in Grand Prix*.
+- *Debug: hotkey triggers a failure*: **off by default** (it was on in the test builds). Test keys, all with Ctrl+Shift: F10 the engine (ICE) fails, F7 a Career scripted failure, F6 the next partial failure, F9 cycles a throttle cap, F4 a test run of all faults (once: you drive, twice quickly: the AI drives).
+- *Debug: crash limp roll*, *Debug: red flag repair roll*: force the dice rolls.
+- *Debug: garage corner repair time*: about a minute instead of the normal repair times.
+- *Debug: suspension test*: Ctrl+Shift+F8 steps toe, camber or suspension damage on the front-left wheel.
+
+
 # Terminal Damage 0.51.85 beta
 
 Flashback fixes on top of 0.51.80.

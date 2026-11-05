@@ -20,3 +20,8 @@ template <class T> bool guarded_read(uintptr_t at, T &out)
     out = value;
     return true;
 }
+
+template <class T> bool guarded_read(const void *at, T &out)
+{
+    return guarded_read(reinterpret_cast<uintptr_t>(at), out);
+}

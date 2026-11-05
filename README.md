@@ -1,32 +1,30 @@
 # Terminal Damage — F1 25 addon (Swofty) — beta
 
-When your car breaks, F1 25 normally takes it away from you on the spot. With this addon you keep the
-car and deal with the failure like a real driver: limp on with reduced power, pull over and retire,
-or bring it to your box where your garage crew pushes it into the garage.
+When your car breaks, F1 25 normally takes it away from you on the spot. With this addon you keep the car and deal
+with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
+mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
 **Download:** install it from the Addon Browser in the Swofty Launcher, or get the zip from [Releases](../../releases) and import it.
 
-Features, setup and known issues: [mod/README.md](mod/README.md).
+![Damage status panel: the six tiles, the colours and examples](docs/damage-panel.png)
 
-## 0.51.85 beta
+## 0.75 beta
 
-- Flashbacks work without UDP telemetry: back before the damage, the car is whole again with full power.
-- A flashback before one of the game's own mechanical failures no longer takes your power away or lets the AI retire or disqualify your car.
-- A broken car stranded in the pit lane retires after 10 s standing still; an engine that is off gives no drive.
+- **Presets:** Casual, **Realistic (default)** or Hardcore set the main options at once. The defaults are now the
+  Realistic preset, so *Mechanical failures in Grand Prix* is Realistic (was Off) unless you set it yourself.
+- **Realistic failures** at the real rate of the season you pick (2012-2026), often with warning signs first: power
+  loss, cut-outs, slow shifts, a lost gear, rear brake trouble. AI cars break down too.
+- **Damage status panel** at the top right of the race HUD, and **engineer radio** calls with the game's own voice lines.
+- **Crashes:** one broken corner, front or rear, may let the car crawl on; heavy aero or body damage keeps the drive
+  and calls you in. **FIA rules:** in a race a car on a broken corner must stop; pit by the end of the next lap after a
+  scripted failure or heavy damage.
+- **Suspension damage from hits** is experimental and **off by default**. Using Heavier Damage? Keep it off, or set
+  Heavier Damage's *Suspension & wheel damage* to *Stock*: the two add up.
+- **Something not working?** Every part has its own option: turn off only that part for now and send me your
+  `loader.log` (newest folder in `%LOCALAPPDATA%\Swofty\sessions`) in an [issue](../../issues).
 
-## 0.51.80 beta
-
-- Fix: a car withdrawn for the session could still go on track through a practice programme.
-
-## 0.51.79 beta
-
-- No UDP telemetry needed any more: the addon reads your speed from the game.
-- One broken front corner may let the car crawl back to the pits (dice roll).
-- Red flags follow the FIA rules: failed power units and abandoned cars retire, a limping car may be repaired and restart.
-- Practice and qualifying: a car that limps into its garage is rebuilt there (20-45 min); a car that did not make it back is withdrawn for the session.
-- A disqualification stays DSQ in the results.
-
-Read the [changelog](CHANGELOG.md) for changes and limitations.
+How it works, the HUD, every option and the known issues: [mod/README.md](mod/README.md).
+All changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Addon integration
 
@@ -46,7 +44,7 @@ The DLL lands in `mod/native/`. Zip the contents of the `mod` folder (swofty.jso
 
 ## License and attribution
 
-**[Terminal Damage Attribution License 1.0](LICENSE)** ? a custom license.
+**[Terminal Damage Attribution License 1.0](LICENSE)**, a custom license.
 Published mods/projects using substantial portions must visibly show:
 
 > Uses work from Terminal Damage by nyannoying

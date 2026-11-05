@@ -60,7 +60,7 @@ int main()
     assert(original_calls == 3 && predicate_calls == 0);
 
     // A crew left over after race retirement must not send the restarted car
-    // from its grid/OnTrack state into the pit lane (Nick's results-screen restart).
+    // from its grid/OnTrack state into the pit lane (the results-screen restart in testing).
     std::vector<uint8_t> pit_system(0x100), pit_entry(8);
     put(pit_system, 0x68 + 3 * 16, reinterpret_cast<uintptr_t>(pit_entry.data()));
     put(pit_entry, 4, uint32_t(1));

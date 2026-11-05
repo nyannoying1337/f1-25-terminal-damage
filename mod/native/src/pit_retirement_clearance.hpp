@@ -281,7 +281,7 @@ void hook_pit_clearance()
 void report_pit_clearance()
 {
     static uint64_t next = 0;
-    if (!log_telemetry || !player_broken || session_ended || !pit_retire_clearance) { next = 0; return; }
+    if (!player_broken || session_ended || !log_telemetry || !pit_retire_clearance) { next = 0; return; }
     uint64_t now = GetTickCount64();
     if (now < next) return;
     next = now + 5000;

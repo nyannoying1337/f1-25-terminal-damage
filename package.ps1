@@ -1,4 +1,4 @@
-# Builds the DLL and packs the addon zip that Nick imports in the Swofty launcher.
+# Builds the DLL and packs the addon zip for the Swofty launcher.
 $ErrorActionPreference = "Stop"
 $manifest = Get-Content "$PSScriptRoot\mod\swofty.json" -Raw | ConvertFrom-Json
 foreach ($option in $manifest.options) {

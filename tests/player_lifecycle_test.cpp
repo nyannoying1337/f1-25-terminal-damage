@@ -70,10 +70,27 @@ int main()
     retire_in = 0;
     pit_lane_system = 1;
     controller_system = reinterpret_cast<void *>(1);
+    // The race's lap count: Swofty's telemetry (none here), the session context, then the game's race settings.
+    {
+        const char *src = nullptr;
+        session_laps = 0;
+        game_race_laps = -1;
+        assert(race_total_laps(&src) == 0);
+        game_race_laps = 5;
+        assert(race_total_laps(&src) == 5 && !strcmp(src, "the game's race settings"));
+        session_laps = 12;
+        assert(race_total_laps(&src) == 12 && !strcmp(src, "session context"));
+        session_laps = 0;
+        game_race_laps = 500;
+        assert(race_total_laps() == 0);
+        game_race_laps = 5;
+        game_race_length = 3;
+    }
     SwoftyEvent ev{};
     ev.name = SWOFTY_EVENT_SESSION_END;
     on_event(&ev, nullptr);
     assert(session_ended && !pending_failure && !garage_return_wanted);
+    assert(game_race_laps == -1 && game_race_length == -1);  // the next session reads its own
     assert(test_cap == -1 && throttle_hook.car == 0 && throttle_hook.cap == 1);
     assert(!pit_lane_system && !controller_system && retire_in == -1);
     assert(pit_slot_of[3] == -1);
@@ -97,8 +114,9 @@ int main()
     assert(*observed_failure == 1 && !pending_failure);
 
     // DNF controller/session cleanup clears gameplay requests but must not
-    // restart the retired car's engine audio. Only fresh session preparation
-    // or session.start releases the separate audio latch.
+    // restart the retired car's engine audio. Fresh session preparation,
+    // session.start or, once the race is over (NOT_IN_SESSION), a
+    // SESSION_NOT_STARTED (the replay from the results screen) releases it.
     reset_session();
     player_vehicle = 3;
     *observed_failure = 0;
@@ -115,8 +133,12 @@ int main()
     assert(throttle_hook.cap == 0 && engine_off_vehicle == 3 && retired_drive_lock_vehicle==3);
     assert(on_set_controller(nullptr, 3, 1, 3) == 77);
     assert(engine_off_vehicle == 3);
+    // 0.51.125: the replay after the race resets every car to SESSION_NOT_STARTED; your car's engine sound comes
+    // back (a test report: the replays after a retirement had your car muted).
     assert(on_set_controller(nullptr, 3, 1, 10) == 77);
-    assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3);
+    assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1 && engine_kill_vehicle == -1);
+    retired_engine_off_vehicle = 3;
+    engine_off_vehicle = 3;
     reset_for_session_restart(nullptr);
     assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1 && retired_drive_lock_vehicle==-1 && throttle_hook.cap==1);
     retired_engine_off_vehicle = 3;

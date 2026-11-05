@@ -1,131 +1,150 @@
 # Terminal Damage (Swofty addon for F1 25) — beta
 
-When your car breaks, the game normally takes it away from you on the spot. With this mod you keep
-the car and deal with the failure like a real driver: limp on, pull over, or bring it to your box.
+When your car breaks, F1 25 normally takes it away from you on the spot. With Terminal Damage you keep it and deal
+with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
+mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
-## 0.51.85 beta
+## 0.75 beta: what is new
 
-- **Flashbacks work without UDP telemetry.** Back before the damage, the car is whole again with
-  full power. A retirement request without damage is cancelled by a flashback.
-- **The game's own mechanical failures:** a flashback to just before one no longer takes your power
-  away or lets the AI retire or disqualify your car. If the failure comes back, you keep the car.
-- A flashback after a retirement gives you your car back.
-- **A broken car stranded in the pit lane** (pit entry, pit exit, drive-through) retires after 10 s
-  standing still, like on track.
-- **Engine off means no drive:** gear changes no longer move a broken car whose engine is off.
+- **Presets:** Casual, Realistic (default) or Hardcore set the main options at once.
+- **Realistic mechanical failures**, now on by default in Grand Prix and custom races: the real failure rate of the season you pick (2012-2026), often with warning signs first. AI cars break down too.
+- **Damage status panel:** a new HUD panel at the top right shows what is wrong with your car (see The HUD).
+- **Engineer radio:** your engineer calls out warning signs, failures, brake problems and broken corners with the game's own voice lines.
+- **Crashes:** one broken corner, front or rear, may let the car crawl on; heavy aero or body damage keeps the drive and calls you in; the messages name the broken corner.
+- **More FIA rules:** in a race a car on a broken corner must stop; after a scripted failure or heavy damage, pit by the end of the next lap or retire.
+- **Garage repairs** in practice and qualifying count down properly, and a withdrawn car says so.
+- **Suspension damage from hits:** new, experimental and off by default.
+- Many fixes, among them flashbacks after heavy damage, the replay sound after a retirement and race restarts. Full list in the changelog.
 
-## 0.51.80 beta
+**Updating from 0.51.85:** the defaults are now the Realistic preset, so *Mechanical failures in Grand Prix* is **Realistic** (was Off) unless you set it yourself. Options you changed before stay as they are, and the preset then shows Custom.
 
-- **Fix:** a withdrawn car (practice/qualifying) could still go on track through a practice
-  programme. The garage menu now switches off Practice Programmes as well.
+## Quick start
 
-## 0.51.79 beta
+1. Steam version of F1 25 with Swofty Launcher 1.7.0 or newer. Install Terminal Damage from the Addon Browser, then restart the game.
+2. A one-time message on the main menu points you to the preset. **Realistic** is the default: nothing else to set up.
+3. Want it easier or harder? In the game: ADDON SETTINGS, Terminal Damage, **Preset**. Every option has a description there.
+4. Optional: **Suspension damage from hits** is experimental and off by default (see below).
 
-- **No UDP telemetry needed any more.** The mod reads your speed from the game. Its own UDP
-  listener is off by default, so SimHub, CrewChief and other apps keep port 20777.
-- **Crashes:** one broken front corner may still let the car crawl back to the pits (dice roll).
-  A rear corner or two broken corners: the car cannot be driven.
-- **Red flags follow the FIA rules:** power unit / gearbox failures and abandoned cars retire; a
-  car limping on one broken front corner may be repaired by the team (dice roll) and restart.
-- **Practice and qualifying:** a car that limps into its garage is rebuilt there (20-45 minutes,
-  the game's repair timer). A car that did not make it back is withdrawn for the session.
-- **Disqualification stays DSQ** in the results instead of turning into DNF.
+The game's UDP telemetry is not needed: SimHub, CrewChief and other telemetry apps keep port 20777. Made for offline sessions; you can load straight into a race.
 
-Full details: https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/CHANGELOG.md
+## Presets
 
-## What it does
+- **Casual:** no random failures in Grand Prix, 50 % power with a broken turbo or ERS part, the damage panel always on, the game's own red flag rules, a missed pit call means retired instead of disqualified, pause menu Retire ends your race at once.
+- **Realistic (default):** real failure rates for the season, 30 % power, FIA red flag rules, disqualified for a missed pit call, damage panel on Auto, pause menu Retire asks you to pull over first.
+- **Hardcore:** Realistic with 20 % power and no damage panel.
+- **Custom:** change one of these options yourself and the preset shows Custom.
 
-- **Radio menu: Retire:** request retirement while on track, then pull over and stop for 10 s
-  or drive into your box. Nothing breaks and power stays available. Selecting it again does
-  not cancel or speed up retirement. Requires Keep control after terminal damage.
-  The engineer's reply can be disabled separately with Retirement radio voice (restart required).
+Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in the launcher: it applies at the next game start. A preset never changes hotkeys, the failure season, wheel physics, sounds, suspension damage or debug options.
 
-- **You keep your car after terminal damage** (engine, power unit, gearbox or crash damage).
-- **The failure shows up in how the car drives:**
-  - engine (ICE) or gearbox failed: no drive, the car rolls out
-  - turbo, MGU-K, MGU-H, battery or control electronics failed: reduced power (30 % throttle by
-    default, adjustable)
-  - terminal crash damage: no drive, the car rolls out
-  - exception: **one broken front corner** may let the car crawl on with about a third of its
-    power (70 % chance with a broken suspension, 35 % with a lost wheel). A message tells you.
-    If the limping car breaks another corner, it stops.
-- **Engine sound:** a failed engine plays the engine stop sound and stays silent. After terminal
-  crash damage the engine dies after 3 to 6 s, and a broken or retiring car that stands still
-  switches its engine off after 6 s (setting "Engine sound off after a failure").
-- **The game's own random failures** are handled the same way as the failures above.
-  **Experimental:** in Career and My Team the game's own failure chances and timing are used
-  unchanged. When the game would hand your car to the AI, you keep control instead. Get to the
-  pits before the end of the lap or retire, otherwise you are disqualified (setting "After a
-  scripted failure..." switches this to a normal retirement). The results screen shows DSQ.
-  The "Game's own failure" and "Game's own breakdown" Grand Prix modes are test options for this.
-- **Stand still for 10 s** with a broken car, on track or stranded in the pit lane: you retire.
-- **Drive into the pit lane** with a broken car (race): no tyre stop. Your garage crew comes out,
-  pushes the car into the garage, then you retire.
-- **Red flag** while your car is terminally damaged (FIA rules):
-  - engine, power unit or gearbox failure: cannot be repaired during a red flag, you retire
-  - a car that could not be driven (abandoned on track): you retire
-  - a car limping on one broken front corner: the team may rebuild it during the red flag
-    (80 % chance for a suspension, 50 % for a lost wheel). Success: you take part in the
-    restart. Failure: you retire.
-  - other accident damage (wings, bodywork) is repaired by the game as usual
-- **Practice and qualifying:** retiring would end the whole session, so your car goes back to its
-  garage instead.
-  - **limped in on a broken front corner:** the team rebuilds the corner, 20-30 minutes for a
-    broken suspension, 30-45 minutes for a lost wheel (the game's repair timer). Wait, or use
-    the game's skip / fast forward (uses session time). Then you can drive out again.
-  - **did not make it back** (retired on track or Retire from Session): withdrawn for the rest of
-    the session. The garage menu offers no drive out, flying lap or practice programme; the car is
-    ready again in the next session.
-  - **engine or gearbox failure:** Career: fit a new part (e.g. a new engine) in the garage, then
-    leave the garage. Without a new part the car is sent straight back to the garage.
-- **Engine changes in qualifying:** a newly scheduled player ICE replacement takes at least
-  60 minutes. Skip repairs should consume the remaining qualifying time. Practice replacement
-  times and other repairs stay unchanged. **Not tested, might be broken.**
-- **Ctrl+Shift+F11:** retire like a real driver. Nothing breaks and you keep full power: pull over
-  and stand still for 10 s, or drive into your box. Press again to cancel while still on track.
-- **Retire in the pause menu** works the same way on track (any controller or wheel): pull over or
-  box. A HUD message confirms the request.
-- Your stopped car does not trigger a safety car or red flag.
+## The HUD
 
-## Setup (once)
+![Damage status panel: the six tiles, the colours and examples](https://raw.githubusercontent.com/nyannoying1337/f1-25-terminal-damage/main/docs/damage-panel.png)
 
-1. Steam version of F1 25 and Swofty Launcher 1.7.0 or newer.
-2. Install the addon in the Swofty Launcher and restart the game.
+**Damage status panel** (option *Damage status panel*): tiles at the top right of the race HUD, under the lap times. The header shows the worst state: OK, CHECK (yellow), WARNING (orange) or FAILURE (red).
 
-The game's UDP telemetry is **not** needed. The *UDP telemetry port* setting only feeds the debug
-telemetry log; leave it off.
+- **Six tiles:** engine, ERS, gearbox, brakes, suspension and power, each coloured by how bad it is.
+- **Yellow:** an early sign, such as a gearbox starting to wear, or a bent corner.
+- **Orange:** a fault is active: less power, slow shifts, a lost gear, brake trouble or a weakened corner.
+- **Red:** the part is out, a corner is broken, or you are limping.
+- **The label under a tile:** OUT (failed), -15% (power lost), CUTS (power cutting in and out), x6 (shifts 6 times slower), NO 3 (3rd gear lost), -40% (rear braking lost; + means the rear brakes grab), FL, FRONT or ALL (which corners), LIMP (crawling on a broken corner).
+- **Auto** (default) shows only the tiles with a problem, so nothing is shown while all is fine. **Always on track** shows all six, **Off** none. The panel goes away once your race is over.
 
-## Each game start
+**Messages** in the middle of the screen tell you what happened and what to do next: SUSPENSION DAMAGE, BROKEN FRONT CORNER, WHEEL LOST, MECHANICAL FAILURE, BRAKE FAILURE, HEAVY DAMAGE, STOP THE CAR, DISQUALIFIED, CAR WITHDRAWN, CORNER REPAIR, CAR REPAIRED and more. Messages titled ENGINEER give advice, for example "the rear brakes are grabbing, bias forward".
 
-Restart the game after installing or updating the addon. You can load a race
-directly; no practice session or saved vehicle-ID mapping is needed.
+**Engineer radio** (option *Engineer radio for damage and failures*): the same events as voice calls. Off: only the messages stay.
 
-## Settings
+**Damage MFD page:** with the experimental suspension damage on, the game's own damage page shows the damaged corners (the stock page shows them as tyre wear).
 
-- **Power with a broken turbo/ERS part:** 20–50 % throttle, or no drive at all.
-- **Retire hotkey:** on/off and which F key (with Ctrl+Shift).
-- **Retirement radio voice:** on/off for the engineer's reply to radio-menu Retire.
-  Restart the game after changing it. Retire remains usable with the voice off.
-- **FIA red flag rules for a terminally damaged car:** on by default.
-- Options starting with *Debug:* are for testing and bug reports. Leave them on their defaults
-  (*Random*, *Normal*, off).
+## What happens when something breaks
+
+- **Engine (ICE) or gearbox:** no drive; the car rolls out.
+- **Turbo, MGU-K, MGU-H, battery or control electronics:** reduced power (30 % throttle in Realistic; option *Power with a broken turbo/ERS part*).
+- **A crash that breaks a corner:** the car usually cannot be driven. With **one** broken corner it may still crawl on with about a third of its power: a collapsed suspension 85 % at the front and 60 % at the rear, a front wheel coming loose 35 %. Never once the game tears the wheel off: that also stops the engine.
+- **Race, crawling on a broken corner:** STOP THE CAR. Pull over as soon as it is safe, or get to the pit lane. After 20 s of driving on track the car retires as unsafe.
+- **Practice and qualifying, crawling on a broken corner:** bring it back to the garage for a rebuild.
+- **Heavy aero or body damage** that the game calls terminal (front wing, sidepods, floor, rear wing, diffuser): the car keeps its drive. Race: pit by the end of the next lap or retire. Practice and qualifying: back to the garage, out for the session.
+- **Engine sound:** a failed engine goes silent at once; after terminal crash damage the engine dies after 3-6 s; a broken car standing still switches off after 6 s.
+- Your stopped car brings out no safety car or red flag.
+
+## Realistic failures (Grand Prix and custom races)
+
+- *Mechanical failures in Grand Prix*: **Realistic** (default) uses the real failure rate of the season in *Failure season* (2012-2026; pick your car mod's season). Short races have fewer failures. Also: a fixed chance (10-50 %) or Off.
+- Many failures give **warning signs** first: power loss, cut-outs, slow or rough shifts, a lost gear, rear brake trouble. **Lift and coast** to nurse the part: it lasts longer.
+- Some faults stay partial: slow shifts, a missing or jammed gear, DRS, ERS or lean fuel trouble, a rear brake-by-wire fault (from 2014).
+- AI cars break down at the season's rate too.
+- Career and My Team keep the game's own failures (see Career).
+
+## Retirement
+
+- **Pull over:** stand still for 10 s, on track or stranded in the pit lane.
+- **Your pit box (race):** no tyre stop; your crew pushes the car into the garage, then you retire.
+- **Retire without damage:** radio menu Retire, pause menu Retire or Ctrl+Shift+F11, then pull over or box. The hotkey cancels the request while you are still on track.
+- After retiring, the parked car stays where it is instead of the AI driving it away.
+- **Flashbacks:** back before the damage, the car is whole again with full power.
+
+## Red flags (FIA rules)
+
+- A failed engine, power unit or gearbox, or a car left on track without drive: you retire.
+- A car limping on one broken corner may be rebuilt during the red flag (80 % for a suspension, 50 % for a lost wheel) and take the restart. Heavy aero or body damage may be repaired too.
+
+## Practice and qualifying
+
+- Retiring would end the whole session, so your car goes back to its garage instead.
+- **Limped in on a broken corner:** the team rebuilds it, 20-30 minutes for a suspension and 30-45 for a lost wheel. The game's repair timer counts down: wait, or use skip or fast forward (uses session time).
+- **A damaged corner that still holds** (experimental suspension damage): 4-20 minutes, by how bad it is.
+- **Did not make it back** (stopped on track, or Retire from Session): withdrawn for the rest of the session, ready again in the next one.
+- **Engine or gearbox failure in Career:** the car stays in the garage until you fit a new part in the Power Unit menu.
+
+## Career and My Team (experimental)
+
+- The game's own failure chances and timing stay unchanged.
+- When the game would hand your car to the AI after a failure, you keep it: pit by the end of the next lap or retire, otherwise you are disqualified (or retired, see the options). A DSQ stays DSQ in the results.
+
+## Suspension damage from hits (experimental, off by default)
+
+Turn on *Suspension damage from hits (experimental)*, then restart the game.
+
+- A clear hit on a wheel can bend that corner (the car pulls to one side), weaken it, leave a hidden crack that lets go later, or break it. Scrapes, boards and normal kerbs do not break a healthy corner.
+- A badly damaged corner can collapse within seconds to a few minutes of driving, usually over a kerb.
+- With it on, the game tears a wheel off only in big crashes; moderate hits end in a bent or broken corner instead.
+- Shown on the damage panel and the game's damage MFD page; repaired in the practice and qualifying garage; undone by a flashback.
+- **Using Heavier Damage?** Keep this off, or set Heavier Damage's *Suspension & wheel damage* to *Stock*. Both mods damage the suspension, and the two add up.
+- *Suspension damage for AI cars* is a separate experimental option.
+
+## Something not working?
+
+Every part has its own option. Turn off only the part that gives you trouble for now, keep the rest, and send me your log so I can fix it. Some options need a game restart; their description says so.
+
+- **Random failures:** *Mechanical failures in Grand Prix*: Off.
+- **Damage panel:** *Damage status panel*: Off.
+- **Radio calls:** *Engineer radio for damage and failures*: off.
+- **Suspension damage:** *Suspension damage from hits*: off (the default).
+- **Retire in the menus:** *Retire in the radio menu* or *Retire in the pause menu: pull over first*: off.
+- **Red flag rules:** *FIA red flag rules for a terminally damaged car*: off.
+- **Career failures:** *Keep control after a scripted failure*: off.
+- **Everything:** *Keep control after terminal damage*: off gives you the game's own behaviour.
+
+**Your log:** loader.log in the newest folder of %LOCALAPPDATA%\Swofty\sessions (while the game runs: the swofty folder inside your F1 25 folder). Post it in the Terminal Damage discussion on OverTake or open an issue on [GitHub](https://github.com/nyannoying1337/f1-25-terminal-damage/issues), and say what happened and roughly when: session type, track, flashback or restart.
+
+## Other options
+
+- **Player wheel behavior:** Stock (default), Reduced jolting (experimental) or Loose wheels. **Loose AI wheels** is separate and off. Restart the game after changing either.
+- **Debug options** are at the bottom of the list and off. Leave them alone unless I ask you to test something.
 
 ## Known issues (beta)
 
-- Career has not been fully tested with the limping, red flag and garage repair rules yet.
-- The garage repair was tested with a lost wheel; a broken suspension with the wheel still attached
-  is not tested in game yet.
-- Flashback during the box stop or the garage push: the mod resets its own retirement work, but a
-  race garage crew that was already called out stays in the box. Not tested in game.
-- A red flag during terminal damage can still cause AI/spectator camera issues.
-- Qualifying ICE replacement / Skip repairs and practice replacement timing are
-  **NOT TESTED, MIGHT BE BROKEN**.
-- Hiding pit equipment does not establish that all associated collision is removed.
+- Suspension damage is experimental: its tuning can still change, and it adds up with other damage mods.
+- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- No safety car HUD while your car is terminally damaged: the game shows it only to cars it does not count as terminally damaged.
+- A red flag during terminal damage can still cause AI or spectator camera issues.
 - AI cars with terminal damage can stop at the pit exit or on track.
-- Career replacement is checked on send-out; without a new part the car can briefly reach the
-  pit exit before returning.
-- Real random failures, F2, time trial, split screen and career/My Team in depth need more testing.
-- Game updates can disable hooks until signatures are updated.
+- A flashback during the box stop or the garage push is not fully tested in game.
+- **Qualifying ICE replacement, Skip repairs and practice replacement timing: NOT TESTED, MIGHT BE BROKEN.**
+- A game update can switch parts of the addon off until it is updated.
+- Hiding pit equipment does not establish that all associated collision is removed.
+- Career part swap: the swap is checked when you leave the garage; without a new part the car can briefly reach
+  the pit exit before it returns.
+- No safety car or red flag for your own stopped car: unlike real race control, it retires after 10 s.
 
 Radio Retire is last in the four standard command lists. Swofty manages replacement of
 speech_recognition.xml; another mod replacing it can conflict. No experimental file overlay
@@ -133,17 +152,14 @@ is required. Radio menu retirement disables the native action; Retirement radio 
 voice/silent XML after restart. A repeated selection can request speech again. Other retirement
 routes do not add a voice reply. Disable the addon to remove its command-file operation.
 
-## Checks when reporting a problem
-
-Include the session type, car, what happened before the failure, and whether you
-used a flashback or restart. For a retirement problem, say whether the car was
-fully on track or still in the pit lane. For a pit problem, mention a teammate stop.
-Enable Debug: performance counters only when collecting a performance report.
-
 ## Reporting problems
 
-Send `<F1 25 folder>/swofty/loader.log` **before** starting the game again (every start
-overwrites it). Say what you did and roughly when.
+Send the `loader.log` from the newest folder in `%LOCALAPPDATA%\Swofty\sessions\` (the launcher moves it there when
+the game closes; while the game runs it is `<F1 25 folder>\swofty\loader.log`). Include the session type, track, car,
+what happened before the failure, and whether you used a flashback or a restart. For a retirement problem, say whether
+the car was fully on track or still in the pit lane. For a pit problem, mention a teammate stop.
+
+Full changes: [CHANGELOG.md](https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/CHANGELOG.md).
 
 ## License and reuse
 

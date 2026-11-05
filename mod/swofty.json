@@ -2,9 +2,9 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.51.85",
+  "version": "0.75.0",
   "author": "nyannoying",
-  "description": "Beta. A broken car is no longer taken away: it loses power, crawls on a broken front corner or rolls out. Pull over and retire, or bring it in. FIA red flag repairs, garage repairs in practice and qualifying, DSQ kept in results.",
+  "description": "Beta. A broken car is no longer taken away: limp on, pull over or bring it in. Realistic failures with warning signs, a damage HUD, engineer radio, FIA rules, garage repairs and presets. Experimental and off by default: suspension damage from hits.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
   "homepage": "https://github.com/nyannoying1337/f1-25-terminal-damage",
   "icon": "icon.png",
@@ -26,131 +26,44 @@
       "version": ">=0.1.0"
     }
   ],
+  "experimental_features": [
+    "overlay"
+  ],
   "options": [
     {
-      "id": "player_wheel_behavior",
+      "id": "preset",
       "type": "choice",
-      "label": "Player wheel behavior",
-      "description": "Stock keeps game physics. Reduced jolting keeps tethers but wheels can clip through your car and still move oddly. Loose wheels removes tethers. Restart required.",
+      "label": "Preset",
+      "description": "Casual: no random failures, forgiving rules. Realistic: real failure rates, FIA rules. Hardcore: Realistic, no damage panel, less power when broken. Launcher: applies at the next game start. In game: reopen this menu to see the changes.",
       "values": [
-        {
-          "value": "stock",
-          "label": "Stock (default)"
-        },
-        {
-          "value": "reduced",
-          "label": "Reduced jolting (experimental)"
-        },
-        {
-          "value": "loose",
-          "label": "Loose wheels (no tethers)"
-        }
+        {"value": "custom", "label": "Custom (your own settings)"},
+        {"value": "casual", "label": "Casual"},
+        {"value": "realistic", "label": "Realistic (recommended)"},
+        {"value": "hardcore", "label": "Hardcore"}
       ],
-      "default": "stock",
+      "default": "realistic",
       "binds": "native"
-    },
-    {
-      "id": "ai_wheel_tethers",
-      "type": "toggle",
-      "label": "Loose AI wheels (no tethers)",
-      "description": "AI wheels become loose debris after detaching. Independent of the player setting. Off by default. Restart required.",
-      "default": false,
-      "binds": "native"
-    },
-    {
-      "id": "performance_diagnostics",
-      "type": "toggle",
-      "label": "Debug: performance counters",
-      "description": "Measure this addon's private-hook work and log totals every 10 seconds. Original game calls and GPU/asset cost are excluded. Enable only while investigating FPS drops.",
-      "default": false,
-      "binds": "native",
-      "hidden": true
-    },
-    {
-      "id": "retire_radio_voice",
-      "type": "toggle",
-      "label": "Retirement radio voice",
-      "description": "Play the engineer's stop-car reply when selecting Retire in the radio menu. Off keeps Retire usable without the reply. Applies after a game restart.",
-      "default": true,
-      "binds": "db"
-    },
-    {
-      "id": "radio_command_probe",
-      "type": "toggle",
-      "label": "Radio menu retirement",
-      "description": "Retire in the radio menu requests retirement: pull over and stop for 10 s, or drive into your box. A second selection changes nothing. Requires Keep control. Restart after enabling.",
-      "default": true,
-      "binds": "native"
-    },
-    {
-      "id": "garage_assets_in_race",
-      "type": "toggle",
-      "label": "Garage crew assets in the race",
-      "description": "The race also loads the garage crew scenes, so your crew can push a broken car in. Needs a game restart.",
-      "default": true,
-      "binds": "native",
-      "hidden": true
     },
     {
       "id": "keep_control",
       "type": "toggle",
       "label": "Keep control after terminal damage",
-      "description": "After terminal damage you keep your car. It does not count as a stopped car for safety car or red flag.",
+      "description": "The heart of this addon. After a crash or a failure the game no longer takes your car and retires it: limp on, pull over or drive to your box, as the damage allows. Off: the game's own behaviour.",
       "default": true,
-      "binds": "native"
-    },
-    {
-      "id": "udp_port_choice",
-      "type": "choice",
-      "label": "UDP telemetry port",
-      "description": "Not needed: the addon reads your speed from the game itself. Only for the debug telemetry log; leave it off if SimHub or another app uses the game's UDP. Needs a game restart.",
-      "values": [
-        "off",
-        "20777",
-        "20778",
-        "20779",
-        "20780",
-        "20781",
-        "20782",
-        "20783",
-        "20784",
-        "20785",
-        "20786",
-        "20787"
-      ],
-      "default": "off",
       "binds": "native"
     },
     {
       "id": "damaged_power",
       "type": "choice",
       "label": "Power with a broken turbo/ERS part",
-      "description": "Throttle left when MGU-K, MGU-H, battery, turbo or CE has failed. A failed engine (ICE) or gearbox always gives no drive.",
+      "description": "Throttle left when the MGU-K, MGU-H, battery, turbo or control electronics fail and you limp on. A failed engine (ICE) or gearbox leaves no drive at all. Off: no drive either.",
       "values": [
-        {
-          "value": "0.2",
-          "label": "20 %"
-        },
-        {
-          "value": "0.25",
-          "label": "25 %"
-        },
-        {
-          "value": "0.3",
-          "label": "30 %"
-        },
-        {
-          "value": "0.4",
-          "label": "40 %"
-        },
-        {
-          "value": "0.5",
-          "label": "50 %"
-        },
-        {
-          "value": "off",
-          "label": "Off (no drive)"
-        }
+        {"value": "0.2", "label": "20 %"},
+        {"value": "0.25", "label": "25 %"},
+        {"value": "0.3", "label": "30 %"},
+        {"value": "0.4", "label": "40 %"},
+        {"value": "0.5", "label": "50 %"},
+        {"value": "off", "label": "Off (no drive)"}
       ],
       "default": "0.3",
       "binds": "native"
@@ -159,7 +72,123 @@
       "id": "engine_off_sound",
       "type": "toggle",
       "label": "Engine sound off after a failure",
-      "description": "A failed engine (ICE) plays the engine stop sound at once, terminal crash damage after 3 to 6 s, a retiring car standing still after 6 s; then it stays silent.",
+      "description": "A failed engine (ICE) plays the engine stop sound at once; terminal crash damage after 3-6 s; a retiring car standing still after 6 s. Then the engine stays silent.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "gp_failures",
+      "type": "choice",
+      "label": "Mechanical failures in Grand Prix",
+      "description": "Random mechanical failures where the game has none (Grand Prix, custom races). Realistic: the real rate of the season below, fewer in short races. 10-50 %: the chance one part fails in the race. Not in Career.",
+      "values": [
+        {"value": "off", "label": "Off"},
+        {"value": "10", "label": "10%"},
+        {"value": "25", "label": "25%"},
+        {"value": "50", "label": "50%"},
+        {"value": "realistic", "label": "Realistic for the season (see Failure season)"},
+        {"value": "100", "label": "100% (test: fails after 15-60 s)"},
+        {"value": "native", "label": "Game's own failure (experimental test)"},
+        {"value": "breakdown", "label": "Game's own breakdown (experimental test)"}
+      ],
+      "default": "realistic",
+      "binds": "native"
+    },
+    {
+      "id": "failure_era",
+      "type": "choice",
+      "label": "Failure season",
+      "description": "For Realistic failures: how often cars broke down in that season and which parts, from real results. Pick your car mod's season. Often with warning signs first: lift and coast to nurse the part.",
+      "values": [
+        {"value": "2012", "label": "2012 (V8)"},
+        {"value": "2013", "label": "2013 (V8)"},
+        {"value": "2014", "label": "2014 (early hybrid)"},
+        {"value": "2015", "label": "2015 (early hybrid)"},
+        {"value": "2016", "label": "2016 (early hybrid)"},
+        {"value": "2017", "label": "2017 (hybrid)"},
+        {"value": "2018", "label": "2018 (hybrid)"},
+        {"value": "2019", "label": "2019 (hybrid)"},
+        {"value": "2020", "label": "2020 (hybrid)"},
+        {"value": "2021", "label": "2021 (hybrid)"},
+        {"value": "2022", "label": "2022 (ground effect)"},
+        {"value": "2023", "label": "2023 (ground effect)"},
+        {"value": "2024", "label": "2024 (ground effect)"},
+        {"value": "2025", "label": "2025 (ground effect)"},
+        {"value": "2026", "label": "2026 (new rules)"}
+      ],
+      "default": "2025",
+      "binds": "native"
+    },
+    {
+      "id": "keep_game_failure",
+      "type": "toggle",
+      "label": "Keep control after a scripted failure",
+      "description": "In Career and My Team the game can pull your car over and retire it after a mechanical failure. With this on, the car stays yours, but pit by the end of the next lap or retire it (see the next setting).",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "game_failure_timeout",
+      "type": "choice",
+      "label": "After a scripted failure or heavy damage, if you neither pit nor retire",
+      "description": "As with a black flag with an orange disc: after the game's mechanical failure or heavy aero or body damage, pit by the end of the next lap, or retire. If you do neither, this decides: disqualified (the FIA penalty) or retired.",
+      "values": [
+        {"value": "dsq", "label": "Disqualified"},
+        {"value": "retire", "label": "Retired (DNF)"}
+      ],
+      "default": "dsq",
+      "binds": "native"
+    },
+    {
+      "id": "red_flag_retire",
+      "type": "toggle",
+      "label": "FIA red flag rules for a terminally damaged car",
+      "description": "FIA rules at a red flag: no power unit or gearbox work is allowed, so a failed one retires the car, and so does a car left on track without drive. Accident damage on a car that still drives may be repaired (corner: dice roll).",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "damage_panel",
+      "type": "choice",
+      "label": "Damage status panel",
+      "description": "Icon tiles at the top right of the race HUD: engine, ERS, gearbox, brakes, suspension (with the corner, e.g. FL) and power, yellow, orange or red by how bad. Auto: only what is wrong. Always: all six on track. Off: none.",
+      "values": [
+        {"value": "auto", "label": "Auto"},
+        {"value": "always", "label": "Always on track"},
+        {"value": "off", "label": "Off"}
+      ],
+      "default": "auto",
+      "binds": "native"
+    },
+    {
+      "id": "engineer_radio",
+      "type": "toggle",
+      "label": "Engineer radio for damage and failures",
+      "description": "Your engineer calls out warning signs, failures, brake problems and broken corners with the game's own voice lines. Off: no radio calls; the on-screen messages stay.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "radio_command_probe",
+      "type": "toggle",
+      "label": "Retire in the radio menu",
+      "description": "Adds Retire to the radio menu: pick it, then drive into your pit box, or pull over safely and stand still 10 s. Needs 'Keep control after terminal damage'. Needs a game restart after turning it on.",
+      "default": true,
+      "binds": "native"
+    },
+    {
+      "id": "retire_radio_voice",
+      "type": "toggle",
+      "label": "Retirement radio voice",
+      "description": "When you pick Retire in the radio menu, your engineer answers with the stop-the-car line. Off: Retire still works, without the voice. Needs a game restart.",
+      "default": true,
+      "binds": "db"
+    },
+    {
+      "id": "pause_menu_retire",
+      "type": "toggle",
+      "label": "Retire in the pause menu: pull over first",
+      "description": "On track, Retire in the pause menu does not end your race at once: drive into your pit box, or pull over safely and stand still 10 s. Off: it ends your race at once, as in the game.",
       "default": true,
       "binds": "native"
     },
@@ -167,7 +196,7 @@
       "id": "retire_hotkey",
       "type": "toggle",
       "label": "Retire hotkey",
-      "description": "Ctrl+Shift + key: retire without breaking anything. Pull over and stand still 10 s, or drive into your box. Press again to cancel.",
+      "description": "Ctrl+Shift + the key below retires your car, damaged or not: drive into your pit box, or pull over safely and stand still 10 s (real drivers stop on track only with a problem). Press again to cancel.",
       "default": true,
       "binds": "native"
     },
@@ -175,7 +204,7 @@
       "id": "retire_key",
       "type": "choice",
       "label": "Retire hotkey (with Ctrl+Shift)",
-      "description": "F key pressed together with Ctrl+Shift to retire. Pick one no other mod uses.",
+      "description": "The F key you press together with Ctrl+Shift to retire. Pick one no other mod uses.",
       "values": [
         "F5",
         "F6",
@@ -189,98 +218,40 @@
       "binds": "native"
     },
     {
-      "id": "pause_menu_retire",
+      "id": "suspension_damage",
       "type": "toggle",
-      "label": "Retire in the pause menu: pull over first",
-      "description": "On track, Retire in the pause menu does not end your race at once: pull over and stand still 10 s, or drive into your box.",
-      "default": true,
+      "label": "Suspension damage from hits (experimental)",
+      "description": "Experimental, off by default. Hits on a wheel can bend that corner (the car pulls), break it, or crack it so it fails later. Using Heavier Damage? Keep this off, or set its Suspension & wheel damage to Stock: both add up. Needs a game restart.",
+      "default": false,
       "binds": "native"
     },
     {
-      "id": "gp_failures",
+      "id": "suspension_damage_ai",
+      "type": "toggle",
+      "label": "Suspension damage for AI cars (experimental)",
+      "description": "Experimental. AI cars that hit barriers or other cars can get a bent corner too, or a collapsed one: then they retire. Needs 'Suspension damage from hits'. Needs a game restart.",
+      "default": false,
+      "binds": "native"
+    },
+    {
+      "id": "player_wheel_behavior",
       "type": "choice",
-      "label": "Mechanical failures in Grand Prix",
-      "description": "F1 World Grand Prix has no failure settings. Chance per session that one random part of your car fails once. Off by default.",
+      "label": "Player wheel behavior",
+      "description": "What a wheel torn off your car does. Stock: the game's tethers, the wheel hangs on and can jolt the car. Reduced jolting: tethers stay, the wheel can clip through the car. Loose: no tethers. Needs a game restart.",
       "values": [
-        {"value": "off", "label": "Off"},
-        {"value": "10", "label": "10%"},
-        {"value": "25", "label": "25%"},
-        {"value": "50", "label": "50%"},
-        {"value": "100", "label": "100% (test: fails after 15-60 s)"},
-        {"value": "native", "label": "Game's own failure (experimental test)"},
-        {"value": "breakdown", "label": "Game's own breakdown (experimental test)"}
+        {"value": "stock", "label": "Stock (default)"},
+        {"value": "reduced", "label": "Reduced jolting (experimental)"},
+        {"value": "loose", "label": "Loose wheels (no tethers)"}
       ],
-      "default": "off",
+      "default": "stock",
       "binds": "native"
     },
     {
-      "id": "gp_fault_type",
-      "type": "choice",
-      "label": "Test: fault type for the game's own failure",
-      "description": "Only used with 'Game's own failure' above. Picks which fault the game applies (test option).",
-      "values": [
-        {"value": "random", "label": "Random"},
-        {"value": "0", "label": "0 Engine"},
-        {"value": "1", "label": "1 Gearbox"},
-        {"value": "2", "label": "2 Missing gear"},
-        {"value": "3", "label": "3 Gear jammed"},
-        {"value": "4", "label": "4 ERS"},
-        {"value": "5", "label": "5 DRS"},
-        {"value": "6", "label": "6 Tyre"}
-      ],
-      "default": "random",
-      "binds": "native"
-    },
-    {
-      "id": "keep_game_failure",
+      "id": "ai_wheel_tethers",
       "type": "toggle",
-      "label": "Keep control after a scripted failure",
-      "description": "In Career and My Team the game can pull your car over and retire it by itself after a mechanical failure. With this on, the addon keeps the car yours unless you retire it (pause menu, radio or hotkey).",
-      "default": true,
-      "binds": "native"
-    },
-    {
-      "id": "game_failure_timeout",
-      "type": "choice",
-      "label": "After a scripted failure, if you neither pit nor retire",
-      "description": "Like a black flag with orange disc: after the game's mechanical failure you must get to the pits before the end of the lap or retire. Otherwise you are disqualified or retired.",
-      "values": [{"value":"dsq","label":"Disqualified"},{"value":"retire","label":"Retired (DNF)"}],
-      "default": "dsq",
-      "binds": "native"
-    },
-    {
-      "id": "red_flag_retire",
-      "type": "toggle",
-      "label": "FIA red flag rules for a terminally damaged car",
-      "description": "FIA rules at a red flag: a failed power unit or gearbox, or a crashed car that could not be driven, retires. A car still crawling on one broken front corner may be repaired by your team (dice roll) and restart.",
-      "default": true,
-      "binds": "native"
-    },
-    {
-      "id": "debug_limp_roll",
-      "type": "choice",
-      "label": "Debug: crash limp roll",
-      "description": "After a crash that broke one front corner, decides whether the car can still crawl on. Random: 70 % with a broken suspension, 35 % with a lost wheel.",
-      "values": [{"value": "random", "label": "Random"}, {"value": "success", "label": "Always succeeds"}, {"value": "fail", "label": "Always fails"}],
-      "default": "random",
-      "binds": "native"
-    },
-    {
-      "id": "debug_repair_roll",
-      "type": "choice",
-      "label": "Debug: red flag repair roll",
-      "description": "At a red flag, decides whether the team rebuilds a broken corner of a car that crawled on. Random: 80 % for a suspension, 50 % for a lost wheel.",
-      "values": [{"value": "random", "label": "Random"}, {"value": "success", "label": "Always succeeds"}, {"value": "fail", "label": "Always fails"}],
-      "default": "random",
-      "binds": "native"
-    },
-    {
-      "id": "debug_garage_repair",
-      "type": "choice",
-      "label": "Debug: garage corner repair time",
-      "description": "Practice and qualifying: a car that limped into its garage on one broken front corner is rebuilt there. Normal: 20-30 min for a suspension, 30-45 min for a lost wheel.",
-      "values": [{"value": "normal", "label": "Normal"}, {"value": "fast", "label": "1 minute"}],
-      "default": "normal",
+      "label": "Loose AI wheels (no tethers)",
+      "description": "A wheel torn off an AI car flies off as loose debris instead of hanging on its tethers. Separate from your own car's setting. Needs a game restart.",
+      "default": false,
       "binds": "native"
     },
     {
@@ -288,15 +259,6 @@
       "type": "toggle",
       "label": "Retire in the pit box",
       "description": "With keep control: when you bring your broken car into your pit box, it retires there, as with Retire in the pause menu.",
-      "default": true,
-      "binds": "native",
-      "hidden": true
-    },
-    {
-      "id": "pit_retire_clearance",
-      "type": "toggle",
-      "label": "Experimental: clear retirement pit box",
-      "description": "Hides tyre-stop equipment during a race retirement approach. Preserves the shared box while your teammate is pitting. Garage push crew remains visible.",
       "default": true,
       "binds": "native",
       "hidden": true
@@ -320,28 +282,68 @@
       "hidden": true
     },
     {
-      "id": "crew_asset_diagnostics",
+      "id": "garage_assets_in_race",
       "type": "toggle",
-      "label": "Debug: garage crew diagnostics",
-      "description": "Logs garage crew and asset details to swofty/loader.log. Needs a game restart.",
-      "default": false,
+      "label": "Garage crew assets in the race",
+      "description": "The race also loads the garage crew scenes, so your crew can push a broken car in. Needs a game restart.",
+      "default": true,
       "binds": "native",
       "hidden": true
     },
     {
-      "id": "log_telemetry",
+      "id": "pit_retire_clearance",
       "type": "toggle",
-      "label": "Debug: log telemetry",
-      "description": "Writes speed, rpm, gear and position of your car to swofty/loader.log.",
-      "default": false,
+      "label": "Experimental: clear retirement pit box",
+      "description": "Hides tyre-stop equipment during a race retirement approach. Preserves the shared box while your teammate is pitting. Garage push crew remains visible.",
+      "default": true,
       "binds": "native",
       "hidden": true
+    },
+    {
+      "id": "udp_port_choice",
+      "type": "choice",
+      "label": "Debug: UDP telemetry port",
+      "description": "Debug. Not needed: the addon reads your speed from the game itself. Only for the debug telemetry log; leave it off if SimHub or another app uses the game's UDP. Needs a game restart.",
+      "values": [
+        "off",
+        "20777",
+        "20778",
+        "20779",
+        "20780",
+        "20781",
+        "20782",
+        "20783",
+        "20784",
+        "20785",
+        "20786",
+        "20787"
+      ],
+      "default": "off",
+      "binds": "native"
+    },
+    {
+      "id": "gp_fault_type",
+      "type": "choice",
+      "label": "Debug: fault type for the game's own failure",
+      "description": "Debug. Only with 'Game's own failure' in Mechanical failures in Grand Prix: which fault the game applies.",
+      "values": [
+        {"value": "random", "label": "Random"},
+        {"value": "0", "label": "0 Engine"},
+        {"value": "1", "label": "1 Gearbox"},
+        {"value": "2", "label": "2 Missing gear"},
+        {"value": "3", "label": "3 Gear jammed"},
+        {"value": "4", "label": "4 ERS"},
+        {"value": "5", "label": "5 DRS"},
+        {"value": "6", "label": "6 Tyre"}
+      ],
+      "default": "random",
+      "binds": "native"
     },
     {
       "id": "debug_failure_hotkey",
       "type": "toggle",
       "label": "Debug: hotkey triggers a failure",
-      "description": "Ctrl+Shift + the chosen F key breaks the chosen part of your car. Ctrl+Shift+F7 replays a Career scripted failure (RETIRED hand-over, part fails 30 s later). Ctrl+Shift+F9 cycles the throttle cap.",
+      "description": "Debug, off by default. Test keys, all with Ctrl+Shift. F10: the engine (ICE) fails. F7: Career scripted failure. F6: the next partial failure. F9: throttle cap cycle. F4: test run of all faults (once: you drive, twice: the AI).",
       "default": false,
       "binds": "native"
     },
@@ -349,7 +351,7 @@
       "id": "debug_failure_key",
       "type": "choice",
       "label": "Debug: hotkey (with Ctrl+Shift)",
-      "description": "F key pressed together with Ctrl+Shift. Pick one no other mod uses.",
+      "description": "The F key you press together with Ctrl+Shift for the debug failure. Pick one no other mod uses.",
       "values": [
         "F5",
         "F6",
@@ -367,38 +369,96 @@
       "id": "debug_failure_part",
       "type": "choice",
       "label": "Debug: failing part",
-      "description": "Part to break: 0 ICE, 1 MGU-K, 2 MGU-H, 3 ES, 4 TC, 5 CE, 6 gearbox. Order taken from the AI failure code.",
+      "description": "The part the debug hotkey breaks: 0 engine (ICE), 1 MGU-K, 2 MGU-H, 3 battery, 4 turbo, 5 control electronics, 6 gearbox.",
       "values": [
-        {
-          "value": "0",
-          "label": "0 ICE (engine)"
-        },
-        {
-          "value": "1",
-          "label": "1 MGU-K"
-        },
-        {
-          "value": "2",
-          "label": "2 MGU-H"
-        },
-        {
-          "value": "3",
-          "label": "3 Energy store"
-        },
-        {
-          "value": "4",
-          "label": "4 Turbo"
-        },
-        {
-          "value": "5",
-          "label": "5 Control electronics"
-        },
-        {
-          "value": "6",
-          "label": "6 Gearbox"
-        }
+        {"value": "0", "label": "0 ICE (engine)"},
+        {"value": "1", "label": "1 MGU-K"},
+        {"value": "2", "label": "2 MGU-H"},
+        {"value": "3", "label": "3 Energy store"},
+        {"value": "4", "label": "4 Turbo"},
+        {"value": "5", "label": "5 Control electronics"},
+        {"value": "6", "label": "6 Gearbox"}
       ],
       "default": "0",
+      "binds": "native",
+      "hidden": true
+    },
+    {
+      "id": "debug_limp_roll",
+      "type": "choice",
+      "label": "Debug: crash limp roll",
+      "description": "Debug. After a crash that broke one corner: can the car crawl on? Random: collapsed suspension 85 % front, 60 % rear; front wheel coming loose 35 %; never once the game tears the wheel off (its engine stops). Success or Fail forces the result.",
+      "values": [
+        {"value": "random", "label": "Random"},
+        {"value": "success", "label": "Always succeeds"},
+        {"value": "fail", "label": "Always fails"}
+      ],
+      "default": "random",
+      "binds": "native"
+    },
+    {
+      "id": "debug_repair_roll",
+      "type": "choice",
+      "label": "Debug: red flag repair roll",
+      "description": "Debug. At a red flag: does your team rebuild the broken corner of a car that crawled in? Random: 80 % for a suspension, 50 % for a lost wheel. Success or Fail forces the result.",
+      "values": [
+        {"value": "random", "label": "Random"},
+        {"value": "success", "label": "Always succeeds"},
+        {"value": "fail", "label": "Always fails"}
+      ],
+      "default": "random",
+      "binds": "native"
+    },
+    {
+      "id": "debug_garage_repair",
+      "type": "choice",
+      "label": "Debug: garage corner repair time",
+      "description": "Debug. Practice and qualifying garage repairs. Normal: a broken corner 20-30 min (a lost wheel 30-45), a damaged one 4-20 min. Fast: about a minute.",
+      "values": [
+        {"value": "normal", "label": "Normal"},
+        {"value": "fast", "label": "1 minute"}
+      ],
+      "default": "normal",
+      "binds": "native"
+    },
+    {
+      "id": "debug_suspension_test",
+      "type": "choice",
+      "label": "Debug: suspension test",
+      "description": "Test only. Ctrl+Shift+F8 steps a change on your front-left wheel: toe, camber or suspension damage. Needs a game restart after changing it.",
+      "values": [
+        {"value": "off", "label": "Off"},
+        {"value": "toe", "label": "Toe"},
+        {"value": "camber", "label": "Camber"},
+        {"value": "damage", "label": "Suspension damage"}
+      ],
+      "default": "off",
+      "binds": "native"
+    },
+    {
+      "id": "performance_diagnostics",
+      "type": "toggle",
+      "label": "Debug: performance counters",
+      "description": "Logs the time this addon's hooks take every 10 s to loader.log (not the game's own work or the GPU). Turn it on only to look into FPS drops.",
+      "default": false,
+      "binds": "native",
+      "hidden": true
+    },
+    {
+      "id": "crew_asset_diagnostics",
+      "type": "toggle",
+      "label": "Debug: garage crew diagnostics",
+      "description": "Logs garage crew and asset details to swofty/loader.log. Needs a game restart.",
+      "default": false,
+      "binds": "native",
+      "hidden": true
+    },
+    {
+      "id": "log_telemetry",
+      "type": "toggle",
+      "label": "Debug: log telemetry",
+      "description": "Writes speed, rpm, gear and position of your car to swofty/loader.log.",
+      "default": false,
       "binds": "native",
       "hidden": true
     }

@@ -36,7 +36,7 @@ int main(){
  assert(destroyed==1&&freed==1&&restarted==1&&!owned_crew_instance&&retire_in==-1&&engine_off_vehicle==-1);
  assert(hud_masks[0]==0&&hud_masks[1]==20&&hud_updates==2);
  // General lifecycle callback must do the same cleanup without calling the
- // garage-only restart helper (that helper never ran in Nick's race restart).
+ // garage-only restart helper (that helper never ran in the tested race restart).
  put(module,0x68+3*8,expected);owned_crew_module=base;owned_crew_instance=expected;owned_crew_vehicle=3;
  player_broken=true;pushing=true;crew_msg_in=30;crew_seq_t=0.1;retire_in=40;
  orig_damage_session_restart=+[](void *self){assert(self==reinterpret_cast<void *>(123));assert(!player_broken&&!pushing&&crew_msg_in==-1&&crew_seq_t==-1&&retire_in==-1);++restarted;};
