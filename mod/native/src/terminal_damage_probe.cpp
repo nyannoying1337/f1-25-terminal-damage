@@ -24,6 +24,7 @@
 #pragma clang diagnostic pop
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cmath>
@@ -33,6 +34,7 @@
 #include <cstring>
 #include <cwchar>
 #include <initializer_list>
+#include <mutex>
 #include <random>
 #include <utility>
 #include <vector>
@@ -58,6 +60,7 @@
 #pragma clang diagnostic pop
 
 SWOFTY_SETTING(bool, keep_control, true);
+SWOFTY_SETTING(bool, rnd_reliability, true);  // 0.75.6: a team's finished Durability R&D lowers its failure rate (Career)
 SWOFTY_SETTING(bool, engine_off_sound, true);
 SWOFTY_SETTING(bool, pause_menu_retire, true);
 SWOFTY_SETTING(bool, radio_command_probe, true);
@@ -162,6 +165,7 @@ void (*orig_debris_update)(void *);
 // The player's car has terminal damage the game was not told about, so they drive it themselves.
 #include "flashback_tracker.hpp"
 #include "failure_model.hpp"
+#include "team_model.hpp"
 #include "damage_icons.hpp"
 #include "brake_telemetry.hpp"
 
@@ -413,6 +417,28 @@ std::atomic<uint8_t> breakdown_part[32];
 double ai_fail_at[32];
 int ai_fail_part[32];
 bool ai_failures_rolled = false;
+// Each car's team (0.75.6): the team id of every participant of the session, read at the first control change of a
+// session (vehicle id -> registry id, "" unknown). The failure plans scale a car's rate with its team's (team_model.hpp).
+// team_pending: a session just started and the ids are still to come; the AI plan waits for them for 8 s at most.
+std::mutex team_mu;
+std::vector<std::string> team_of_car(32);
+std::atomic<bool> team_ids_ready{false};
+std::atomic<bool> team_pending{false};
+std::atomic<uint64_t> team_pending_at{0};
+// Counts the times the ids were read: a plan made before that (the ids came late) is made again if nothing has started.
+std::atomic<uint32_t> team_epoch{0};
+// Each car's team key (the entrant's team stat id) and each team's finished Durability upgrades (done of all the
+// department's nodes, total), read from the game's R&D data once a Career session (team_mu).
+struct RndShare {
+    uint32_t key = 0;
+    int done = 0, total = 0;
+};
+std::vector<uint32_t> team_key_of_car(32, 0);
+std::vector<RndShare> rnd_shares;
+std::atomic<bool> rnd_shares_read{false};
+std::atomic<bool> rates_logged{false};  // this session's team rates were logged (team_rates_log_tick)
+uint32_t ai_plan_epoch = 0, player_plan_epoch = 0, fault_plan_epoch = 0;
+bool ai_failure_started = false;
 // Engine power over time (power_loss.hpp, 0.51.114): the warning signs of the rolled failure (gp_warn) and a partial
 // power fault each run a course; their product is the player's engine power, applied on the frame thread as a Swofty
 // engine.power_scale layer (the drive torque times the share). warning_cap: the same as a throttle cap when the core
@@ -746,6 +772,223 @@ std::atomic<unsigned> control_events{0}, rebuild_events{0};
 std::atomic<int> session_laps{0};
 std::atomic<bool> session_laps_read{false};
 
+// The raw text of one part of the event context ("participants", "player", ...).
+std::string context_raw(const swofty::events::Context &ctx, const char *name)
+{
+    auto t = swofty::detail::hooks_table();
+    std::string out;
+    if (!t || !t->context)
+        return out;
+    std::string n(name);
+    if (swofty::detail::fill(out, [&](char *o, size_t cap, size_t *len) { return t->context(ctx.handle(), n.c_str(), o, cap, len); }) !=
+        SWOFTY_ASSET_OK)
+        out.clear();
+    return out;
+}
+
+// The entries of a participants JSON text, read by hand (the JSON library would add 200 KB to the DLL): each "car"
+// starts an entry, its "team" is a string or an object with an "id". note(car, team id, human) per entry.
+template <class F> int scan_participants_json(const std::string &rawp, F &&note)
+{
+    int count = 0;
+    size_t pos = 0;
+    while ((pos = rawp.find("\"car\"", pos)) != std::string::npos) {
+        size_t colon = rawp.find(':', pos), next = rawp.find("\"car\"", pos + 5);
+        if (colon == std::string::npos)
+            break;
+        if (next == std::string::npos)
+            next = rawp.size();
+        int car = atoi(rawp.c_str() + colon + 1);
+        std::string team;
+        size_t tk = rawp.find("\"team\"", pos);
+        if (tk != std::string::npos && tk < next) {
+            size_t c2 = rawp.find(':', tk), from = c2 == std::string::npos ? c2 : c2 + 1;
+            while (from != std::string::npos && from < next && (rawp[from] == ' ' || rawp[from] == '{'))
+                ++from;
+            if (from != std::string::npos && from < next && rawp[from] == '"') {
+                size_t q = rawp.find('"', from + 1);
+                team = rawp.substr(from + 1, q == std::string::npos ? 0 : q - from - 1);
+                if (team == "id" && q != std::string::npos) {  // an object: the value after "id":
+                    size_t q1 = rawp.find('"', rawp.find(':', q) + 1);
+                    size_t q2 = q1 == std::string::npos ? q1 : rawp.find('"', q1 + 1);
+                    team = q2 == std::string::npos ? std::string() : rawp.substr(q1 + 1, q2 - q1 - 1);
+                }
+            }
+        }
+        bool human = false;
+        size_t hk = rawp.find("\"human\"", pos);
+        if (hk != std::string::npos && hk < next) {
+            size_t at = hk + 7;
+            while (at < next && (rawp[at] == ' ' || rawp[at] == ':'))
+                ++at;
+            human = at < next && rawp[at] == 't';
+        }
+        note(car, team, human);
+        ++count;
+        pos = next;
+    }
+    return count;
+}
+
+// The team of every car of the session, from the session context's participants. The first control change of a session
+// gave none in the 0.75.6 Career test (the list was empty), so every handler that has a context asks again until it
+// works (at most once a second): the typed list first, then the raw text read by hand (a record that does not parse
+// into an Entrant still has its car and team). Logged in one line so a test log shows the ids the game uses for the
+// teams; when it fails, the start of the raw text is logged (three times) to show why.
+bool read_session_teams(const swofty::events::Context &ctx, const char *where)
+{
+    if (team_ids_ready.load())
+        return true;
+    static std::atomic<uint64_t> last_try{0};
+    static std::atomic<int> fails_logged{0};
+    uint64_t now = GetTickCount64();
+    if (now < last_try.load() + 900)
+        return false;
+    last_try = now;
+    std::vector<std::string> ids(32);
+    std::string line;
+    int n = 0;
+    auto note = [&](int car, std::string id, bool human) {
+        if (car < 0 || car >= 32)
+            return;
+        while (!id.empty() && id.back() == '?')
+            id.pop_back();
+        ids[car] = id;
+        ++n;
+        char one[112];
+        snprintf(one, sizeof one, "%s%d %s%s", line.empty() ? "" : "; ", car, id.empty() ? "?" : id.c_str(),
+                 human ? " (you)" : "");
+        if (line.size() < 1000)
+            line += one;
+    };
+    for (const auto &e : ctx.participants())
+        note(int(e.car), std::string(e.team.id()), e.human);
+    std::string rawp;
+    if (!n) {
+        rawp = context_raw(ctx, "participants");
+        scan_participants_json(rawp, note);
+    }
+    if (!n) {
+        if (fails_logged.fetch_add(1) < 3) {
+            std::string player = context_raw(ctx, "player");
+            swofty::log("[td-probe] teams: no participants at %s (typed list empty, raw participants %zu bytes: %.300s; raw "
+                        "player %zu bytes: %.200s)", where, rawp.size(), rawp.c_str(), player.size(), player.c_str());
+        }
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(team_mu);
+        team_of_car = ids;
+    }
+    team_ids_ready = true;
+    team_pending = false;
+    team_epoch.fetch_add(1);
+    swofty::log("[td-probe] teams: %d participant(s) at %s (vehicle, team id): %s", n, where, line.c_str());
+    return true;
+}
+
+// The cars with a known team: team ids, vehicle ids and the R&D factor of each car's team (1 without R&D data or with
+// the option off).
+struct TeamGrid {
+    std::vector<std::string> ids;
+    std::vector<int> cars;
+    std::vector<double> extra;
+};
+
+TeamGrid team_grid_now()
+{
+    TeamGrid g;
+    bool rnd = rnd_reliability;
+    std::lock_guard<std::mutex> lock(team_mu);
+    for (int v = 0; v < 32; ++v) {
+        if (team_of_car[v].empty())
+            continue;
+        g.ids.push_back(team_of_car[v]);
+        g.cars.push_back(v);
+        double x = 1.0;
+        if (rnd)
+            for (const RndShare &s : rnd_shares)
+                if (s.key == team_key_of_car[v] && s.total > 0) {
+                    x = fm::rnd_factor(fm::rnd_progress(s.done, s.total));
+                    break;
+                }
+        g.extra.push_back(x);
+    }
+    return g;
+}
+
+// Failure factors of the cars in the Failure season: each car's team's relative rate (mean 1 over the grid) times its
+// team's R&D durability factor (absolute, see fm::rnd_factor), 1 for every car when the teams are not known. matched: how
+// many cars have a team the season's table knows.
+std::array<double, 32> team_factors_now(const fm::Season &season, int *matched = nullptr, uint32_t *present = nullptr)
+{
+    std::array<double, 32> out;
+    out.fill(1.0);
+    TeamGrid g = team_grid_now();
+    uint32_t mask = 0;
+    for (int v : g.cars)
+        mask |= 1u << v;
+    if (matched)
+        *matched = 0;
+    if (present)
+        *present = mask;
+    if (g.ids.empty())
+        return out;
+    std::vector<double> f = fm::grid_factors(season, g.ids, matched, &g.extra);
+    for (size_t i = 0; i < g.cars.size(); ++i)
+        out[g.cars[i]] = f[i];
+    return out;
+}
+
+// "cadillac x2.14, aston x2.95, ..." for the log: the factor of every team in the grid (its R&D durability included,
+// shown as "(R&D 0.78)" once it differs from the start state), highest first, and the number of cars whose team the
+// season's table does not know.
+std::string team_rates_text(const fm::Season &season)
+{
+    TeamGrid g = team_grid_now();
+    std::vector<double> f = fm::grid_factors(season, g.ids, nullptr, &g.extra);
+    std::vector<std::pair<double, std::string>> by_team;
+    int unknown = 0;
+    for (size_t i = 0; i < g.ids.size(); ++i) {
+        const char *fam = fm::family_for(season, g.ids[i]);
+        if (!fam || fm::family_weight(season, fam) <= 0) {
+            ++unknown;
+            continue;
+        }
+        std::string name = fam;
+        if (g.extra[i] != 1.0) {
+            char tag[24];
+            snprintf(tag, sizeof tag, " (R&D %.2f)", g.extra[i]);
+            name += tag;
+        }
+        bool seen = false;
+        for (const auto &p : by_team)
+            seen = seen || p.second == name;
+        if (!seen)
+            by_team.emplace_back(f[i], name);
+    }
+    std::sort(by_team.begin(), by_team.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+    std::string out;
+    char one[96];
+    for (const auto &p : by_team) {
+        snprintf(one, sizeof one, "%s%s x%.2f", out.empty() ? "" : ", ", p.second.c_str(), p.first);
+        out += one;
+    }
+    if (unknown) {
+        snprintf(one, sizeof one, "%s%d car(s) of an unknown team x1.00 before scaling", out.empty() ? "" : "; ", unknown);
+        out += one;
+    }
+    return out;
+}
+
+// The factor of one car (1 without a team).
+double team_scale(const fm::Season &season, int vehicle)
+{
+    if (vehicle < 0 || vehicle >= 32)
+        return 1.0;
+    return team_factors_now(season)[vehicle];
+}
+
 void attach_session_events()
 {
     namespace sess = swofty::sessions;
@@ -763,6 +1006,7 @@ void attach_session_events()
                 } else {
                     swofty::log("[td-probe] session: no session context");
                 }
+                read_session_teams(ctx, "the first control change");
             }
             if (control_events.fetch_add(1) == 0)
                 swofty::log("[td-probe] session.player.control fires (first: vehicle %d %d -> %d reason %d)",
@@ -1344,6 +1588,7 @@ void reset_race_faults()
     breakdown_request = 0;
     breakdown_watch = {};
     ai_failures_rolled = false;
+    ai_failure_started = false;
 }
 
 void reset_session(bool preserve_retirement_audio = false)
@@ -3463,6 +3708,441 @@ bool garage_exit_locked()
 {
     return car_dead && keep_control && !session_ended &&
            (garage_withdrawn.load() || (!(terminal_mask.load() & 0x7) && !garage_part_failed) || part_lock.load());
+}
+
+// ---- R&D probe (0.75.6, read only) ----
+// The game's own failure model weighed teams and the player by their R&D (re/game-failure-scheduler.md); this addon's
+// per-team rates ignore it. To let a team's Durability progress move its failure rate, this logs once a Career session
+// what the game's R&D data looks like. Layout from Swofty's generated game API (experimental): UpgradesComponent
+// +0x298/+0x2a0 = Upgrades* a team; Upgrades +0x08 mode, +0x0c team_key, +0xe0 trees[2] (0xc40 apart, UpgradeTree
+// +0x10/+0x18 = UpgradeInstance begin/end), +0x1960 tree_count; UpgradeInstance +0x10 name (char *), +0x58 node_hash,
+// +0x72 department (aerodynamics, chassis, durability, engine), +0xc0/+0xc8 UpgradeStateEntry (0x10 each: +0 owner,
+// +4 day, +8 state, +9 adaptation, +0xc enabled, +0xd facility_locked). The instance size is not in the API: found from
+// the names. The state vector is a history (Career_Push_UpgradeState 0x1435230e0 appends an entry when the state
+// changes, its arguments (instance, owner, state, day); a history A, B, A collapses back to A): the current state is the
+// LAST entry. The nine states (the game's names, what writes each one, which one is a finished upgrade) are listed at
+// fm::rnd_state_done in team_model.hpp; research_start/end_day are +0x7e/+0x80, develop_start/end_day +0x98/+0x9a.
+// On the game's flow thread (on_frame).
+std::atomic<bool> rnd_probe_done{false};
+std::vector<uint32_t> rnd_team_keys;  // the team keys of the upgrade trees (on_frame only)
+
+std::string rnd_name(uintptr_t at)
+{
+    char buf[48] = {};
+    uintptr_t s = 0;
+    if (!guarded_read(at, s) || !s || !guarded_copy(s, buf, sizeof buf - 1))
+        return "?";
+    std::string out;
+    for (size_t i = 0; i < sizeof buf - 1 && buf[i]; ++i)
+        out += (buf[i] >= 32 && buf[i] < 127) ? buf[i] : '.';
+    return out.empty() ? "?" : out;
+}
+
+bool rnd_plausible_name(uintptr_t at)
+{
+    std::string n = rnd_name(at);
+    if (n.size() < 3 || n == "?")
+        return false;
+    for (char c : n)
+        if (c == '.')
+            return false;
+    return true;
+}
+
+void rnd_probe_tick()
+{
+    static uint64_t next = 0;
+    if (rnd_probe_done.load() || session_ended)
+        return;
+    uint64_t now = GetTickCount64();
+    if (now < next)
+        return;
+    next = now + 2000;
+    swofty::career::State st{};
+    if (swofty::career::state(&st) != swofty::career::Result::ok || !st.loaded) {
+        rnd_probe_done = true;
+        return;  // not a Career: nothing to read
+    }
+    rnd_probe_done = true;
+    uintptr_t comp = reinterpret_cast<uintptr_t>(swofty::career::component("UpgradesComponent"));
+    uint64_t b = 0, e = 0;
+    if (!comp || !guarded_read(comp + 0x298, b) || !guarded_read(comp + 0x2a0, e) || !b || e < b) {
+        swofty::log("[td-probe] rnd: no UpgradesComponent (%p) or its team list is unreadable",
+                    reinterpret_cast<void *>(comp));
+        return;
+    }
+    size_t teams = std::min<size_t>((e - b) / 8, 32);
+    swofty::log("[td-probe] rnd: UpgradesComponent %p, %zu team(s) with upgrade trees, your team %u",
+                reinterpret_cast<void *>(comp), teams, unsigned(st.player_team));
+    bool detailed = false;
+    for (size_t i = 0; i < teams; ++i) {
+        uintptr_t up = 0;
+        uint32_t key = 0;
+        uint8_t mode = 0;
+        if (!guarded_read(b + 8 * i, up) || !up || !guarded_read(up + 0xc, key))
+            continue;
+        if (std::find(rnd_team_keys.begin(), rnd_team_keys.end(), key) == rnd_team_keys.end())
+            rnd_team_keys.push_back(key);
+        guarded_read(up + 8, mode);
+        for (int tr = 0; tr < 2; ++tr) {
+            uintptr_t tree = up + 0xe0 + uintptr_t(tr) * 0xc40;
+            uint64_t ib = 0, ie = 0;
+            if (!guarded_read(tree + 0x10, ib) || !guarded_read(tree + 0x18, ie) || !ib || ie <= ib)
+                continue;
+            uint64_t span = ie - ib;
+            size_t stride = 0;
+            for (size_t cand : {0xd0u, 0xd8u, 0xe0u, 0xe8u, 0xf0u, 0xf8u, 0x100u, 0x108u, 0x110u, 0x120u, 0x130u, 0x140u}) {
+                if (span % cand || span / cand < 2 || span / cand > 400)
+                    continue;
+                size_t n = span / cand, ok = 0, look = std::min<size_t>(n, 6);
+                for (size_t k = 0; k < look; ++k)
+                    ok += rnd_plausible_name(ib + k * cand + 0x10);
+                if (ok >= look) {
+                    stride = cand;
+                    break;
+                }
+            }
+            if (!stride) {
+                swofty::log("[td-probe] rnd: team %u tree %d: %llu bytes of nodes, no instance size fits the names",
+                            unsigned(key), tr, (unsigned long long)span);
+                continue;
+            }
+            size_t n = span / stride;
+            int dept_count[8] = {};
+            int state_count[16] = {}, dur_state_count[16] = {}, many_entries = 0;
+            for (size_t k = 0; k < n; ++k) {
+                uintptr_t inst = ib + k * stride;
+                uint8_t dept = 0xff, state = 0xff;
+                uint64_t sb = 0, se = 0;
+                guarded_read(inst + 0x72, dept);
+                if (dept < 8)
+                    ++dept_count[dept];
+                if (guarded_read(inst + 0xc0, sb) && guarded_read(inst + 0xc8, se) && sb && se >= sb + 0x10 &&
+                    guarded_read(se - 0x10 + 8, state) && state < 16) {
+                    ++state_count[state];
+                    if (dept == 2)
+                        ++dur_state_count[state];
+                    many_entries += se - sb > 0x10;
+                }
+            }
+            char dur_text[320] = "";
+            for (int s = 0; s < 16; ++s)
+                if (dur_state_count[s])
+                    snprintf(dur_text + strlen(dur_text), sizeof dur_text - strlen(dur_text), "%sstate %d (%s): %d",
+                             *dur_text ? ", " : "", s, fm::rnd_state_name(s), dur_state_count[s]);
+            char dept_text[96] = "", state_text[320] = "";
+            for (int d = 0; d < 8; ++d)
+                if (dept_count[d])
+                    snprintf(dept_text + strlen(dept_text), sizeof dept_text - strlen(dept_text), "%sdepartment %d: %d",
+                             *dept_text ? ", " : "", d, dept_count[d]);
+            for (int s = 0; s < 16; ++s)
+                if (state_count[s])
+                    snprintf(state_text + strlen(state_text), sizeof state_text - strlen(state_text), "%sstate %d (%s): %d",
+                             *state_text ? ", " : "", s, fm::rnd_state_name(s), state_count[s]);
+            swofty::log("[td-probe] rnd: team %u (mode %u) tree %d: %zu nodes (size 0x%zx); %s; current state of each node: "
+                        "%s; durability (department 2) nodes: %s; nodes with more than one state entry: %d",
+                        unsigned(key), unsigned(mode), tr, n, stride, dept_text, state_text, dur_text, many_entries);
+            // One team's tree in detail (the player's team when its key is known, else the last one): every node's
+            // name, department and first state entry, 12 a line, so the Durability nodes and what "done" looks like
+            // show.
+            if (!detailed && (key == st.player_team || i + 1 == teams)) {
+                detailed = true;
+                std::string line;
+                int on_line = 0;
+                for (size_t k = 0; k < n && k < 200; ++k) {
+                    uintptr_t inst = ib + k * stride;
+                    uint8_t dept = 0xff, state = 0xff, adapt = 0xff, enabled = 0xff;
+                    uint16_t day = 0, r_start = 0, r_end = 0, d_start = 0, d_end = 0;
+                    uint64_t sb = 0, se = 0, entries = 0;
+                    guarded_read(inst + 0x72, dept);
+                    guarded_read(inst + 0x7e, r_start);
+                    guarded_read(inst + 0x80, r_end);
+                    guarded_read(inst + 0x98, d_start);
+                    guarded_read(inst + 0x9a, d_end);
+                    if (guarded_read(inst + 0xc0, sb) && guarded_read(inst + 0xc8, se) && sb && se >= sb + 0x10) {
+                        entries = (se - sb) / 0x10;
+                        guarded_read(se - 0x10 + 4, day);
+                        guarded_read(se - 0x10 + 8, state);
+                        guarded_read(se - 0x10 + 9, adapt);
+                        guarded_read(se - 0x10 + 0xc, enabled);
+                    }
+                    char one[160];
+                    snprintf(one, sizeof one, "%s%s[d%u s%u a%u e%u x%llu day %u research %u-%u develop %u-%u]",
+                             line.empty() ? "" : "; ", rnd_name(inst + 0x10).c_str(), unsigned(dept), unsigned(state),
+                             unsigned(adapt), unsigned(enabled), (unsigned long long)entries, unsigned(day),
+                             unsigned(r_start), unsigned(r_end), unsigned(d_start), unsigned(d_end));
+                    line += one;
+                    if (++on_line == 8 || k + 1 == n || k + 1 == 200) {
+                        swofty::log("[td-probe] rnd: team %u tree %d nodes: %s", unsigned(key), tr, line.c_str());
+                        line.clear();
+                        on_line = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The team of every car from the game's own entrant records (0.75.6). The session context's participants list is empty
+// in a session (Career test: "[]"), but the failure object of each car keeps a pointer at +0x80 whose record has the
+// entrant's team stat id at +0x58 (swofty/game/entrants.hpp: EntrantRecord::team_stat_id; the same ids as the keys of the
+// R&D trees): (476 + row) << 16, see fm::row_family. The ids are stored as "slot:<row>" and read as a team family when a
+// plan is made. At most once a second until it works; the cars are there as soon as the failure scheduler has run.
+bool team_ids_from_memory()
+{
+    if (team_ids_ready.load())
+        return true;
+    static uint64_t next = 0;
+    uint64_t now = GetTickCount64();
+    if (session_ended || !failure_mgr.load() || now < next)
+        return false;
+    next = now + 1000;
+    std::vector<std::string> ids(32);
+    std::vector<uint32_t> keys(32, 0);
+    std::string line;
+    int n = 0;
+    for_each_failure_obj([&](int v, uintptr_t obj) {
+        uintptr_t rec = 0;
+        uint32_t key = 0;
+        if (v < 0 || v >= 32 || !guarded_read(obj + 0x80, rec) || !rec || !guarded_read(rec + 0x58, key) || (key & 0xffff))
+            return;
+        int row = int(key >> 16) - 476;
+        if (row < 0 || row > 15)
+            return;
+        ids[v] = "slot:" + std::to_string(row);
+        keys[v] = key;
+        ++n;
+        char one[40];
+        snprintf(one, sizeof one, "%s%d:%d", line.empty() ? "" : " ", v, row);
+        line += one;
+    });
+    if (n < 2)
+        return false;
+    {
+        std::lock_guard<std::mutex> lock(team_mu);
+        team_of_car = ids;
+        team_key_of_car = keys;
+    }
+    team_ids_ready = true;
+    team_pending = false;
+    team_epoch.fetch_add(1);
+    swofty::log("[td-probe] teams: from the game's entrant records, %d car(s) (vehicle:team slot, 0 Mercedes 1 Ferrari 2 Red Bull "
+                "3 Williams 4 Aston Martin 5 Alpine 6 RB 7 Haas 8 McLaren 9 Sauber/Audi 10 Cadillac): %s", n, line.c_str());
+    return true;
+}
+
+// The share of finished Durability upgrades of every team (department 2 of the R&D data, see rnd_probe_tick for the
+// layout), once a Career session: all nodes of the department (not only the enabled ones: 39 of 52 on day 27, and that
+// number grows with the season) and how many of them are finished (fm::rnd_state_done on the last state entry: Completed;
+// a failed research does not count). Only a team's first tree is read (the upgrade modes 0 and 1 have one, mode 2 one a
+// driver). Takes effect through team_grid_now. On the game's flow thread (on_frame).
+size_t rnd_node_stride(uint64_t ib, uint64_t ie)
+{
+    uint64_t span = ie - ib;
+    for (size_t cand : {0xd0u, 0xd8u, 0xe0u, 0xe8u, 0xf0u, 0xf8u, 0x100u, 0x108u, 0x110u, 0x120u, 0x130u, 0x140u}) {
+        if (span % cand || span / cand < 2 || span / cand > 400)
+            continue;
+        size_t n = span / cand, ok = 0, look = std::min<size_t>(n, 6);
+        for (size_t k = 0; k < look; ++k)
+            ok += rnd_plausible_name(ib + k * cand + 0x10);
+        if (ok >= look)
+            return cand;
+    }
+    return 0;
+}
+
+void read_rnd_durability()
+{
+    static uint64_t next = 0;
+    if (rnd_shares_read.load() || session_ended)
+        return;
+    uint64_t now = GetTickCount64();
+    if (now < next)
+        return;
+    next = now + 2000;
+    swofty::career::State st{};
+    rnd_shares_read = true;
+    if (swofty::career::state(&st) != swofty::career::Result::ok || !st.loaded)
+        return;  // not a Career
+    uintptr_t comp = reinterpret_cast<uintptr_t>(swofty::career::component("UpgradesComponent"));
+    uint64_t b = 0, e = 0;
+    if (!comp || !guarded_read(comp + 0x298, b) || !guarded_read(comp + 0x2a0, e) || !b || e < b) {
+        swofty::log("[td-probe] rd: no UpgradesComponent, the teams' R&D does not change the failure rates");
+        return;
+    }
+    std::vector<RndShare> out;
+    std::string line;
+    size_t teams = std::min<size_t>((e - b) / 8, 32);
+    for (size_t i = 0; i < teams; ++i) {
+        uintptr_t up = 0, tree = 0;
+        uint32_t key = 0;
+        uint64_t ib = 0, ie = 0;
+        if (!guarded_read(b + 8 * i, up) || !up || !guarded_read(up + 0xc, key))
+            continue;
+        tree = up + 0xe0;
+        if (!guarded_read(tree + 0x10, ib) || !guarded_read(tree + 0x18, ie) || !ib || ie <= ib)
+            continue;
+        size_t stride = rnd_node_stride(ib, ie);
+        if (!stride)
+            continue;
+        RndShare s;
+        s.key = key;
+        int failed = 0, history_nodes = 0;
+        std::string running;  // what is being researched: the node, the day it ends, whether the game rolled a failure
+        std::string histories;  // the state history of nodes that went beyond the usual 0/1, 2, 3 (a failed research)
+        for (size_t k = 0; k < (ie - ib) / stride; ++k) {
+            uintptr_t inst = ib + k * stride;
+            uint8_t dept = 0xff, state = 0xff;
+            uint64_t sb = 0, se = 0;
+            if (!guarded_read(inst + 0x72, dept) || dept != 2)
+                continue;
+            if (!guarded_read(inst + 0xc0, sb) || !guarded_read(inst + 0xc8, se) || !sb || se < sb + 0x10 ||
+                !guarded_read(se - 0x10 + 8, state))
+                continue;
+            ++s.total;
+            s.done += fm::rnd_state_done(state);
+            failed += state == 4;
+            // The whole history when it holds a state beyond 0/1, 2, 3 (a failed research and the restart after it): the
+            // log prints state@day, so the numbers of the game's states show (the 'rnd:' dump only has the last one).
+            if (size_t entries = size_t((se - sb) / 0x10); entries >= 3 && entries <= 40 && history_nodes < 8) {
+                std::vector<fm::RndEntry> hist;
+                for (size_t j = 0; j < entries; ++j) {
+                    uint16_t entry_day = 0;
+                    uint8_t entry_state = 0xff;
+                    if (!guarded_read(uintptr_t(sb) + j * 0x10 + 4, entry_day) ||
+                        !guarded_read(uintptr_t(sb) + j * 0x10 + 8, entry_state))
+                        break;
+                    hist.push_back({int(entry_state), int(entry_day)});
+                }
+                if (fm::rnd_history_notable(hist)) {
+                    std::string name = rnd_name(inst + 0x10);
+                    if (name.rfind("om_xm_", 0) == 0)
+                        name.erase(0, 6);
+                    histories += (histories.empty() ? "" : "; ") + name + ": " + fm::rnd_history_text(hist);
+                    ++history_nodes;
+                }
+            }
+            if (state == 2) {
+                // Career_Start_UpgradeResearch (0x1435168d0) keeps the end day at +0x80 and the roll for the research
+                // failing at +0x88; on the end day 0x143523a40 pushes Failed (4) when that roll said fail, else
+                // Completed (3). So a research the game rolled a failure for should show state 4 after its end day.
+                uint16_t end_day = 0;
+                uint8_t will_fail = 0;
+                guarded_read(inst + 0x80, end_day);
+                guarded_read(inst + 0x88, will_fail);
+                std::string name = rnd_name(inst + 0x10);
+                if (name.rfind("om_xm_", 0) == 0)
+                    name.erase(0, 6);
+                char when[64];
+                snprintf(when, sizeof when, " until day %u%s", unsigned(end_day),
+                         will_fail ? ", the game rolled a failure" : "");
+                running += (running.empty() ? "" : "; ") + name + when;
+            }
+        }
+        if (s.total <= 0)
+            continue;
+        out.push_back(s);
+        char one[64];
+        snprintf(one, sizeof one, "%s%u: %d/%d", line.empty() ? "" : "; ", unsigned(key), s.done, s.total);
+        line += one;
+        if (!running.empty() || failed) {
+            line += " (";
+            if (!running.empty())
+                line += "researching " + running;
+            if (failed) {
+                snprintf(one, sizeof one, "%s%d failed", running.empty() ? "" : ", ", failed);
+                line += one;
+            }
+            line += ")";
+        }
+        if (!histories.empty())
+            swofty::log("[td-probe] rd: state history of team %u (state@day; 1 Available, 2 InProgress, 3 Completed, 4 Failed): "
+                        "%s", unsigned(key), histories.c_str());
+    }
+    if (out.empty()) {
+        swofty::log("[td-probe] rd: no Durability upgrades found, the teams' R&D does not change the failure rates");
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(team_mu);
+        rnd_shares = out;
+    }
+    team_epoch.fetch_add(1);  // a plan made before this is made again
+    swofty::log("[td-probe] rd: finished Durability upgrades by team (team key: done/total); every team starts with %d "
+                "done, each one more takes about %.1f %% off that team's failure rate, %.0f %% with all done%s: %s",
+                fm::rnd_start_done, fm::rnd_max_reduction * 100.0 / std::max(1, out.front().total - fm::rnd_start_done),
+                fm::rnd_max_reduction * 100.0, rnd_reliability ? "" : " (the option is off, no effect)", line.c_str());
+}
+
+// Once a session, when the teams are known (in a Career also once its R&D data has been read): the factor of every team as
+// the plans use it, R&D included. The failure plans log this for a race only; this shows it in practice and qualifying
+// too (0.75.6: the "(R&D 0.99)" tag of a team that finished a Durability upgrade). On the game's flow thread (on_frame).
+void team_rates_log_tick()
+{
+    if (rates_logged.load() || session_ended || !team_ids_ready.load())
+        return;
+    swofty::career::State st{};
+    if (!rnd_shares_read.load() && swofty::career::state(&st) == swofty::career::Result::ok && st.loaded)
+        return;  // the Career's R&D data comes first
+    rates_logged = true;
+    const fm::Season &season = fm::season_of(failure_era);
+    int matched = 0;
+    uint32_t present = 0;
+    team_factors_now(season, &matched, &present);
+    int cars = 0;
+    for (uint32_t m = present; m; m &= m - 1)
+        ++cars;
+    swofty::log("[td-probe] teams: rates now for %.*s (%d of %d cars with a known team, R&D included): %s",
+                int(season.id.size()), season.id.data(), matched, cars, team_rates_text(season).c_str());
+}
+
+// ---- Team id probes (0.75.6, read only) ----
+// 1. Which team each car belongs to, from the game's memory: the failure object of each car keeps a pointer at +0x80 (its
+//    persistence key is [obj+0x80]+0x50); if that is the car's entrant record (swofty/game/entrants.hpp: id_lo +0x50,
+//    team_stat_id +0x58), the team stat id of every car can be read, and the R&D probe's team keys are the same ids.
+// 2. Which stat id a team's registry record has, for the ids the stock teams may have ("game/<name>"), asked of the
+//    registry (SwoftyRegistry.stat_id). Together they could name a car's team without the participants list.
+// Once a Career session, after the R&D probe. On the game's flow thread (on_frame).
+std::atomic<bool> team_probe_done{false};
+
+void team_id_probe_tick()
+{
+    static uint64_t next = 0;
+    if (team_probe_done.load() || session_ended || !rnd_probe_done.load() || rnd_team_keys.empty())
+        return;  // not a Career (no R&D trees)
+    uint64_t now = GetTickCount64();
+    if (now < next)
+        return;
+    next = now + 3000;
+    team_probe_done = true;
+    static bool registry_logged = false;  // the stat ids of the stock teams do not change: once a run
+    if (registry_logged)
+        return;
+    registry_logged = true;
+    const SwoftyRegistry *reg = swofty::detail::registry_table();
+    if (!reg || !reg->stat_id) {
+        swofty::log("[td-probe] teams: no registry stat ids on this core");
+        return;
+    }
+    std::string found;
+    int tried = 0;
+    for (const char *name : {"mercedes", "ferrari", "redbull", "red_bull", "mclaren", "williams", "astonmartin", "aston_martin",
+                             "alpine", "rb", "racingbulls", "racing_bulls", "alphatauri", "tororosso", "audi", "sauber",
+                             "kicksauber", "haas", "cadillac", "gm_cadillac", "renault", "forceindia", "racingpoint",
+                             "alfaromeo", "lotus", "user_defined"}) {
+        for (const char *prefix : {"game/", ""}) {
+            std::string id = std::string(prefix) + name;
+            int64_t stat = -1;
+            ++tried;
+            if (reg->stat_id("team.identity", id.c_str(), &stat) == SWOFTY_ASSET_OK) {
+                char one[96];
+                snprintf(one, sizeof one, "%s%s = %lld", found.empty() ? "" : "; ", id.c_str(), (long long)stat);
+                found += one;
+            }
+        }
+    }
+    swofty::log("[td-probe] teams: registry stat ids of %d guessed team ids: %s", tried,
+                found.empty() ? "none resolved" : found.c_str());
 }
 
 // Issue #5: a car with a failed power unit part or gearbox may leave its garage only once a new part is chosen. The
@@ -5764,6 +6444,13 @@ void gp_failure_tick(double dt)
     bool warning = realistic && gp_at >= 0 && gp_at < 1e17 && gp_clock >= gp_warn.warn_at;
     gp_clock += warning ? dt * fm::nursing_factor(full_throttle_share.load()) : dt;
     if (realistic) {
+        // The team ids came after your plan (late): make it again while no warning sign has started.
+        if (gp_at >= 0 && player_plan_epoch != team_epoch.load() && gp_clock < 900.0 && !warning) {
+            gp_at = -1;
+            gp_warn = {};
+        }
+        if (gp_fault_at >= 0 && fault_plan_epoch != team_epoch.load() && gp_clock < 900.0 && gp_fault_at > gp_clock + 5.0)
+            gp_fault_at = -1;
         if (gp_at < 0 && gp_clock > 20.0)
             gp_plan_realistic();
         gp_fault_tick();
@@ -5949,7 +6636,9 @@ void gp_plan_realistic()
 {
     const fm::Season &season = fm::season_of(failure_era);
     double u = uniform01();
-    double in = fm::seconds_until_failure(season, u > 0 ? u : 1e-12);
+    double scale = team_scale(season, player_vehicle.load());  // your team's rate against the season's average (1: unknown)
+    player_plan_epoch = team_epoch.load();
+    double in = fm::seconds_until_failure(season, u > 0 ? u : 1e-12, scale);
     gp_at = gp_clock + in;
     gp_warn = {};
     gp_warn.outcome = fm::pick_outcome(fm::era_of(season), uniform01());
@@ -5960,9 +6649,10 @@ void gp_plan_realistic()
         gp_warn.warn_at = std::max(gp_clock, gp_at - lead);
     }
     // Logged as minutes of driving: a full Grand Prix is about 90, so most sessions end before.
-    swofty::log("[td-probe] gp failures (%.*s %s, %.1f %% per Grand Prix): %s would fail after %.0f more minutes of "
-                "driving, %s",
-                int(season.id.size()), season.id.data(), fm::era_of(season).name, season.race_chance * 100.0, fm::outcome_name(gp_warn.outcome), in / 60.0,
+    swofty::log("[td-probe] gp failures (%.*s %s, %.1f %% per Grand Prix, your team x%.2f = %.1f %%): %s would fail after "
+                "%.0f more minutes of driving, %s",
+                int(season.id.size()), season.id.data(), fm::era_of(season).name, season.race_chance * 100.0,
+                scale, std::fmin(0.95, season.race_chance * scale) * 100.0, fm::outcome_name(gp_warn.outcome), in / 60.0,
                 lead > 0 ? "with warning signs before" : "without warning");
 }
 
@@ -5975,6 +6665,12 @@ void gp_ai_failure_tick()
     if (!failure_mgr.load())
         return;
     const fm::Season &season = fm::season_of(failure_era);
+    // The team ids came after the plan (they were late): make it again, as long as no AI failure has started.
+    if (ai_failures_rolled && ai_plan_epoch != team_epoch.load() && !ai_failure_started && gp_clock < 900.0 &&
+        std::string_view(gp_failures) != "100") {
+        ai_failures_rolled = false;
+        swofty::log("[td-probe] gp failures: the teams are known now, the AI plan is made again");
+    }
     if (!ai_failures_rolled && std::string_view(gp_failures) == "100") {
         // The 100 % test (0.75.5): two AI cars fail 15-60 s into the race too, the first an engine, the second a
         // gearbox, so one short race shows the AI path (the game's breakdown sequence) also in Career.
@@ -6001,18 +6697,33 @@ void gp_ai_failure_tick()
                     fm::outcome_name(fm::gearbox), ai_fail_at[picked[1]] - gp_clock);
     }
     if (!ai_failures_rolled) {
+        // A session has just started: wait for the participants (each team's rate) for 8 s at most.
+        if (team_pending.load() && !team_ids_ready.load() && GetTickCount64() < team_pending_at.load() + 8000)
+            return;
         ai_failures_rolled = true;
         const fm::Era &era = fm::era_of(season);
         fm::Era pu = era;
         pu.share[fm::suspension] = pu.share[fm::brakes] = 0;
-        int planned = 0;
+        int matched = 0;
+        uint32_t present = 0;
+        std::array<double, 32> tf = team_factors_now(season, &matched, &present);
+        int planned = 0, cars = 0;
         for (int v = 0; v < 32; ++v) {
-            ai_fail_at[v] = gp_clock + fm::seconds_until_failure(season, std::max(uniform01(), 1e-12));
+            ai_fail_at[v] = gp_clock + fm::seconds_until_failure(season, std::max(uniform01(), 1e-12), tf[v]);
             ai_fail_part[v] = fm::pick_outcome(pu, uniform01());
+            if (present && !(present & (1u << v)))
+                continue;  // no car in this slot
+            ++cars;
             planned += ai_fail_at[v] < gp_clock + fm::gp_minutes * 60.0;
         }
-        swofty::log("[td-probe] gp failures: AI cars use the %.*s rate, %d of 32 slots would fail within a full race "
-                    "distance", int(season.id.size()), season.id.data(), planned);
+        ai_plan_epoch = team_epoch.load();
+        swofty::log("[td-probe] gp failures: AI cars use the %.*s rate by team, %d of %d cars would fail within a full "
+                    "race distance", int(season.id.size()), season.id.data(), planned, cars);
+        if (present)
+            swofty::log("[td-probe] gp failures: team rates for %.*s (%d of %d cars with a known team): %s",
+                        int(season.id.size()), season.id.data(), matched, cars, team_rates_text(season).c_str());
+        else
+            swofty::log("[td-probe] gp failures: the teams are not known, every car gets the season's average rate");
     }
     int player = player_vehicle.load();
     // Walk the cars only once a failure is due: the walk reads every car's failure object (two guarded reads a car,
@@ -6029,6 +6740,7 @@ void gp_ai_failure_tick()
         if (v == player || ai_fail_at[v] >= 1e17 || gp_clock < ai_fail_at[v])
             return;
         ai_fail_at[v] = 1e18;
+        ai_failure_started = true;
         swofty::log("[td-probe] gp failures: AI car %d, %s fails", v, fm::outcome_name(ai_fail_part[v]));
         breakdown_part[v] = uint8_t(ai_fail_part[v]);
         breakdown_request.fetch_or(1u << v);
@@ -6048,7 +6760,9 @@ void gp_fault_tick()
     if (gp_fault_at < 0) {
         const fm::Season &season = fm::season_of(failure_era);
         const fm::FaultEra &fe = fm::fault_era_of(season);
-        double in = fm::seconds_until_fault(season, std::max(uniform01(), 1e-12));
+        double in = fm::seconds_until_fault(season, std::max(uniform01(), 1e-12),
+                                            team_scale(season, player_vehicle.load()));
+        fault_plan_epoch = team_epoch.load();
         gp_fault_at = gp_clock + in;
         gp_fault_type_rolled = fm::pick_fault(fe, uniform01());
         swofty::log("[td-probe] gp failures: partial failure (%.1f %% per Grand Prix): %s after %.0f more minutes",
@@ -6934,6 +7648,19 @@ void on_event(const SwoftyEvent *ev, void *)
         player_crossings = 0;
         reset_session();
         session_ended = false;
+        {
+            std::lock_guard<std::mutex> lock(team_mu);
+            team_of_car.assign(32, std::string());
+            team_key_of_car.assign(32, 0);
+            rnd_shares.clear();
+        }
+        rnd_shares_read = false;
+        rates_logged = false;
+        team_ids_ready = false;
+        team_pending_at = GetTickCount64();
+        team_pending = true;  // the participants come with the first control change; the AI plan waits for them
+        rnd_probe_done = false;
+        team_probe_done = false;
     } else if (!strcmp(ev->name, SWOFTY_EVENT_SESSION_END)) {
         if (int n = player_crossings.load(); n > 0)
             swofty::log("[td-probe] session end: your car crossed the line %d times (the game's lap count %d, length "
@@ -6944,6 +7671,16 @@ void on_event(const SwoftyEvent *ev, void *)
         reset_session(true);
         pit_lane_system = 0;
         controller_system = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(team_mu);
+            team_of_car.assign(32, std::string());
+            team_key_of_car.assign(32, 0);
+            rnd_shares.clear();
+        }
+        rnd_shares_read = false;
+        rates_logged = false;
+        team_ids_ready = false;
+        team_pending = false;
     }
     swofty::log("[td-probe] event %s a=%lld b=%lld", ev->name, (long long)ev->a, (long long)ev->b);
     if (!strcmp(ev->name, SWOFTY_EVENT_RACE_START)) {
@@ -7502,6 +8239,11 @@ void on_frame(double dt, void *)
     {
         td_perf::Scope cars(td_perf::frame_cars);
         part_lock_tick();
+        team_ids_from_memory();
+        read_rnd_durability();
+        team_rates_log_tick();
+        rnd_probe_tick();
+        team_id_probe_tick();
         static uint32_t crew_flashbacks = 0;
         if (uint32_t fb = flashback_count.load(); fb != crew_flashbacks) {
             crew_flashbacks = fb;
@@ -8066,7 +8808,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.75.5, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.75.6, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

@@ -14,7 +14,10 @@ mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA 
   Realistic preset, so *Mechanical failures in Grand Prix* is Realistic (was Off) unless you set it yourself.
 - **Realistic failures** at the real rate of the season you pick (2012-2026), often with warning signs first: power
   loss, cut-outs, slow shifts, a lost gear, rear brake trouble. AI cars break down too. Since 0.75.5 also in Career and
-  My Team (experimental).
+  My Team (experimental). Since 0.75.6 every team has its own rate, and in Career a team's finished Durability R&D
+  lowers it ([failure factors per season](docs/team-failure-factors.md)).
+- **Game settings:** the addon is built and tested with the game's own *Car Damage* and *Car Damage Rate* (Damage
+  Settings) on **Simulation**.
 - **Damage status panel** at the top right of the race HUD, and **engineer radio** calls with the game's own voice lines.
 - **Crashes:** one broken corner, front or rear, may let the car crawl on; heavy aero or body damage keeps the drive
   and calls you in. **FIA rules:** in a race a car on a broken corner must stop; pit by the end of the next lap after a

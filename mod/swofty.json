@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.75.5",
+  "version": "0.75.6",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: limp on, pull over or bring it in. Realistic failures with warning signs, a damage HUD, engineer radio, FIA rules, garage repairs and presets. Experimental and off by default: suspension damage from hits.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -80,7 +80,7 @@
       "id": "gp_failures",
       "type": "choice",
       "label": "Mechanical failures in Grand Prix",
-      "description": "Random mechanical failures in Grand Prix, custom races and Career. Realistic: the real rate of the season below, fewer in short races. 10-50 %: the chance one part fails in the race (in Career the game's own failures come on top).",
+      "description": "Random mechanical failures in Grand Prix, custom races and Career. Realistic: the real rate of the season below, for each team, fewer in short races. 10-50 %: the chance one part fails in the race (in Career the game's own failures come on top).",
       "values": [
         {"value": "off", "label": "Off"},
         {"value": "10", "label": "10%"},
@@ -98,7 +98,7 @@
       "id": "failure_era",
       "type": "choice",
       "label": "Failure season",
-      "description": "For Realistic failures: how often cars broke down in that season and which parts, from real results. Pick your car mod's season. Often with warning signs first: lift and coast to nurse the part.",
+      "description": "For Realistic failures: how often each team's cars broke down in that season and which parts, from real results. Pick your car mod's season. Often with warning signs first: lift and coast to nurse the part.",
       "values": [
         {"value": "2012", "label": "2012 (V8)"},
         {"value": "2013", "label": "2013 (V8)"},
@@ -117,6 +117,14 @@
         {"value": "2026", "label": "2026 (new rules)"}
       ],
       "default": "2025",
+      "binds": "native"
+    },
+    {
+      "id": "rnd_reliability",
+      "type": "toggle",
+      "label": "R&D durability lowers failures (Career)",
+      "description": "Career and My Team: each finished Durability upgrade in R&D beyond the five every team starts with takes about 1 % off that team's failures, half with all done, for you and the AI teams. Needs Realistic failures. Off: only the real team rates.",
+      "default": true,
       "binds": "native"
     },
     {

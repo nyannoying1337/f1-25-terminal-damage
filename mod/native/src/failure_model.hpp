@@ -349,9 +349,9 @@ inline RacePoint race_point(double u, int total_laps)
     return r;
 }
 
-inline double seconds_until_fault(const Season &s, double u)
+inline double seconds_until_fault(const Season &s, double u, double scale = 1.0)
 {
-    double h = -std::log1p(-std::fmin(0.95, fault_race_chance(s))) / (gp_minutes * 60.0);
+    double h = -std::log1p(-std::fmin(0.95, fault_race_chance(s) * scale)) / (gp_minutes * 60.0);
     if (h <= 0 || u <= 0)
         return 1e18;
     return -std::log(u) / h;

@@ -4,8 +4,10 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
-## New in 0.75.5
+## New in 0.75.6
 
+- **Failures per team:** each team's cars break down at that team's real rate in the season, and in Career a team's finished Durability R&D lowers it, about 1 % per upgrade (see Realistic failures).
+- **Game settings:** the addon is tested with Car Damage and Car Damage Rate on Simulation (see Game settings).
 - **Realistic failures work in Career and My Team too** (experimental, see Realistic failures).
 - *Suspension damage from hits* works together with Heavier Damage (see Suspension damage from hits).
 - The pause menu stops the failure clocks: no failure or warning sign moves on while the game is paused.
@@ -29,11 +31,21 @@ mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA 
 ## Quick start
 
 1. Steam version of F1 25 with Swofty Launcher 1.7.0 or newer. Install Terminal Damage from the Addon Browser, then restart the game.
-2. A one-time message on the main menu points you to the preset. **Realistic** is the default: nothing else to set up.
-3. Want it easier or harder? In the game: ADDON SETTINGS, Terminal Damage, **Preset**. Every option has a description there.
-4. Optional: **Suspension damage from hits** is experimental and off by default (see below).
+2. In the game's own settings (Damage Settings) put **Car Damage** and **Car Damage Rate** on **Simulation** (see Game settings below).
+3. A one-time message on the main menu points you to the preset. **Realistic** is the default: nothing else to set up.
+4. Want it easier or harder? In the game: ADDON SETTINGS, Terminal Damage, **Preset**. Every option has a description there.
+5. Optional: **Suspension damage from hits** is experimental and off by default (see below).
 
 The game's UDP telemetry is not needed: SimHub, CrewChief and other telemetry apps keep port 20777. Made for offline sessions; you can load straight into a race.
+
+## Game settings
+
+Terminal Damage is built and tested with the game's own damage on **Simulation**. These two options are in the game's settings (Damage Settings), not in ADDON SETTINGS:
+
+- **Car Damage: Simulation.** The game decides how much damage a crash does, and the limping, the broken corners, STOP THE CAR and the terminal damage rules all work on that damage. With Off there is no crash damage, so none of it can happen.
+- **Car Damage Rate: Simulation.** How fast damage builds up.
+- Reduced and Standard are not tested. If you use them and something looks wrong, tell me what you set.
+- The random failures of *Mechanical failures in Grand Prix* are the addon's own (Realistic is the default). They come in races and sprints, not in practice or qualifying; the *Failure season* sets the real rates they follow.
 
 ## Presets
 
@@ -76,11 +88,13 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 
 ## Realistic failures (Grand Prix, custom races and Career)
 
-- *Mechanical failures in Grand Prix*: **Realistic** (default) uses the real failure rate of the season in *Failure season* (2012-2026; pick your car mod's season). Short races have fewer failures. Also: a fixed chance (10-50 %) or Off.
+- *Mechanical failures in Grand Prix*: **Realistic** (default) uses the real failure rate of the season in *Failure season* (2012-2026; pick your car mod's season). Short races have fewer failures, and practice and qualifying none. Also: a fixed chance (10-50 %) or Off.
 - Many failures give **warning signs** first: power loss, cut-outs, slow or rough shifts, a lost gear, rear brake trouble. **Lift and coast** to nurse the part: it lasts longer.
 - Some faults stay partial: slow shifts, a missing or jammed gear, DRS, ERS or lean fuel trouble, a rear brake-by-wire fault (from 2014).
 - AI cars break down at the season's rate too.
-- **Career and My Team** get them too (new in 0.75.5, experimental: only short tests so far): with Realistic on, they replace the game's own rolled failures and its temporary fault for your car, so the teams' R&D reliability no longer decides who breaks down. The AI cars keep the game's temporary faults.
+- **Each team has its own rate** (new in 0.75.6): a team's cars break down as often as that team's did in the season, from its real retirements, so in 2026 an Aston Martin or a Cadillac fails far more often than a Mercedes (Cadillac about 1 race in 3.6 per car, Aston Martin about 1 in 2.6). The season's overall rate stays the same: the rates of the cars in your race add up to it, whichever teams are on the grid. A team's rate is pulled towards the season's average when its numbers are few, and in a year where the teams hardly differed (2023-2025, and so the default season 2025) the rates are nearly equal. A team the addon does not know gets the average. The log lists the teams it found and their rates. Every team in every season: [team failure factors](https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/docs/team-failure-factors.md).
+- **Career R&D matters** (new in 0.75.6): every team starts a Career with the same five *Durability* upgrades done; each further finished one takes about 1 % off that team's failure rate, up to half with all of them done. It counts for you and for the AI teams (the game researches theirs during the season), and only for the team that did the research: when you research, the AI cars do not get worse, and a grid that develops fails less as the season goes on. A research that fails does not count (the same upgrade can be started again). Option *R&D durability lowers failures (Career)*, on by default. At the start of a Career nothing changes.
+- **Career and My Team** get them too (new in 0.75.5, experimental: only short tests so far): with Realistic on, they replace the game's own rolled failures and its temporary fault for your car, so the real team rates and the teams' Durability R&D decide who breaks down, not the game's own model. The AI cars keep the game's temporary faults.
 
 ## Retirement
 
@@ -141,6 +155,7 @@ Every part has its own option. Turn off only the part that gives you trouble for
 
 ## Known issues (beta)
 
+- The Career R&D effect is small (about 1 % per Durability upgrade) and its cap of half with every upgrade done is a first guess: I will tune it once I have seen how fast the AI teams research.
 - Suspension damage is experimental: its tuning can still change.
 - Career is not fully tested with the limping, red flag and garage repair rules yet. The realistic failures there (0.75.5) are new: one from the real rates has not been seen in a Career race yet (the test setting has), and in Career an AI car that fails stayed where it stopped for about two minutes before the game took it to its garage.
 - No safety car HUD while your car is terminally damaged: the game shows it only to cars it does not count as terminally damaged.

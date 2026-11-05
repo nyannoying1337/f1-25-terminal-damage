@@ -582,5 +582,187 @@ int main()
         api.version = was_version;
     }
 
+    // ---- 0.75.6: every car's failure rate follows its team (the plans scale with team_factors_now) ----
+    {
+        uint32_t was_version = api.version;
+        auto was_setting = api.setting;
+        auto was_watch = api.watch_setting;
+        api.version = 4;
+        api.setting = [](const char *id, uint32_t type, SwoftySettingValue *out) -> int {
+            if (strcmp(id, "failure_era") || type != SWOFTY_SETTING_CHOICE)
+                return 0;
+            out->type = type;
+            out->choice = "2026";
+            return 1;
+        };
+        api.watch_setting = [](const char *, SwoftySettingFn, void *) -> int { return 0; };
+        const fm::Season &season = fm::season_of("2026");
+        // 22 cars, two a team: cars 0 and 1 Aston Martin, 2 and 3 Cadillac, 4 and 5 Red Bull, the rest Mercedes-powered.
+        const char *teams[11] = {"game/aston", "game/cadillac", "game/redbull", "game/mercedes", "game/ferrari",
+                                 "game/mclaren", "game/williams", "game/alpine", "game/rb", "game/audi", "game/haas"};
+        {
+            std::lock_guard<std::mutex> lock(team_mu);
+            team_of_car.assign(32, std::string());
+            for (int v = 0; v < 22; ++v)
+                team_of_car[v] = teams[v / 2];
+        }
+        team_ids_ready = true;
+        team_pending = false;
+        int matched = 0;
+        uint32_t present = 0;
+        std::array<double, 32> tf = team_factors_now(season, &matched, &present);
+        assert(matched == 22 && present == (1u << 22) - 1 && tf[22] == 1.0);
+        double sum = 0;
+        for (int v = 0; v < 22; ++v)
+            sum += tf[v];
+        assert(close_to(sum, 22.0, 1e-9));
+        assert(tf[0] > tf[2] && tf[2] > tf[18] && tf[18] > tf[8] && tf[4] == tf[5]);  // Aston > Cadillac > Audi > Red Bull
+        assert(team_scale(season, 2) == tf[2] && team_scale(season, 40) == 1.0 && team_scale(season, -1) == 1.0);
+        // R&D durability: cars 0 and 1 (Aston Martin) have every Durability upgrade, the rest of the teams have no data;
+        // only the team that researched changes (the AI teams' research counts the same way).
+        {
+            std::vector<double> before(tf.begin(), tf.end());
+            {
+                std::lock_guard<std::mutex> lock(team_mu);
+                team_key_of_car.assign(32, 0);
+                for (int v = 0; v < 22; ++v)
+                    team_key_of_car[v] = uint32_t(476 + v / 2) << 16;
+                rnd_shares.assign(1, RndShare{team_key_of_car[0], 52, 52});
+            }
+            std::array<double, 32> with = team_factors_now(season);
+            assert(close_to(with[0], 0.5 * before[0], 1e-9) && close_to(with[0], with[1], 1e-12));
+            for (int v = 2; v < 22; ++v)
+                assert(close_to(with[v], before[v], 1e-12));
+            std::string with_text = team_rates_text(season);
+            assert(with_text.find("(R&D 0.50)") != std::string::npos);
+            // 28 of 52 done: 23 of the 47 beyond the start state, factor 0.76. The start state (5 done), fewer than
+            // that, and no nodes counted leave the team alone.
+            {
+                std::lock_guard<std::mutex> lock(team_mu);
+                rnd_shares.assign(1, RndShare{team_key_of_car[0], 28, 52});
+            }
+            assert(team_rates_text(season).find("(R&D 0.76)") != std::string::npos);
+            for (RndShare s : {RndShare{team_key_of_car[0], 5, 52}, RndShare{team_key_of_car[0], 2, 52},
+                               RndShare{team_key_of_car[0], 5, 0}}) {
+                {
+                    std::lock_guard<std::mutex> lock(team_mu);
+                    rnd_shares.assign(1, s);
+                }
+                assert(team_rates_text(season).find("(R&D") == std::string::npos);
+                std::array<double, 32> same = team_factors_now(season);
+                for (int v = 0; v < 22; ++v)
+                    assert(close_to(same[v], before[v], 1e-12));
+            }
+            {
+                std::lock_guard<std::mutex> lock(team_mu);
+                rnd_shares.clear();
+                team_key_of_car.assign(32, 0);
+            }
+            std::array<double, 32> back = team_factors_now(season);
+            for (int v = 0; v < 22; ++v)
+                assert(close_to(back[v], before[v], 1e-12));
+        }
+        // The rates of a session are logged once: when the teams are known and, in a Career, once the R&D data has been
+        // read. Not between sessions.
+        {
+            bool was_ended = session_ended;
+            session_ended = false;
+            rates_logged = false;
+            team_ids_ready = false;
+            rnd_shares_read = false;
+            team_rates_log_tick();
+            assert(!rates_logged.load());  // the teams are not known yet
+            team_ids_ready = true;
+            team_rates_log_tick();
+            assert(rates_logged.load());  // outside a Career there is no R&D data to wait for
+            rates_logged = false;
+            static SwoftyCareer in_career{};
+            in_career.state = [](SwoftyCareerState *out) {
+                *out = {};
+                out->loaded = 1;
+                return int(SWOFTY_ASSET_OK);
+            };
+            uint32_t was_version = api.version;
+            api.version = 7;
+            api.career = &in_career;
+            team_rates_log_tick();
+            assert(!rates_logged.load());  // a Career: its R&D data comes first
+            rnd_shares_read = true;
+            session_ended = true;
+            team_rates_log_tick();
+            assert(!rates_logged.load());  // between sessions
+            session_ended = false;
+            team_rates_log_tick();
+            assert(rates_logged.load());
+            api.career = nullptr;
+            api.version = was_version;
+            rates_logged = false;
+            rnd_shares_read = false;
+            session_ended = was_ended;
+        }
+        // The participants text read by hand: a string team, an object team, spaces, the human flag.
+        {
+            std::vector<std::string> got;
+            std::string raw = "[{\"car\":0,\"driver\":\"game/x\",\"team\":\"game/mercedes\",\"vehicle\":\"v\",\"human\":false},"
+                              "{\"car\": 16, \"team\" : {\"id\": \"mods/cadillac\", \"x\": 1}, \"human\": true},"
+                              "{\"car\":3,\"human\":false}]";
+            int count = scan_participants_json(raw, [&](int car, std::string team, bool human) {
+                got.push_back(std::to_string(car) + "=" + team + (human ? "!" : ""));
+            });
+            assert(count == 3 && got.size() == 3);
+            assert(got[0] == "0=game/mercedes" && got[1] == "16=mods/cadillac!" && got[2] == "3=");
+            assert(scan_participants_json("[]", [](int, std::string, bool) {}) == 0);
+            assert(scan_participants_json("", [](int, std::string, bool) {}) == 0);
+        }
+        std::string text = team_rates_text(season);
+        assert(text.find("aston x") == 0 && text.find("cadillac x") != std::string::npos);
+
+        // The AI plan: over many rolls the share of each car's slot that fails within the race follows its factor.
+        failure_mgr = 1;  // the plan needs a failure manager; nothing is due, so nothing walks it
+        player_vehicle = 20;
+        const int rolls = 3000;
+        int hit[22] = {};
+        for (int r = 0; r < rolls; ++r) {
+            ai_failures_rolled = false;
+            gp_clock = 30;
+            gp_ai_failure_tick();
+            assert(ai_failures_rolled);
+            for (int v = 0; v < 22; ++v)
+                hit[v] += ai_fail_at[v] < 30 + fm::gp_minutes * 60.0;
+        }
+        for (int v : {0, 2, 4, 18}) {
+            double p = std::fmin(0.95, season.race_chance * tf[v]);
+            double sigma = std::sqrt(p * (1 - p) / rolls);
+            assert(std::fabs(hit[v] / double(rolls) - p) < 5 * sigma);
+        }
+        failure_mgr = 0;
+
+        // The plan waits for the participants of a session that has just started (8 s at most), then goes on without.
+        reset_session();
+        {
+            std::lock_guard<std::mutex> lock(team_mu);
+            team_of_car.assign(32, std::string());
+        }
+        team_ids_ready = false;
+        team_pending = true;
+        team_pending_at = GetTickCount64();
+        failure_mgr = 1;
+        gp_clock = 30;
+        gp_ai_failure_tick();
+        assert(!ai_failures_rolled);
+        team_pending_at = GetTickCount64() - 9000;
+        gp_ai_failure_tick();
+        assert(ai_failures_rolled);
+        for (int v = 0; v < 32; ++v)  // no team known: every car has the season's own rate, 1.0
+            assert(ai_fail_at[v] > 30);
+        failure_mgr = 0;
+        team_pending = false;
+        assert(team_scale(season, 3) == 1.0);
+        api.setting = was_setting;
+        api.watch_setting = was_watch;
+        api.version = was_version;
+        reset_session();
+    }
+
     std::puts("realistic failures ok");
 }

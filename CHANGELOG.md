@@ -1,3 +1,33 @@
+# Terminal Damage 0.75.6 beta
+
+Every team now breaks down at its own real rate, and in Career and My Team a team's finished Durability R&D lowers it. Everything from 0.75.5, 0.75.4 and 0.75.3 is in this release.
+
+## Read this first
+
+- **Set the game's damage to Simulation.** Terminal Damage is built and tested with the game's own damage settings on **Simulation**: in the game's settings (the *Damage Settings*, not ADDON SETTINGS) set *Car Damage* to Simulation and *Car Damage Rate* to Simulation. The game decides how much damage a crash does, and the limping, the broken corners, STOP THE CAR and the terminal damage rules of the addon all work on that damage. With *Car Damage* on Off the game does no crash damage at all, so none of it can happen. Reduced and Standard are not tested: if you use them and something looks wrong, tell me what you set.
+- **The failures need Realistic.** *Mechanical failures in Grand Prix* is **Realistic** by default (the Realistic preset) and the failures below work only with it. They come in races and sprints, not in practice or qualifying, and a shorter race gets fewer.
+- **Pick the Failure season.** The team rates follow *Failure season* (default 2025). In 2023 to 2025 the teams hardly differed, so their rates are nearly equal; the big differences are in 2026 (Aston Martin and Cadillac fail far more often than the rest), 2014, 2015 and 2017. Pick the season of your car mod. The factor and the chance of every team in every season are in the [table of team failure factors](https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/docs/team-failure-factors.md).
+- **Updating from 0.75.5:** nothing to set up. Your options stay as they are. In a Career you already have, a team that has researched Durability gets its benefit at once.
+
+## New
+
+- **Each team has its own failure rate.** With *Mechanical failures in Grand Prix* on Realistic, a team's cars now break down as often as that team's did in the season you pick, from its real retirements (2012-2026), instead of one rate for every car. In 2026 an Aston Martin car fails in about 38 % of Grands Prix, a Cadillac in about 28 %, a Mercedes in about 8 %. The season's overall rate is unchanged: the rates of the cars in your race add up to it, whichever teams are on the grid. A team's rate is pulled towards the season's average when its numbers are few. It works in Career too. A team the addon does not know gets the average; the log lists the teams it found and their rates (the line starting *teams: rates now*).
+- **Career R&D matters for failures again.** In Career and My Team a team's finished Durability upgrades (the R&D department of that name) lower its failure rate: every team starts with the same five done, and each further finished upgrade takes about 1 % off, up to half with all of them done. It counts for you and for the AI teams, whose R&D the game develops during the season, and only for the team that did the research: when you research, the AI cars do not get worse, and when the AI teams research they get more reliable. Only researches that succeed count (the game lets some fail; a failed one does not count, and the same upgrade can be started again). New option *R&D durability lowers failures (Career)*, on by default; with it off only the real team rates count. At the start of a Career nothing changes. The log shows each team's Durability progress in the line starting *rd:*.
+
+## Something not working?
+
+Every part has its own option. Turn off only the part that gives you trouble for now (for example *Mechanical failures in Grand Prix*, *Damage status panel*, *Engineer radio* or *Suspension damage from hits*), keep the rest, and send me your log: loader.log in the newest folder of %LOCALAPPDATA%\Swofty\sessions. Post it on OverTake or open an issue on GitHub, and say what happened and roughly when.
+
+## Known issues
+
+- Realistic failures in Career are new: a failure of yours, or of an AI car, from the real rates has not been seen in a Career race yet (the test setting has). In Career an AI car that fails stayed where it stopped for about two minutes before the game took it to its garage.
+- The Career R&D effect is small (about 1 % per Durability upgrade) and its cap of half with every upgrade done is a first guess: I will tune it once I have seen how fast the AI teams research.
+- Suspension damage is experimental: its tuning can still change.
+- Career: the "PART FITTED" message named in the 0.75.0 notes may not show when you fit the new part.
+- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- No safety car HUD while your car is terminally damaged.
+- Qualifying ICE replacement, Skip repairs and practice replacement timing: **not tested, might be broken**.
+
 # Terminal Damage 0.75.5 beta
 
 Realistic failures now work in Career and My Team too (experimental). Everything from 0.75.4 and 0.75.3 is in this release.
