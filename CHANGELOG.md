@@ -1,4 +1,19 @@
+# Terminal Damage 0.75.4 beta
+
+Realistic failures work again with the default settings. Everything from 0.75.3 is in this release too: suspension damage from hits works together with Heavier Damage, and the pause menu stops the failure clocks.
+
+## Read this first
+
+- **On 0.75.3? Update.** With *Suspension damage from hits* off (the default), 0.75.3 gave no realistic failures at all, neither to you nor to the AI cars.
+- **Updating from 0.75.0:** nothing to set up. Your options stay as they are. What else is new is in the 0.75.3 notes below.
+
+## Fixes
+
+- **Realistic failures work again with *Suspension damage from hits* off (the default).** In 0.75.3 the failure clocks ran only while the addon read your car's speed, which it does only for suspension damage or a broken car, so neither your car nor the AI cars got a failure. The clocks now run while the game updates your car, and they still stop in the pause menu.
+
 # Terminal Damage 0.75.3 beta
+
+**Use 0.75.4:** with *Suspension damage from hits* off (the default), realistic failures do not work in 0.75.3.
 
 Suspension damage from hits now works together with Heavier Damage, and the pause menu stops the failure clocks.
 

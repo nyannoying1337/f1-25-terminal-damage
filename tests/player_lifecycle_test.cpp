@@ -157,6 +157,20 @@ int main()
     assert(retired_drive_lock_vehicle==3 && throttle_hook.cap==0 && engine_off_vehicle==-1);
     player_vehicle=2;power_loss(reinterpret_cast<uintptr_t>(car.data()));assert(throttle_hook.cap==1);
     player_vehicle=3;reset_for_session_restart(nullptr);assert(retired_drive_lock_vehicle==-1 && throttle_hook.cap==1);
+
+    // 0.75.4: the failure clocks run while the game updates your car, also when nothing reads its speed (suspension
+    // damage off, the car healthy). 0.75.3 counted only fresh speed reads, so no realistic failure ever came.
+    *observed_failure = 0;
+    expect_failed = false;
+    player_broken = false;
+    telemetry_not_before = 0;
+    game_speed_ms = 0;
+    udp_last_ms = 0;  // the game's UDP telemetry off (the default)
+    player_update_ms = 0;
+    assert(on_update_vehicle(system.data(), 1) == 42);  // an AI car's update does not count for yours
+    assert(drive_seconds(0.016) == 0.0);
+    assert(on_update_vehicle(system.data(), 3) == 42);
+    assert(game_speed_ms.load() == 0 && drive_seconds(0.016) == 0.016);
     puts("PASS: queued player failure, ordering, AI isolation, expiry and session cleanup");
     puts("PASS: DNF audio survives gameplay/session cleanup; restart/start releases shutdown");
 }

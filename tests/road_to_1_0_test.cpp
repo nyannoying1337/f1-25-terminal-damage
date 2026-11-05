@@ -240,7 +240,8 @@ int main()
     assert(!pit_window_over(4, 4) && !pit_window_over(4, 5) && pit_window_over(4, 6));
     assert(!pit_window_over(-1, 9) && !pit_window_over(4, -1));
     {
-        // Without a lap number: 10 minutes of driving, and the pause menu (no fresh speed) does not count.
+        // Without a lap number: 10 minutes of driving, and the pause menu (no update of the car) does not count. No
+        // speed read is needed (0.75.4): with suspension damage off nothing reads it.
         reset_session();
         player_vehicle = 3;
         player_pit = 1;
@@ -248,21 +249,20 @@ int main()
         game_failure_lap = -1;
         game_failure_deadline = GetTickCount64() | 1;
         telemetry_not_before = 1;
-        game_speed = 0;
-        game_speed_ms = 0;  // paused: no fresh speed
+        game_speed_ms = 0;
+        player_update_ms = 0;  // paused: the game does not update the car
         gp_failure_tick(700.0);
         assert(game_failure_deadline.load() != 0 && !dsq_pending);
-        game_speed = 50;
-        game_speed_ms = GetTickCount64();
+        player_update_ms = GetTickCount64();
         gp_failure_tick(500.0);
         assert(game_failure_deadline.load() != 0 && !dsq_pending);
-        game_speed_ms = GetTickCount64();
+        player_update_ms = GetTickCount64();
         gp_failure_tick(101.0);
         assert(game_failure_deadline.load() == 0 && dsq_pending);
         dsq_pending = false;
         // A new window starts its own count.
         game_failure_deadline = (GetTickCount64() + 2) | 1;
-        game_speed_ms = GetTickCount64();
+        player_update_ms = GetTickCount64();
         gp_failure_tick(500.0);
         assert(game_failure_deadline.load() != 0 && !dsq_pending);
         // Reaching the pit lane closes it without a penalty.

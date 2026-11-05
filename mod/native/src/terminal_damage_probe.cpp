@@ -1922,6 +1922,9 @@ void read_terminal_record(uintptr_t sys, uint8_t vehicle)
 // speed in km/h = |velocity| * 3600 * 0.001.
 std::atomic<int> game_speed{-1};
 std::atomic<uint64_t> game_speed_ms{0};
+// The game's last update of the player's car (on_update_vehicle, every frame while the car runs). The game stops
+// updating the cars in the pause menu, the flashback view and between sessions; on_frame still gets real seconds.
+std::atomic<uint64_t> player_update_ms{0};
 void read_game_speed(uintptr_t car)
 {
     uintptr_t physics = 0, rigid = 0, body = 0;
@@ -2648,6 +2651,7 @@ uint64_t on_update_vehicle(void *system, uint8_t vehicle)
             susp::ai_forget(vehicle);
     }
     if (int(vehicle) == player_vehicle.load()) {
+        player_update_ms = GetTickCount64();
         uintptr_t car = car_of(reinterpret_cast<uintptr_t>(system), vehicle);
         throttle_hook.car = car;
         if (player_broken || log_telemetry || susp::speed_wanted() || test_run_on.load() || power_speed_wanted.load())
@@ -4966,6 +4970,7 @@ bool ctrl_shift_down(int key)
 }
 
 int player_speed();
+bool player_car_running();
 
 // Throttle: car +0x188, written each frame by the controller update at the site below
 // (0.22.4 hardware watch: 605 writes in 10 s, all from there): clamp(input, 0, 1) -> vmovss [r12+0x188], xmm0
@@ -5646,14 +5651,14 @@ void gp_failure_tick(double dt)
     gearbox_decline_tick(dt);
     heavy_damage_tick();
     if (uint64_t window = game_failure_deadline.load()) {
-        // The 10-minute fallback counts driving time: not the pause menu (no fresh speed while paused).
+        // The 10-minute fallback counts driving time: not the pause menu (the game does not update the car there).
         static uint64_t window_seen = 0;
         static double window_driven = 0;
         if (window != window_seen) {
             window_seen = window;
             window_driven = 0;
         }
-        if (player_speed() >= 0)
+        if (player_car_running())
             window_driven += dt;
         if (session_ended || confirmed_retired_vehicle.load() >= 0 || player_vehicle.load() < 0) {
             game_failure_deadline = 0;
@@ -7020,9 +7025,20 @@ int player_speed()
     return udp_speed[p].load();
 }
 
-// The seconds the car drove in this frame: dt with a fresh speed, 0 in the pause menu and other frozen screens (on_frame
-// gets real seconds on every rendered frame) and between sessions.
-double drive_seconds(double dt) { return player_speed() >= 0 ? dt : 0.0; }
+// True while the game updates the player's car: not in the pause menu, the flashback view or between sessions. Not the
+// speed read: that runs only when a feature needs the speed (suspension damage, a broken car), so with suspension
+// damage off 0.75.3's speed-based check kept every failure clock at a standstill.
+bool player_car_running()
+{
+    if (session_ended)
+        return false;
+    uint64_t last = player_update_ms.load();
+    return last && last > telemetry_not_before.load() && GetTickCount64() - last <= 500;
+}
+
+// The seconds the car drove in this frame: dt while the game updates the player's car, 0 in the pause menu and other
+// frozen screens (on_frame gets real seconds on every rendered frame) and between sessions.
+double drive_seconds(double dt) { return player_car_running() ? dt : 0.0; }
 
 // A broken car that stands still for 10 s retires, like the game's own retirement: on track, and also stranded in the
 // pit lane outside the box (EnteringPitLane, LeavingPitLane, driving through). The box states 3-13 have their own flow.
@@ -7973,7 +7989,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.75.3, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.75.4, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

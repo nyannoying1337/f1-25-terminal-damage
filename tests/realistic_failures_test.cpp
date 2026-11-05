@@ -422,27 +422,30 @@ int main()
     assert(objs[1][0xa0] == 2 && objs[1][0xa1] == 2);
     failure_mgr = 0;
 
-    // ---- 0.75.3: the pause menu stops the failure clocks: on_frame keeps real seconds, the car's speed goes stale ----
+    // ---- 0.75.3: the pause menu stops the failure clocks: on_frame keeps real seconds, the game stops updating the
+    // player's car. 0.75.4: the clocks follow that update, not the speed read (it runs only when a feature needs the
+    // speed, so with suspension damage off the clocks stood in 0.75.3) ----
     {
         bool was_ended = session_ended;
-        uint64_t was_not_before = telemetry_not_before.load(), was_ms = game_speed_ms.load();
-        int was_speed = game_speed.load();
+        uint64_t was_not_before = telemetry_not_before.load(), was_update = player_update_ms.load(),
+                 was_ms = game_speed_ms.load();
         session_ended = false;
         telemetry_not_before = 0;
-        game_speed = 120;
-        game_speed_ms = GetTickCount64();
-        assert(drive_seconds(0.016) == 0.016);  // driving
-        game_speed = 0;
-        assert(drive_seconds(0.016) == 0.016);  // standing on the grid still counts
-        game_speed_ms = GetTickCount64() - 2000;  // no car update for 2 s: paused
+        game_speed_ms = 0;  // nothing reads the speed: suspension damage off, the car healthy
+        player_update_ms = GetTickCount64();
+        assert(drive_seconds(0.016) == 0.016);  // driving, or standing on the grid: the game updates the car
+        player_update_ms = GetTickCount64() - 2000;  // no car update for 2 s: paused
         assert(drive_seconds(0.016) == 0.0);
-        game_speed_ms = GetTickCount64();
+        player_update_ms = GetTickCount64();
+        telemetry_not_before = GetTickCount64() + 1;  // the last update is from before this session
+        assert(drive_seconds(0.016) == 0.0);
+        telemetry_not_before = 0;
         session_ended = true;  // between sessions
         assert(drive_seconds(0.016) == 0.0);
         session_ended = was_ended;
         telemetry_not_before = was_not_before;
+        player_update_ms = was_update;
         game_speed_ms = was_ms;
-        game_speed = was_speed;
     }
 
     std::puts("realistic failures ok");

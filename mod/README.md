@@ -4,11 +4,12 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
-## New in 0.75.3
+## New in 0.75.4
 
 - *Suspension damage from hits* works together with Heavier Damage (see Suspension damage from hits).
 - The pause menu stops the failure clocks: no failure or warning sign moves on while the game is paused.
 - Less work per frame in races with realistic failures.
+- Realistic failures work with *Suspension damage from hits* off (the default); 0.75.3 gave none there.
 
 ## 0.75 beta: what is new
 
