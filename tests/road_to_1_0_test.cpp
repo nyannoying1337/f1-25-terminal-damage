@@ -729,7 +729,8 @@ int main()
         reset_session();
     }
 
-    // ---- 0.51.133: the game's wheel detach limits x2 while the suspension model runs ----
+    // ---- 0.51.133: the game's wheel detach limits x2 while the suspension model runs; 0.75.1: and the game's
+    // front and rear damage scales back to stock (another addon's raised scales would add up with the model) ----
     {
         struct Made {
             uint32_t index, field, op;
@@ -738,7 +739,7 @@ int main()
         };
         static std::vector<Made> made;
         static std::vector<uint32_t> removed;
-        static uint32_t next_token = 0;
+        static uint32_t next_token = 0, refuse_field = ~0u;
         static SwoftyCarOps ops{};
         ops.version = 2;
         ops.available = +[]() { return 1; };
@@ -746,6 +747,8 @@ int main()
         ops.layer = +[](const char *, uint32_t index, uint32_t field, uint32_t op, float value, int32_t priority,
                         uint32_t *token) {
             made.push_back({index, field, op, value, priority});
+            if (field == refuse_field)
+                return int(SWOFTY_ASSET_INVALID);
             *token = ++next_token;
             return int(SWOFTY_ASSET_OK);
         };
@@ -753,36 +756,63 @@ int main()
             removed.push_back(token);
             return int(SWOFTY_ASSET_OK);
         };
+        auto layers_on = [](size_t from, uint32_t index) {
+            assert(made.size() == from + 4);
+            assert(made[from].index == index && made[from].field == SWOFTY_CAR_SUSP_WHEEL_DETACH_SCALE &&
+                   made[from].op == SWOFTY_CAR_OP_SCALE && made[from].value == 2.0f && made[from].priority == 50);
+            assert(made[from + 1].index == index && made[from + 1].field == SWOFTY_CAR_SUSP_PARTS_DETACH_SCALE &&
+                   made[from + 1].op == SWOFTY_CAR_OP_SCALE && made[from + 1].value == 2.0f);
+            assert(made[from + 2].index == index && made[from + 2].field == SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE &&
+                   made[from + 2].op == SWOFTY_CAR_OP_SET && made[from + 2].value == 0.001f &&
+                   made[from + 2].priority == 50);
+            assert(made[from + 3].index == index && made[from + 3].field == SWOFTY_CAR_SUSP_REAR_DAMAGE_SCALE &&
+                   made[from + 3].op == SWOFTY_CAR_OP_SET && made[from + 3].value == 0.0001f);
+        };
         swofty::detail::set_car_ops_table(&ops);
         bool was = susp::enabled, was_ai = susp::ai::enabled;
         int was_player = player_vehicle.load();
+        susp::enabled = false;  // the model off: the game's (or another addon's) values stay
+        player_vehicle = 3;
+        apply_game_suspension_layers();
+        assert(made.empty());
         susp::enabled = true;
         susp::ai::enabled = false;
         player_vehicle = -1;
-        apply_detach_limits();
+        apply_game_suspension_layers();
         assert(made.empty());  // no player car yet
         player_vehicle = 3;
-        apply_detach_limits();
-        assert(made.size() == 2 && removed.empty());
-        assert(made[0].index == 3 && made[0].field == SWOFTY_CAR_SUSP_WHEEL_DETACH_SCALE &&
-               made[0].op == SWOFTY_CAR_OP_SCALE && made[0].value == 2.0f && made[0].priority == 50);
-        assert(made[1].index == 3 && made[1].field == SWOFTY_CAR_SUSP_PARTS_DETACH_SCALE &&
-               made[1].op == SWOFTY_CAR_OP_SCALE && made[1].value == 2.0f);
-        apply_detach_limits();
-        assert(made.size() == 2);
+        apply_game_suspension_layers();
+        layers_on(0, 3);
+        assert(removed.empty());
+        apply_game_suspension_layers();
+        assert(made.size() == 4);
         player_vehicle = -1;  // between sessions: the layers stay
-        apply_detach_limits();
-        assert(made.size() == 2 && removed.empty());
+        apply_game_suspension_layers();
+        assert(made.size() == 4 && removed.empty());
         player_vehicle = 5;  // a restart in another car: the layers move with it
-        apply_detach_limits();
-        assert(removed.size() == 2 && made.size() == 4 && made[2].index == 5 && made[3].index == 5);
-        susp::ai::enabled = true;  // the AI model runs too: every car, the same limits
-        apply_detach_limits();
-        assert(removed.size() == 4 && made.size() == 6 && made[4].index == SWOFTY_CAR_ALL &&
-               made[5].index == SWOFTY_CAR_ALL);
+        apply_game_suspension_layers();
+        assert(removed.size() == 4);
+        layers_on(4, 5);
+        susp::ai::enabled = true;  // the AI model runs too: every car, the same layers
+        apply_game_suspension_layers();
+        assert(removed.size() == 8);
+        layers_on(8, SWOFTY_CAR_ALL);
         player_vehicle = 7;
-        apply_detach_limits();
-        assert(made.size() == 6 && removed.size() == 4);
+        apply_game_suspension_layers();
+        assert(made.size() == 12 && removed.size() == 8);
+        // A core that refuses one field: that value stays the game's, the other three still apply, and the refused
+        // field is not asked for again.
+        refuse_field = SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE;
+        susp::ai::enabled = false;
+        apply_game_suspension_layers();
+        assert(removed.size() == 12);
+        layers_on(12, 7);
+        refuse_field = ~0u;
+        player_vehicle = 9;
+        apply_game_suspension_layers();
+        assert(removed.size() == 15 && made.size() == 19);
+        for (size_t i = 16; i < made.size(); ++i)
+            assert(made[i].index == 9 && made[i].field != SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE);
         swofty::detail::set_car_ops_table(nullptr);
         susp::enabled = was;
         susp::ai::enabled = was_ai;

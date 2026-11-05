@@ -389,6 +389,24 @@ int main()
     gp_clock = 32;
     gp_ai_failure_tick();
     assert(breakdown_request.load() == ((1u << 4) | (1u << 8)));
+    // 0.75.1: due slots without a car are dropped after a walk that saw cars (else the walk would run every frame);
+    // the player's slot stays as it was. An unreadable manager keeps a due slot for the next frame.
+    assert(ai_fail_at[0] == 31 && ai_fail_at[4] >= 1e17 && ai_fail_at[8] >= 1e17);
+    for (int v = 1; v < 32; ++v)
+        assert(ai_fail_at[v] >= 1e17);
+    ai_fail_at[12] = 31;
+    uint64_t none = 0;
+    memcpy(mgr + 0x198, &none, 8);
+    gp_ai_failure_tick();
+    assert(ai_fail_at[12] == 31 && breakdown_request.load() == ((1u << 4) | (1u << 8)));
+    memcpy(mgr + 0x198, &b, 8);
+    gp_ai_failure_tick();
+    assert(ai_fail_at[12] >= 1e17 && breakdown_request.load() == ((1u << 4) | (1u << 8)));
+    // Nothing due (the next one in 10 minutes): nothing queued, the slot keeps its time.
+    ai_fail_at[8] = 632;
+    gp_ai_failure_tick();
+    assert(ai_fail_at[8] == 632 && breakdown_request.load() == ((1u << 4) | (1u << 8)));
+    ai_fail_at[8] = 1e18;
     // The game thread arms them without the lap (lap 0, fraction 0 is due in any lap); car 0 stays untouched.
     breakdown_part[4] = 2;
     breakdown_part[8] = 6;
@@ -403,6 +421,29 @@ int main()
     arm_breakdowns();
     assert(objs[1][0xa0] == 2 && objs[1][0xa1] == 2);
     failure_mgr = 0;
+
+    // ---- 0.75.3: the pause menu stops the failure clocks: on_frame keeps real seconds, the car's speed goes stale ----
+    {
+        bool was_ended = session_ended;
+        uint64_t was_not_before = telemetry_not_before.load(), was_ms = game_speed_ms.load();
+        int was_speed = game_speed.load();
+        session_ended = false;
+        telemetry_not_before = 0;
+        game_speed = 120;
+        game_speed_ms = GetTickCount64();
+        assert(drive_seconds(0.016) == 0.016);  // driving
+        game_speed = 0;
+        assert(drive_seconds(0.016) == 0.016);  // standing on the grid still counts
+        game_speed_ms = GetTickCount64() - 2000;  // no car update for 2 s: paused
+        assert(drive_seconds(0.016) == 0.0);
+        game_speed_ms = GetTickCount64();
+        session_ended = true;  // between sessions
+        assert(drive_seconds(0.016) == 0.0);
+        session_ended = was_ended;
+        telemetry_not_before = was_not_before;
+        game_speed_ms = was_ms;
+        game_speed = was_speed;
+    }
 
     std::puts("realistic failures ok");
 }

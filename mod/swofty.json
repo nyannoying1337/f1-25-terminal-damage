@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.75.0",
+  "version": "0.75.3",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: limp on, pull over or bring it in. Realistic failures with warning signs, a damage HUD, engineer radio, FIA rules, garage repairs and presets. Experimental and off by default: suspension damage from hits.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -221,7 +221,7 @@
       "id": "suspension_damage",
       "type": "toggle",
       "label": "Suspension damage from hits (experimental)",
-      "description": "Experimental, off by default. Hits on a wheel can bend that corner (the car pulls), break it, or crack it so it fails later. Using Heavier Damage? Keep this off, or set its Suspension & wheel damage to Stock: both add up. Needs a game restart.",
+      "description": "Experimental, off by default. Hits on a wheel can bend that corner (the car pulls), break it, or crack it so it fails later. While on, the game's own suspension damage stays stock, also with Heavier Damage. Needs a game restart.",
       "default": false,
       "binds": "native"
     },
@@ -229,7 +229,7 @@
       "id": "suspension_damage_ai",
       "type": "toggle",
       "label": "Suspension damage for AI cars (experimental)",
-      "description": "Experimental. AI cars that hit barriers or other cars can get a bent corner too, or a collapsed one: then they retire. Needs 'Suspension damage from hits'. Needs a game restart.",
+      "description": "Experimental. AI cars that hit barriers or other cars can get a bent corner too, or a collapsed one: then they retire. Their game suspension damage stays stock too. Needs 'Suspension damage from hits' and a game restart.",
       "default": false,
       "binds": "native"
     },

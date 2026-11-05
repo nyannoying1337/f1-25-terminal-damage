@@ -1,3 +1,33 @@
+# Terminal Damage 0.75.3 beta
+
+Suspension damage from hits now works together with Heavier Damage, and the pause menu stops the failure clocks.
+
+## Read this first
+
+- **Updating from 0.75.0:** nothing to set up. Your options stay as they are.
+- **Using Heavier Damage?** You can now turn on *Suspension damage from hits* with it. Heavier Damage's *Suspension & wheel damage* setting can stay where it is.
+
+## New
+
+- **Suspension damage from hits works with Heavier Damage.** While the option is on, the game's own suspension damage stays at stock on the cars it covers (your car; every car with *Suspension damage for AI cars*). Heavier Damage's *Suspension & wheel damage* (100x stronger at Normal) no longer adds up with it, also not in nose hits, where the front wing's damage spills into the front corners. Heavier Damage's wing damage and its other settings stay. With the option off, Heavier Damage's values apply as before.
+
+## Fixes
+
+- The pause menu stops the failure clocks: planned failures (yours and the AI's), warning signs, a gearbox decline and a power fault no longer move on while the game is paused.
+- Less work per frame in races with realistic failures: the AI cars' failure check runs only when one is due.
+
+## Something not working?
+
+Every part has its own option. Turn off only the part that gives you trouble for now (for example *Mechanical failures in Grand Prix*, *Damage status panel*, *Engineer radio* or *Suspension damage from hits*), keep the rest, and send me your log: loader.log in the newest folder of %LOCALAPPDATA%\Swofty\sessions. Post it on OverTake or open an issue on GitHub, and say what happened and roughly when.
+
+## Known issues
+
+- Suspension damage is experimental: its tuning can still change.
+- Career: the "PART FITTED" message named in the 0.75.0 notes may not show when you fit the new part.
+- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- No safety car HUD while your car is terminally damaged.
+- Qualifying ICE replacement, Skip repairs and practice replacement timing: **not tested, might be broken**.
+
 # Terminal Damage 0.75.0 beta
 
 The biggest update so far: realistic failures with warning signs, a damage HUD, engineer radio, presets and more FIA rules. Everything since 0.51.85 is in this release.

@@ -1013,6 +1013,11 @@ bool game_damage(float d[4])
            guarded_copy(comp + 0x130, d, 4 * sizeof(float));
 }
 
+// The game's stock front and rear suspension damage scales: the shipping values (ferrari.vtf; every logged session
+// without another damage addon has them), as Heavier Damage's "Stock (EA)" set has them too. While the model runs,
+// the addon sets the game's own scales back to these on the cars the model covers (apply_game_suspension_layers).
+constexpr float stock_front_scale = 0.001f, stock_rear_scale = 0.0001f;
+
 // Once per session: the game's suspension damage settings (XOR-keyed floats, re/collision-impact.md section 6), to
 // compare its damage with the addon's hits.
 void log_game_settings()
@@ -1030,13 +1035,12 @@ void log_game_settings()
         v[k] = std::bit_cast<float>(a ^ b);
     }
     logged = car;
-    // The game's stock front and rear scales (the ferrari.vtf values, as Heavier Damage's "Stock (EA)" set has them).
-    constexpr float stock_front = 0.001f, stock_rear = 0.0001f;
     char note[256] = "";
-    if (v[1] > 2 * stock_front || v[2] > 2 * stock_rear)
+    if (v[1] > 2 * stock_front_scale || v[2] > 2 * stock_rear_scale)
         snprintf(note, sizeof note, "; %.0fx (front) and %.0fx (rear) the game's stock 0.001 and 0.0001: another addon "
-                 "raised them (Heavier Damage: Suspension & wheel damage), so scrapes and light car contacts add up to "
-                 "broken corners", double(v[1] / stock_front), double(v[2] / stock_rear));
+                 "raised them (Heavier Damage: Suspension & wheel damage) and the stock layers are not on, so scrapes "
+                 "and light car contacts add up to broken corners", double(v[1] / stock_front_scale),
+                 double(v[2] / stock_rear_scale));
     swofty::log("[td-probe] suspension: the game's own suspension damage: speed threshold %.2f m/s, front scale %.5f, "
                 "rear scale %.5f, wheel detach at %.2f, parts detach at %.2f%s",
                 double(v[0]), double(v[1]), double(v[2]), double(v[3]), double(v[4]), note);

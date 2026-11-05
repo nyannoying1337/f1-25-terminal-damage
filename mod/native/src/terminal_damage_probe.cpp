@@ -5955,7 +5955,17 @@ void gp_ai_failure_tick()
                     "distance", int(season.id.size()), season.id.data(), planned);
     }
     int player = player_vehicle.load();
+    // Walk the cars only once a failure is due: the walk reads every car's failure object (two guarded reads a car,
+    // about 25 us a frame in a 22-car race, 0.75.1 test at Montreal), and most of a race nothing is due.
+    double due = 1e18;
+    for (int v = 0; v < 32; ++v)
+        if (v != player)
+            due = std::min(due, ai_fail_at[v]);
+    if (gp_clock < due)
+        return;
+    uint32_t seen = 0;
     for_each_failure_obj([&](int v, uintptr_t) {
+        seen |= 1u << v;
         if (v == player || ai_fail_at[v] >= 1e17 || gp_clock < ai_fail_at[v])
             return;
         ai_fail_at[v] = 1e18;
@@ -5963,6 +5973,12 @@ void gp_ai_failure_tick()
         breakdown_part[v] = uint8_t(ai_fail_part[v]);
         breakdown_request.fetch_or(1u << v);
     });
+    // A due slot without a car (fewer than 32 cars) would bring the walk back every frame: it is dropped, but only
+    // when the walk saw cars (an unreadable manager keeps every slot for the next frame).
+    if (seen)
+        for (int v = 0; v < 32; ++v)
+            if (v != player && !(seen & (1u << v)) && gp_clock >= ai_fail_at[v])
+                ai_fail_at[v] = 1e18;
 }
 
 // One partial failure per session at most, with the era's chance, as the game's own temporary faults. Not in
@@ -7004,6 +7020,10 @@ int player_speed()
     return udp_speed[p].load();
 }
 
+// The seconds the car drove in this frame: dt with a fresh speed, 0 in the pause menu and other frozen screens (on_frame
+// gets real seconds on every rendered frame) and between sessions.
+double drive_seconds(double dt) { return player_speed() >= 0 ? dt : 0.0; }
+
 // A broken car that stands still for 10 s retires, like the game's own retirement: on track, and also stranded in the
 // pit lane outside the box (EnteringPitLane, LeavingPitLane, driving through). The box states 3-13 have their own flow.
 bool standstill_pit_state(int pit)
@@ -7256,58 +7276,94 @@ void apply_engine_kill()
 // the AI model the AI keeps the game's limits.
 constexpr float game_detach_factor = 2.0f;
 
-// Frame thread: the two scale layers by field id (the layer path names are the core's), moved with the player's car
-// (a restart in another car) or on every car. Without the core's car layers the game's limits stay.
-void apply_detach_limits()
+// The layers on the game's own suspension damage while the addon's model runs: the detach limits x
+// game_detach_factor, and the front and rear damage scales set back to stock. Another addon can raise those scales
+// (Heavier Damage's "Suspension & wheel damage": front 0.1 and rear 0.01 at Normal, 100x stock); its damage then adds
+// up with the model's, and the front scale also sizes the front wing's overflow into FL/FR, which broke front corners
+// in nose hits without any wheel contact (0.51.115 test at Miami: FL 58.4 and 57.6). The speed threshold stays the
+// game's (or the other addon's). With the model off nothing is layered: the game's or the other addon's values apply.
+struct GameSuspLayer {
+    uint32_t field, op;
+    float value;
+    const char *name;
+};
+constexpr GameSuspLayer game_susp_layers[] = {
+    {SWOFTY_CAR_SUSP_WHEEL_DETACH_SCALE, SWOFTY_CAR_OP_SCALE, game_detach_factor, "wheel detach limit"},
+    {SWOFTY_CAR_SUSP_PARTS_DETACH_SCALE, SWOFTY_CAR_OP_SCALE, game_detach_factor, "parts detach limit"},
+    {SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE, SWOFTY_CAR_OP_SET, susp::stock_front_scale, "front damage scale"},
+    {SWOFTY_CAR_SUSP_REAR_DAMAGE_SCALE, SWOFTY_CAR_OP_SET, susp::stock_rear_scale, "rear damage scale"},
+};
+constexpr int game_susp_layer_n = int(sizeof game_susp_layers / sizeof game_susp_layers[0]);
+
+// Frame thread: the game_susp_layers by field id (the layer path names are the core's), moved with the player's car (a
+// restart in another car) or on every car. A field the core refuses keeps its value, the others still apply; without
+// the core's car layers nothing changes.
+void apply_game_suspension_layers()
 {
-    static uint32_t tokens[2] = {};
+    static uint32_t tokens[game_susp_layer_n] = {};
+    static bool refused[game_susp_layer_n] = {};
     static int applied = -2;  // -2 none, -1 every car, >= 0 the player's car
-    static bool failed = false, late_logged = false;
+    static bool late_logged = false;
     static uint64_t retry_at = 0;
-    if (failed || !susp::enabled)
+    if (!susp::enabled)
         return;
     int player = player_vehicle.load();
     int want = susp::ai::enabled ? -1 : player >= 0 ? player : applied;
     if (want == applied || want == -2 || GetTickCount64() < retry_at)
         return;
+    int usable = 0;
+    for (bool r : refused)
+        usable += !r;
+    if (!usable)
+        return;
     auto t = swofty::detail::live_car_ops_v2();
     if (!t)
         return;  // the core's car layers are not ready yet (or missing): tried again next frame
-    for (uint32_t &token : tokens)
-        if (token)
-            t->unlayer(std::exchange(token, 0u));
+    auto release = [&] {
+        for (uint32_t &token : tokens)
+            if (token)
+                t->unlayer(std::exchange(token, 0u));
+    };
+    release();
     applied = want;
-    const uint32_t fields[2] = {SWOFTY_CAR_SUSP_WHEEL_DETACH_SCALE, SWOFTY_CAR_SUSP_PARTS_DETACH_SCALE};
     uint32_t index = want < 0 ? SWOFTY_CAR_ALL : uint32_t(want);
-    for (int k = 0; k < 2; ++k) {
-        int r = t->layer("addon", index, fields[k], SWOFTY_CAR_OP_SCALE, game_detach_factor, 50, &tokens[k]);
-        if (r != SWOFTY_ASSET_OK) {
-            for (uint32_t &token : tokens)
-                if (token)
-                    t->unlayer(std::exchange(token, 0u));
+    for (int k = 0; k < game_susp_layer_n; ++k) {
+        if (refused[k])
+            continue;
+        const GameSuspLayer &l = game_susp_layers[k];
+        int r = t->layer("addon", index, l.field, l.op, l.value, 50, &tokens[k]);
+        if (r == SWOFTY_ASSET_OK)
+            continue;
+        tokens[k] = 0;
+        if (r == SWOFTY_ASSET_LATE) {  // the car or the flow thread is not there yet: all of them again in 2 s
+            release();
             applied = -2;
-            if (r == SWOFTY_ASSET_LATE) {  // the car or the flow thread is not there yet: again in 2 s
-                retry_at = GetTickCount64() + 2000;
-                if (!std::exchange(late_logged, true))
-                    swofty::log("[td-probe] suspension: the game's wheel detach limits not raised yet (result 1), "
-                                "trying again");
-                return;
-            }
-            failed = true;
-            swofty::log("[td-probe] suspension: the game's wheel detach limits stay (no car layer, result %d)", r);
+            retry_at = GetTickCount64() + 2000;
+            if (!std::exchange(late_logged, true))
+                swofty::log("[td-probe] suspension: the layers on the game's suspension damage are not on yet "
+                            "(result 1), trying again");
             return;
         }
+        refused[k] = true;
+        swofty::log("[td-probe] suspension: the game's %s stays as it is (no car layer, result %d)", l.name, r);
     }
-    float w = -1, p = -1;
-    if (player >= 0 && t->get) {
-        if (t->get(uint32_t(player), nullptr, fields[0], &w) != SWOFTY_ASSET_OK)
-            w = -1;
-        if (t->get(uint32_t(player), nullptr, fields[1], &p) != SWOFTY_ASSET_OK)
-            p = -1;
+    char on[256] = "", now[256] = "";
+    size_t on_len = 0, now_len = 0;
+    for (int k = 0; k < game_susp_layer_n; ++k) {
+        const GameSuspLayer &l = game_susp_layers[k];
+        float v = -1;
+        if (player < 0 || !t->get || t->get(uint32_t(player), nullptr, l.field, &v) != SWOFTY_ASSET_OK)
+            v = -1;
+        if (now_len < sizeof now)
+            now_len += size_t(snprintf(now + now_len, sizeof now - now_len, "%s%s %g", k ? ", " : "", l.name,
+                                       double(v)));
+        if (!refused[k] && on_len < sizeof on)
+            on_len += size_t(snprintf(on + on_len, sizeof on - on_len, "%s%s %s%g", on_len ? ", " : "", l.name,
+                                      l.op == SWOFTY_CAR_OP_SCALE ? "x" : "= ", double(l.value)));
     }
-    swofty::log("[td-probe] suspension: the game's wheel detach limits x%.1f on %s (your car now: wheel detach %.2f, "
-                "parts detach %.2f; -1 until it is built): moderate hits are the suspension model's",
-                double(game_detach_factor), want < 0 ? "every car" : "your car", double(w), double(p));
+    swofty::log("[td-probe] suspension: layers on the game's own suspension damage on %s: %s (your car now: %s; -1 "
+                "until it is built): moderate hits are the model's, another addon's raised scales do not add up",
+                want < 0 ? "every car" : "your car", on[0] ? on : "none", now);
 }
 
 void on_frame(double dt, void *)
@@ -7334,7 +7390,7 @@ void on_frame(double dt, void *)
         preset_tick();
         welcome_tick(GetTickCount64());
         apply_engine_kill();
-        apply_detach_limits();
+        apply_game_suspension_layers();
     }
     if (session_ended)
         return;
@@ -7359,9 +7415,13 @@ void on_frame(double dt, void *)
             remove_owned_crew_after_flashback();
         }
     }
+    // on_frame gets real seconds on every rendered frame, also in the pause menu, where the car does not move (no
+    // fresh speed): there the wear clocks stand (the failure plans of your car and the AI's, warning signs, a gearbox
+    // decline, a power fault). In 0.75.1 they ran on through a 7-minute pause (Montreal test).
+    double drive_dt = drive_seconds(dt);
     {
         td_perf::Scope failures(td_perf::frame_failures);
-        gp_failure_tick(dt);
+        gp_failure_tick(drive_dt);
     }
     {
         td_perf::Scope test(td_perf::frame_test);
@@ -7369,7 +7429,7 @@ void on_frame(double dt, void *)
     }
     {
         td_perf::Scope power(td_perf::frame_power);
-        power_tick(dt);
+        power_tick(drive_dt);
     }
     td_perf::Scope rest(td_perf::frame_cars);  // to the end: probes, crew pushes, retire timers
     probe_crew_entry(dt);
@@ -7913,7 +7973,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.75.0, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.75.3, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

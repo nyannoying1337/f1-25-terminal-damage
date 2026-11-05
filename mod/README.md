@@ -4,6 +4,12 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
+## New in 0.75.3
+
+- *Suspension damage from hits* works together with Heavier Damage (see Suspension damage from hits).
+- The pause menu stops the failure clocks: no failure or warning sign moves on while the game is paused.
+- Less work per frame in races with realistic failures.
+
 ## 0.75 beta: what is new
 
 - **Presets:** Casual, Realistic (default) or Hardcore set the main options at once.
@@ -108,7 +114,7 @@ Turn on *Suspension damage from hits (experimental)*, then restart the game.
 - A badly damaged corner can collapse within seconds to a few minutes of driving, usually over a kerb.
 - With it on, the game tears a wheel off only in big crashes; moderate hits end in a bent or broken corner instead.
 - Shown on the damage panel and the game's damage MFD page; repaired in the practice and qualifying garage; undone by a flashback.
-- **Using Heavier Damage?** Keep this off, or set Heavier Damage's *Suspension & wheel damage* to *Stock*. Both mods damage the suspension, and the two add up.
+- **Using Heavier Damage?** They work together: while this option is on, the game's own suspension damage stays at stock on the cars it covers (your car; every car with the AI option), so Heavier Damage's *Suspension & wheel damage* does not add up with it. Heavier Damage's wing damage and its other settings stay.
 - *Suspension damage for AI cars* is a separate experimental option.
 
 ## Something not working?
@@ -133,7 +139,7 @@ Every part has its own option. Turn off only the part that gives you trouble for
 
 ## Known issues (beta)
 
-- Suspension damage is experimental: its tuning can still change, and it adds up with other damage mods.
+- Suspension damage is experimental: its tuning can still change.
 - Career is not fully tested with the limping, red flag and garage repair rules yet.
 - No safety car HUD while your car is terminally damaged: the game shows it only to cars it does not count as terminally damaged.
 - A red flag during terminal damage can still cause AI or spectator camera issues.
