@@ -148,6 +148,7 @@ void on_frame(double dt, void *)
     {
         td_perf::Scope menu(td_perf::frame_menu);
         report_pit_clearance();
+        pit_lane_watch_tick(GetTickCount64());
         if (race_restart_pending.exchange(false)) {
             reset_race_faults();
             swofty::log("[td-probe] restart: the last race's failures, faults and plans are cleared");

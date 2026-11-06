@@ -1,3 +1,11 @@
+# Terminal Damage 0.75.10 beta
+
+One small fix: the addon now recognises practice and qualifying when another addon, such as the Spectator HUD, hooks the pit lane before it. Everything from 0.75.9 is in this release.
+
+## New
+
+- **Practice and qualifying garage handling works next to the Spectator HUD.** The addon learns that you are in a practice or qualifying garage from the game's pit status function. An addon that hooks that function before this one loads (the Spectator HUD does) blocked the addon's own hook, so it could not tell a qualifying garage from a race: a damaged suspension was never repaired in the garage. The addon now hooks the function the way Swofty expects, so it works next to other addons in any load order. If it ever cannot find the pit lane, the log says so after 30 seconds.
+
 # Terminal Damage 0.75.9 beta
 
 One small fix: the failure plans of a race can no longer fire on the results screen. Everything from 0.75.8 is in this release.

@@ -75,14 +75,12 @@ SWOFTY_ON_LOAD
     hook_rules_enter();
     hook_failure_register();
     hook_failure_scheduler();
-    detour("PitLaneSystem::setVehicleStatus", sig_set_vehicle_status, set_vehicle_status_prologue,
-           sizeof set_vehicle_status_prologue, reinterpret_cast<void *>(&on_set_vehicle_status),
-           reinterpret_cast<void **>(&orig_set_vehicle_status));
+    install_pit_status_hook();
     for (const char *e : {SWOFTY_EVENT_SESSION_START, SWOFTY_EVENT_SESSION_END, SWOFTY_EVENT_RACE_START,
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.75.9, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.75.10, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

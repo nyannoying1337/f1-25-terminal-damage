@@ -18,9 +18,30 @@ constexpr uint8_t set_vehicle_status_prologue[19] = {0x41, 0x57, 0x41, 0x56, 0x4
 using set_vehicle_status_fn = uint64_t (*)(void *, uint64_t, uint64_t);
 set_vehicle_status_fn orig_set_vehicle_status;
 
+// How the hook is installed (0.75.10). Up to 0.75.9 the addon patched the function's first bytes itself, found by a
+// byte signature. Another addon that wraps Game_Pitlane_SetVehicleStatus through the core (the Spectator HUD does) has
+// patched those bytes before this addon loads: the signature then finds 0 hits, pit_lane_system stays 0 and
+// practice_like() is false for the whole run, so a practice or qualifying garage is treated like a race (a bent
+// suspension is never serviced; log of 2026-11-06 20:34, 'signature has 0 hits, not hooked'). The core's wrap (a mixin
+// on the binding of that name, proto void(void *self, uint8_t vehicle, uint32_t status)) stacks with the other
+// addons' wraps in any load order. The byte signature stays as the fallback for a core without the binding.
+using pit_status_next_fn = uint64_t (*)(void *, uint8_t, uint32_t);  // rax passes through, as the old detour did
+pit_status_next_fn pit_status_next;  // the next wrap or the game's function; the core fills it when it installs the wrap
+std::atomic<uint32_t> pit_status_calls{0};
+
+// What on_set_vehicle_status passes a change on to: the wrap's next function, in the old signature.
+uint64_t pit_status_chain(void *system, uint64_t vehicle, uint64_t status)
+{
+    return pit_status_next ? pit_status_next(system, uint8_t(vehicle), uint32_t(status)) : 0;
+}
+
 uint64_t on_set_vehicle_status(void *system, uint64_t vehicle, uint64_t status)
 {
-    pit_lane_system = reinterpret_cast<uintptr_t>(system);
+    if (!pit_lane_system.exchange(reinterpret_cast<uintptr_t>(system))) {
+        uint8_t flag = 0;
+        guarded_read(reinterpret_cast<uintptr_t>(system) + 0x300, flag);
+        swofty::log("[td-probe] pit lane system %p, practice/qualifying flag %u", system, unsigned(flag));
+    }
     uint8_t id = uint8_t(vehicle);
     uint32_t to = uint32_t(status), from = 0xffffffff;
     uintptr_t entry = 0;
@@ -49,6 +70,58 @@ uint64_t on_set_vehicle_status(void *system, uint64_t vehicle, uint64_t status)
         return 0;
     }
     return orig_set_vehicle_status(system, vehicle, status);
+}
+
+// The core's wrap of Game_Pitlane_SetVehicleStatus: every pit status change, on the game thread. A refused change
+// (on_set_vehicle_status returns without calling the next function) never reaches the game.
+uint64_t pit_status_wrap(void *system, uint8_t vehicle, uint32_t status)
+{
+    pit_status_calls.fetch_add(1, std::memory_order_relaxed);
+    return on_set_vehicle_status(system, vehicle, status);
+}
+const ::swofty::detail::mixin pit_status_mixin{"Game_Pitlane_SetVehicleStatus", SWOFTY_MIXIN_WRAP, 0,
+                                               reinterpret_cast<void *>(&pit_status_wrap),
+                                               reinterpret_cast<void **>(&pit_status_next)};
+
+// on_load. The wrap when the core has the binding (it installs the wrap before on_load), else the byte signature.
+void install_pit_status_hook()
+{
+    if (swofty::api && swofty::api->resolve && swofty::api->resolve("Game_Pitlane_SetVehicleStatus")) {
+        orig_set_vehicle_status = pit_status_chain;
+        swofty::log("[td-probe] hooked PitLaneSystem::setVehicleStatus through the core's wrap "
+                    "(Game_Pitlane_SetVehicleStatus%s)", pit_status_next ? ", installed" : ", install pending");
+        return;
+    }
+    swofty::log("[td-probe] the core has no Game_Pitlane_SetVehicleStatus binding: hooking the function by its bytes");
+    detour("PitLaneSystem::setVehicleStatus", sig_set_vehicle_status, set_vehicle_status_prologue,
+           sizeof set_vehicle_status_prologue, reinterpret_cast<void *>(&on_set_vehicle_status),
+           reinterpret_cast<void **>(&orig_set_vehicle_status));
+}
+
+// Frame thread. Without the pit lane system practice_like() is always false: a practice or qualifying garage is then
+// handled like a race (no garage service, a broken car retires and ends the session for everyone). Say so once per
+// session when nothing has called the hook 30 s after the player's car is known.
+void pit_lane_watch_tick(uint64_t now)
+{
+    static uint64_t since = 0;
+    static bool said = false;
+    if (session_ended || player_vehicle.load() < 0) {
+        since = 0;
+        said = false;  // the next session says it again
+        return;
+    }
+    if (pit_lane_system.load()) {
+        since = 0;
+        return;
+    }
+    if (!since)
+        since = now;
+    if (!said && now - since >= 30000) {
+        said = true;
+        swofty::log("[td-probe] the pit lane system is still unknown 30 s into the session (hook %s, %u call(s)): "
+                    "practice and qualifying garage handling is off until the hook fires",
+                    pit_status_next ? "installed" : "not installed", pit_status_calls.load());
+    }
 }
 
 

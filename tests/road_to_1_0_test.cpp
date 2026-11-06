@@ -4,6 +4,7 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include <cstdarg>
 #include "test_util.hpp"
 
 namespace {
@@ -37,6 +38,24 @@ int fake_setting(const char *id, uint32_t type, SwoftySettingValue *out)
     return 1;
 }
 int fake_watch(const char *, SwoftySettingFn, void *) { return 0; }
+// A log function that keeps the lines, for the tests that assert on what the addon says.
+std::vector<std::string> captured_lines;
+void capture_log(const char *fmt, ...)
+{
+    char text[512];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(text, sizeof text, fmt, args);
+    va_end(args);
+    captured_lines.emplace_back(text);
+}
+unsigned captured_count(const char *needle)
+{
+    unsigned n = 0;
+    for (const std::string &line : captured_lines)
+        n += line.find(needle) != std::string::npos;
+    return n;
+}
 }  // namespace
 
 int main()
@@ -1163,6 +1182,100 @@ int main()
         assert(sent_home == 1 && car_dead && !exit_check_at.load() && !garage_return_wanted.load());
         orig_set_vehicle_status = nullptr;
         orig_exit_garage = nullptr;
+        pit_lane_system = 0;
+        reset_session();
+    }
+
+    // ---- 0.75.10: the pit status hook is the core's wrap, so another addon's wrap cannot hide it ----
+    // A friend's log (2026-11-06 20:34): the Spectator HUD had wrapped Game_Pitlane_SetVehicleStatus before this addon
+    // loaded, the byte signature found 0 hits, pit_lane_system stayed 0 and practice_like() was false in every
+    // practice and qualifying session: a bent suspension was never serviced in the garage.
+    {
+        alignas(16) static uint8_t lane[0x310]{}, entry[16]{};
+        static unsigned forwarded, last_vehicle, last_status;
+        static void *last_system;
+        forwarded = last_vehicle = last_status = 0;
+        last_system = nullptr;
+        pit_status_next = +[](void *system, uint8_t vehicle, uint32_t status) -> uint64_t {
+            ++forwarded;
+            last_system = system;
+            last_vehicle = vehicle;
+            last_status = status;
+            return 0x77;
+        };
+        // The registration the core reads: one wrap on the binding, normal priority, our handler and our orig slot.
+        unsigned registered = 0;
+        for (auto *n = swofty::detail::mixins; n; n = n->next)
+            if (n->m.target && !strcmp(n->m.target, "Game_Pitlane_SetVehicleStatus")) {  // an on_load entry has no target
+                ++registered;
+                assert(n->m.kind == SWOFTY_MIXIN_WRAP && n->m.priority == 0);
+                assert(n->m.handler == reinterpret_cast<void *>(&pit_status_wrap));
+                assert(n->m.orig == reinterpret_cast<void **>(&pit_status_next));
+            }
+        assert(registered == 1);
+        orig_set_vehicle_status = pit_status_chain;
+        pit_lane_system = 0;
+        lane[0x300] = 1;  // practice and qualifying
+        assert(!practice_like());
+        captured_lines.clear();
+        api.log = capture_log;
+        uint32_t calls = pit_status_calls.load();
+        assert(pit_status_wrap(lane, 7, 9) == 0x77);  // the first call of the session hands the system over
+        assert(pit_lane_system.load() == reinterpret_cast<uintptr_t>(lane) && practice_like());
+        assert(pit_status_calls.load() == calls + 1);
+        assert(forwarded == 1 && last_system == lane && last_vehicle == 7 && last_status == 9);
+        assert(captured_count("pit lane system ") == 1 && captured_count("practice/qualifying flag 1") == 1);
+        pit_status_wrap(lane, 7, 9);  // only the first call says it
+        assert(captured_count("pit lane system ") == 1 && forwarded == 2);
+        forwarded = 1;
+        // The session ends: the system is forgotten and the next session's first change finds it again.
+        pit_lane_system = 0;
+        assert(!practice_like());
+        pit_status_wrap(lane, 3, 1);
+        assert(practice_like() && forwarded == 2 && last_vehicle == 3 && last_status == 1);
+        // A broken car in its practice or qualifying garage stays there: every change but OnTrack is refused, and
+        // OnTrack is let through to be undone 300 ms later.
+        human[7] = true;
+        car_dead = true;
+        put(entry, 4, uint32_t(9));
+        put(lane, 0x68 + 7 * 16, reinterpret_cast<uintptr_t>(entry));
+        assert(pit_status_wrap(lane, 7, 3) == 0);  // refused: the game is not called, the caller gets 0
+        assert(forwarded == 2);
+        exit_check_at = 0;
+        assert(pit_status_wrap(lane, 7, 1) == 0x77);
+        assert(forwarded == 3 && last_vehicle == 7 && last_status == 1 && exit_check_at.load() != 0);
+        pit_status_wrap(lane, 4, 3);  // another car is not touched
+        assert(forwarded == 4 && last_vehicle == 4 && last_status == 3);
+        // The old signature in, the next function out: no next function (the wrap is not installed) forwards nothing.
+        pit_status_next = nullptr;
+        assert(pit_status_chain(lane, 7, 9) == 0 && forwarded == 4);
+        // The watch: 30 s into a session with the player known and no pit lane system.
+        pit_lane_system = 0;
+        session_ended = false;
+        player_vehicle = 7;
+        captured_lines.clear();
+        pit_lane_watch_tick(1000);
+        pit_lane_watch_tick(1000 + 29000);
+        assert(captured_count("still unknown") == 0);
+        pit_lane_watch_tick(1000 + 31000);
+        assert(captured_count("still unknown") == 1 && captured_count("hook not installed") == 1);
+        pit_lane_watch_tick(1000 + 40000);  // once per session
+        assert(captured_count("still unknown") == 1);
+        session_ended = true;
+        pit_lane_watch_tick(1000 + 50000);  // the session is over: the watch starts again
+        session_ended = false;
+        pit_lane_watch_tick(1000 + 60000);
+        pit_lane_watch_tick(1000 + 95000);
+        assert(captured_count("still unknown") == 2);
+        pit_lane_system = reinterpret_cast<uintptr_t>(lane);  // the hook fired: nothing more to say
+        pit_lane_watch_tick(1000 + 200000);
+        assert(captured_count("still unknown") == 2);
+        api.log = tu::quiet_log;
+        human[7] = false;
+        car_dead = false;
+        exit_check_at = 0;
+        pit_status_next = nullptr;
+        orig_set_vehicle_status = nullptr;
         pit_lane_system = 0;
         reset_session();
     }

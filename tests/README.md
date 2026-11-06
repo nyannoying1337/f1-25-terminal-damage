@@ -80,7 +80,7 @@ relative to the repository root, where the runner starts every test.
 | `realistic_failures_test` | the realistic Grand Prix failures: era shares, warning signs, power faults, rear brakes, gearbox decline, AI cars, teams |
 | `replay_terminal_gate_test` | the emitted replay terminal gate stub (player only) and the lifecycle guards that clear it |
 | `reset_test` | every field `reset_car_state`, `reset_race_faults` and `reset_session` clear |
-| `road_to_1_0_test` | regressions by issue and version: garage crew, red and black flags, garage lock, restarts, limp, repairs, the failure clocks at the session end |
+| `road_to_1_0_test` | regressions by issue and version: garage crew, red and black flags, garage lock, restarts, limp, repairs, the failure clocks at the session end, the pit status wrap (0.75.10) |
 | `signature_syntax_test` | the byte signatures in the sources: hex tokens and `??`, single spaces, 8 fixed bytes at least, none twice |
 | `stopped_player_test` | the stopped-cars lookup and update hook: bounds, unreadable data, forwarding |
 | `suspension_damage_test` | `suspension_damage.hpp`: hit thresholds, failing and cracked corners, kerbs, which contacts count |
