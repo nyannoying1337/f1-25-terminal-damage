@@ -138,6 +138,13 @@ int test_failure_part()
 // window after the game's own scripted failure: disqualify (or retire) a car that neither pitted nor retired in time.
 void gp_failure_tick(double dt)
 {
+    // The game ended the session for your car (NOT_IN_SESSION, the results screen and its replay follow): the failure
+    // plans, the pit window and the gearbox decline stand. Swofty's session.end comes only when the results are left
+    // (0.75.8 Career log: NOT_IN_SESSION 07:37:38, session.end 07:45:33), and resetting a retired car at NOT_IN_SESSION
+    // puts player_broken, retire_requested and player_pit back, so the clock ran on and an AI car's planned failure was
+    // armed 37 s into the results screen. reset_session and a race restart clear the flag with the other flags.
+    if (player_controller_flags.load() & (1u << 3))
+        return;
     gearbox_decline_tick(dt);
     heavy_damage_tick();
     if (uint64_t window = game_failure_deadline.load()) {

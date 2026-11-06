@@ -418,6 +418,104 @@ int main()
         reset_session();
     }
 
+    // ---- The failure machinery stops once the game ends the session (0.75.9) ----
+    // The 0.75.8 Career log: you retired into the garage, the game ended the race for everybody (NOT_IN_SESSION) and
+    // Swofty's session.end came only when the results screen was left, 8 minutes later. Resetting the retired car at
+    // NOT_IN_SESSION put player_broken, retire_requested and player_pit back, so the failure clock ran on and an AI
+    // car's planned failure was armed 37 s into the results screen.
+    {
+        api.version = 4;
+        api.setting = fake_setting;
+        api.watch_setting = fake_watch;
+        fake_gp_failures = "realistic";
+        // The game's failure manager with objects for vehicles 0, 4 and 8 (as in realistic_failures_test).
+        alignas(16) uint8_t fmgr[0x200]{}, fobjs[3][0x100]{};
+        alignas(16) uint64_t fentries[6]{};
+        for (int i = 0; i < 3; ++i) {
+            fobjs[i][0x78] = uint8_t(i * 4);
+            fobjs[i][0xa0] = 7;
+            fentries[i * 2 + 1] = reinterpret_cast<uint64_t>(fobjs[i]);
+        }
+        uint64_t fbegin = reinterpret_cast<uint64_t>(fentries), fend = fbegin + sizeof fentries;
+        memcpy(fmgr + 0x198, &fbegin, 8);
+        memcpy(fmgr + 0x1a0, &fend, 8);
+        reset_session();
+        player_vehicle = 0;
+        player_pit = 1;
+        gp_failure_tick(0.0);  // reads the mode once: a change of it would drop the plans below
+        // One race: you are vehicle 0, AI car 4 is due after 3 s of driving, nothing is planned for you.
+        auto race = [&] {
+            reset_session();
+            note_controller_switch(0, 0, 0);  // HUMAN: vehicle 0 is yours
+            player_pit = 1;
+            failure_mgr = reinterpret_cast<uintptr_t>(fmgr);
+            gp_clock = 30;
+            gp_at = 1e18;
+            gp_fault_at = 1e18;
+            gp_ai_failure_tick();  // rolls the AI plan
+            assert(ai_failures_rolled);
+            for (double &t : ai_fail_at)
+                t = 1e18;
+            ai_fail_at[4] = gp_clock + 3;
+            player_plan_epoch = fault_plan_epoch = team_epoch.load();  // no new plan for the late team ids
+        };
+        // In a running race the clock runs and car 4 breaks after 3 s.
+        race();
+        for (int i = 0; i < 4; ++i)
+            gp_failure_tick(1.0);
+        assert(gp_clock == 34 && breakdown_request.load() == (1u << 4));
+        // You retire into the garage, the game ends the session: the clock and the plans stand, however often it ticks.
+        race();
+        player_broken = true;
+        player_pit = 9;  // in the garage
+        note_controller_switch(0, 1, 3);  // NOT_IN_SESSION; the reset of a broken car puts the clock's guards back
+        assert(!player_broken.load() && player_pit.load() == 1);
+        for (int i = 0; i < 10; ++i)
+            gp_failure_tick(1.0);
+        assert(gp_clock == 30 && breakdown_request.load() == 0);
+        // The same when the car was not broken (a finish: nothing is reset, the flag alone holds).
+        race();
+        note_controller_switch(0, 1, 3);
+        for (int i = 0; i < 10; ++i)
+            gp_failure_tick(1.0);
+        assert(gp_clock == 30 && breakdown_request.load() == 0);
+        // The pit window of the game's failure does not run out on the results screen (700 s would disqualify the car).
+        race();
+        dsq_pending = false;
+        game_failure_lap = -1;
+        game_failure_deadline = GetTickCount64() | 1;
+        telemetry_not_before = 1;
+        player_update_ms = GetTickCount64();
+        note_controller_switch(0, 1, 3);
+        gp_failure_tick(700.0);
+        assert(game_failure_deadline.load() != 0 && !dsq_pending);
+        // A race restart from the results screen has no session.end or session.start: it clears the flag itself.
+        race();
+        note_controller_switch(0, 1, 3);
+        gp_failure_tick(1.0);
+        assert(gp_clock == 30);
+        reset_for_session_restart(nullptr);
+        assert(!(player_controller_flags.load() & (1u << 3)));
+        race_restart_pending = false;
+        test_run_restarted = false;
+        gp_failure_tick(1.0);
+        assert(gp_clock == 31);
+        // The next session (session.start) does not inherit the flag either.
+        race();
+        note_controller_switch(0, 1, 3);
+        reset_session();
+        note_controller_switch(0, 0, 0);
+        player_pit = 1;
+        gp_failure_tick(1.0);
+        assert(gp_clock == 1);
+        failure_mgr = 0;
+        fake_gp_failures = nullptr;
+        api.setting = nullptr;
+        api.watch_setting = nullptr;
+        api.version = 0;
+        reset_session();
+    }
+
     // ---- The test run's gearbox decline asks the game for seconds, not the rest of the race (0.51.119) ----
     {
         reset_session();

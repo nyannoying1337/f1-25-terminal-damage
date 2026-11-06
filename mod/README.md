@@ -4,6 +4,10 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
+## New in 0.75.9
+
+- **The failure plans stop when the race is over:** nothing planned for the race can fire on the results screen any more.
+
 ## New in 0.75.8
 
 - **AI wrecks the game forgets are cleared:** an AI car with terminal damage that is still on the track after two minutes (30 seconds in the pit lane) is put in its garage, never during a safety car or red flag.

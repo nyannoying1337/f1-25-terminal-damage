@@ -1,3 +1,30 @@
+# Terminal Damage 0.75.9 beta
+
+One small fix: the failure plans of a race can no longer fire on the results screen. Everything from 0.75.8 is in this release.
+
+## Read this first
+
+- **Updating from 0.75.8:** nothing to set up. Your options stay as they are. If you are new, the setup is in the description (Quick start and Game settings): in the game's own settings put *Car Damage* and *Car Damage Rate* on **Simulation**, and keep *Mechanical failures in Grand Prix* on **Realistic**.
+
+## New
+
+- **The failure plans stop when the race is over.** In a Career race the game ends the session for everybody at once, for example when you retire, but the addon only hears that the session has ended when you leave the results screen, sometimes minutes later. Until then its failure clock ran on: in one of my logs a failure planned for an AI car was armed 37 seconds into the results screen (nothing visible happened). Now the failure plans, the pit window after a failure and the gearbox decline stand still as soon as the game ends the session, and they run again when you restart the race or start the next session.
+
+## Something not working?
+
+Every part has its own option. Turn off only the part that gives you trouble for now (for example *Mechanical failures in Grand Prix*, *Damage status panel*, *Engineer radio* or *Suspension damage from hits*), keep the rest, and send me your log: loader.log in the newest folder of %LOCALAPPDATA%\Swofty\sessions. Post it on OverTake or open an issue on GitHub, and say what happened and roughly when.
+
+## Known issues
+
+- Realistic failures in Career are new: one gearbox failure from the real rates has been seen in a Career race so far, and it played out as designed. An AI car that fails in Career stays where it stopped for up to two minutes before the game takes it to its garage.
+- AI cars with terminal damage stand where they stopped until the game takes them to their garage: about 15 seconds after a crash, up to two minutes after a failure the addon planned. If the game never does (it happened after flashbacks), the addon puts the car in its garage after two minutes on track or 30 seconds in the pit lane, never during a safety car or red flag.
+- The Career R&D effect is small (about 1 % per Durability upgrade) and its cap of half with every upgrade done is a first guess: I will tune it once I have seen how fast the AI teams research.
+- Suspension damage is experimental: its tuning can still change.
+- Career: the "PART FITTED" message named in the 0.75.0 notes may not show when you fit the new part.
+- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- No safety car HUD while your car is terminally damaged.
+- Qualifying ICE replacement, Skip repairs and practice replacement timing: **not tested, might be broken**.
+
 # Terminal Damage 0.75.8 beta
 
 AI wrecks that the game forgets are cleared, and a few small fixes. Everything from 0.75.6 is in this release (0.75.7 was never released).
