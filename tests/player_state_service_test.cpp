@@ -4,12 +4,12 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 unsigned notifications=0;
 TdPlayerState last{};
 uint64_t self_token=0;
-void discard_log(const char *, ...) {}
 uint64_t controller(void *,uint64_t,uint32_t,int32_t) {return 44;}
 void changed(const TdPlayerState *state,void *user) {
     assert(user==&notifications);
@@ -23,7 +23,7 @@ void tick() {publish_player_state();td_state::service.dispatch();}
 }
 int main()
 {
-    SwoftyApi sdk{};sdk.log=discard_log;swofty::api=&sdk;
+    SwoftyApi sdk{};sdk.log=tu::quiet_log;swofty::api=&sdk;
     orig_set_controller=controller;
     auto api=TerminalDamageGetApi(1);
     assert(api && api->size==sizeof(TdApi));

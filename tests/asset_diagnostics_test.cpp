@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <string>
 #include <vector>
+#include "test_util.hpp"
 
 namespace {
 std::vector<std::string> lines;

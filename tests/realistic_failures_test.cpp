@@ -5,6 +5,7 @@
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <bit>
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 uint8_t (*brake_wheels)[0x200] = nullptr;
@@ -14,14 +15,13 @@ void set_torque_raw(int w, float v)
     uint32_t e = std::bit_cast<uint32_t>(v) ^ brake_keys[w];
     memcpy(brake_wheels[w] + 0xf8, &e, 4);
 }
-void log_sink(const char *, ...) {}
-bool close_to(double a, double b, double eps) { return std::fabs(a - b) <= eps; }
+using tu::close_to;
 }  // namespace
 
 int main()
 {
     SwoftyApi api{};
-    api.log = log_sink;
+    api.log = tu::quiet_log;
     swofty::api = &api;
 
     // ---- Model: every era's shares add up, the V8 era has no turbo or MGU-H ----
@@ -106,8 +106,12 @@ int main()
     player_pit = 2;
     power_tick(0.016);
     assert(warning_cap.load() == 1.0f);
-    // A reset clears it all.
+    // A reset clears it all. power_tick recomputes warning_cap and shown_power_loss from power_warn, so they start at
+    // a value power_tick would not write and are checked right after the reset.
+    warning_cap = 0.5f;
+    shown_power_loss = 0.25f;
     reset_session();
+    assert(warning_cap.load() == 1.0f && shown_power_loss.load() == 0.0f);
     power_tick(0.016);
     assert(gp_warn.outcome == -1 && warning_cap.load() == 1.0f && gp_at == -1 && power_warn.kind == pl::none &&
            brake_fade.load() == 0.0f && shown_power_loss.load() == 0.0f);
@@ -147,7 +151,9 @@ int main()
             start_power_fault(fm::f_mguk_loss, 0, false);
             overheated += power_fault_brake_at >= 600 && power_fault_brake_at <= 1200;
         }
-        assert(overheated > 70 && overheated < 130);
+        // The dice are seeded from the tick count and the process id, so every run differs: 300 draws at one third
+        // (mean 100, sigma 8.2), the bounds are +-5.5 sigma (70..130 failed about once in 3400 runs).
+        assert(overheated > 55 && overheated < 145);
         while (power_fault_brake_at < 0)
             start_power_fault(fm::f_mguk_loss, 0, false);
         power_fault.t = power_fault_brake_at - 0.5;

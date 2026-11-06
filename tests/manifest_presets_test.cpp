@@ -6,13 +6,16 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <swofty/json.hpp>
+#include <algorithm>
 #include <cassert>
+#include <filesystem>
 #include <fstream>
 #include <set>
 #include <sstream>
+#include <vector>
+#include "test_util.hpp"
 
 namespace {
-void log_sink(const char *, ...) {}
 std::string slurp(const char *path)
 {
     std::ifstream f(path, std::ios::binary);
@@ -20,12 +23,26 @@ std::string slurp(const char *path)
     ss << f.rdbuf();
     return ss.str();
 }
+// The probe's source text: the umbrella and every fragment in src/probe/ (the settings are declared in the umbrella,
+// the loaded-version log line is in a fragment).
+std::string slurp_probe()
+{
+    std::string text = slurp("mod/native/src/terminal_damage_probe.cpp");
+    std::vector<std::filesystem::path> fragments;
+    for (const auto &e : std::filesystem::directory_iterator("mod/native/src/probe"))
+        if (e.path().extension() == ".inc")
+            fragments.push_back(e.path());
+    std::sort(fragments.begin(), fragments.end());
+    for (const auto &f : fragments)
+        text += "\n" + slurp(f.string().c_str());
+    return text;
+}
 }  // namespace
 
 int main()
 {
     SwoftyApi api{};
-    api.log = log_sink;
+    api.log = tu::quiet_log;
     swofty::api = &api;
     namespace json = swofty::json;
 
@@ -133,12 +150,55 @@ int main()
 
     // The version the DLL logs is the manifest's.
     {
-        std::string src = slurp("mod/native/src/terminal_damage_probe.cpp");
+        std::string src = slurp_probe();
         std::string want = "loaded version=" + std::string(m["version"].as_string()) + ",";
         if (src.find(want) == std::string::npos)
             fprintf(stderr, "the probe does not log %s\n", want.c_str());
         assert(src.find(want) != std::string::npos);
     }
+
+    // Every SWOFTY_SETTING of the probe is a manifest option of the same kind with the same default (the launcher logs
+    // "is not a toggle option of this addon" otherwise), and every manifest option has one, except the database-bound
+    // retire_radio_voice, which the radio file operation reads.
+    {
+        std::string src = slurp_probe();
+        std::set<std::string> declared;
+        const std::string key = "\nSWOFTY_SETTING(";
+        for (size_t at = src.find(key); at != std::string::npos; at = src.find(key, at + 1)) {
+            size_t open = at + key.size(), close = src.find(");", open);
+            assert(close != std::string::npos);
+            std::string args = src.substr(open, close - open);  // "bool, keep_control, true"
+            size_t c1 = args.find(", "), c2 = args.find(", ", c1 + 2);
+            assert(c1 != std::string::npos && c2 != std::string::npos);
+            std::string type = args.substr(0, c1), id = args.substr(c1 + 2, c2 - c1 - 2), def = args.substr(c2 + 2);
+            const json::Value *opt = nullptr;
+            for (const json::Value &o : *opts)
+                if (o["id"].as_string() == id)
+                    opt = &o;
+            if (!opt)
+                fprintf(stderr, "SWOFTY_SETTING %s is not in the manifest\n", id.c_str());
+            assert(opt);
+            bool toggle = type == "bool";
+            std::string want = toggle ? ((*opt)["default"].as_bool() ? "true" : "false")
+                                      : "\"" + std::string((*opt)["default"].as_string()) + "\"";
+            bool same = (*opt)["type"].as_string() == (toggle ? "toggle" : "choice") && def == want;
+            if (!same)
+                fprintf(stderr, "SWOFTY_SETTING %s: code %s %s, manifest %s %s\n", id.c_str(), type.c_str(), def.c_str(),
+                        std::string((*opt)["type"].as_string()).c_str(), want.c_str());
+            assert(same);
+            bool fresh = declared.insert(id).second;
+            assert(fresh);
+        }
+        for (const json::Value &o : *opts)
+            if (!declared.count(std::string(o["id"].as_string()))) {
+                if (o["binds"].as_string() != "db")
+                    fprintf(stderr, "manifest option %s has no SWOFTY_SETTING\n", std::string(o["id"].as_string()).c_str());
+                assert(o["binds"].as_string() == "db");
+            }
+    }
+
+    // The addon id the presets pass to the settings command is the manifest's.
+    assert(std::string_view(addon_id) == m["id"].as_string());
 
     // Presets: names, entries, and how many options differ.
     assert(presets::index_of("casual") == 0 && presets::index_of("realistic") == 1 && presets::index_of("hardcore") == 2);

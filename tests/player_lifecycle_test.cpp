@@ -4,9 +4,9 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void discard_log(const char *, ...) {}
 unsigned updates;
 float *observed_failure;
 bool expect_failed;
@@ -17,17 +17,13 @@ uint64_t update(void *, uint8_t vehicle)
         assert((*observed_failure >= 1.0f) == expect_failed);
     return 42;
 }
-template <class T> void put(std::vector<uint8_t> &data, size_t offset, T value)
-{
-    assert(offset + sizeof value <= data.size());
-    memcpy(data.data() + offset, &value, sizeof value);
-}
+using tu::put;
 }
 
 int main()
 {
     SwoftyApi api{};
-    api.log = discard_log;
+    api.log = tu::quiet_log;
     swofty::api = &api;
     orig_update_vehicle = update;
     std::vector<uint8_t> system(0xd00), record(0x70), car(0x600), engine(0x2600);
@@ -102,10 +98,13 @@ int main()
     on_frame(10, nullptr);
     assert(!pending_failure && !garage_return_wanted);
     assert(on_update_vehicle(system.data(), 3) == 42 && *observed_failure == 0);
+    // A packet cached before the session start must not count as fresh after it: the start stamps
+    // telemetry_not_before. An old stamp first, so that only the start's own stamp can make the packet stale.
+    telemetry_not_before = 1;
+    udp_last_ms = GetTickCount64();
     ev.name = SWOFTY_EVENT_SESSION_START;
     on_event(&ev, nullptr);
     assert(!session_ended && player_vehicle == -1);
-    udp_last_ms = telemetry_not_before.load();
     assert(player_speed() == -1); // A cached packet from before reset is not fresh.
     player_vehicle = 3;
     trigger_failure();

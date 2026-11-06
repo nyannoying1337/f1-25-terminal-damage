@@ -301,4 +301,7 @@ inline std::string rnd_history_text(const std::vector<RndEntry> &h)
     return out;
 }
 
+// team_table() indexes the tables by season: one table for each season of the model.
+static_assert(sizeof tr::tables / sizeof tr::tables[0] == size_t(n_seasons), "one team rate table for each season");
+
 }  // namespace fm

@@ -3,9 +3,9 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 namespace {
 bool option=true; unsigned setters=0;
-void log_sink(const char *, ...) {}
 int watch(const char *,SwoftySettingFn,void *){return 0;}
 int setting(const char *name,uint32_t type,SwoftySettingValue *out){
  out->type=type;
@@ -18,7 +18,7 @@ bool shown(uint8_t *p){unsigned flags;memcpy(&flags,p+0x40,4);return flags&0x20;
 void put(void *p,uintptr_t v){memcpy(p,&v,8);}
 }
 int main(){
- SwoftyApi api{};api.version=4;api.log=log_sink;api.setting=setting;api.watch_setting=watch;swofty::api=&api;
+ SwoftyApi api{};api.version=4;api.log=tu::quiet_log;api.setting=setting;api.watch_setting=watch;swofty::api=&api;
  uint8_t instance[0x460]{},proxy[0xb0]{},data[0x110]{},actors[4][0x250]{};
  uintptr_t vt[0x24]{},other_vt[0x24]{},list[4]{};
  model_local_entry=reinterpret_cast<uintptr_t>(&visible);orig_model_local=visible;

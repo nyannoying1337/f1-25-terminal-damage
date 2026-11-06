@@ -4,10 +4,10 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void discard_log(const char *, ...) {}
-template<class T> void put(uint8_t *p, size_t at, T value) { memcpy(p + at, &value, sizeof value); }
+using tu::put;
 void packet(uint32_t frame, uint32_t overall, bool flashback = false, uint32_t target = 0, uint64_t uid = 123)
 {
     uint8_t bytes[1448]{};
@@ -19,7 +19,7 @@ void packet(uint32_t frame, uint32_t overall, bool flashback = false, uint32_t t
 }
 }
 int main() {
-    SwoftyApi api{}; api.log=discard_log; swofty::api=&api;
+    SwoftyApi api{}; api.log=tu::quiet_log; swofty::api=&api;
     std::vector<uint8_t> car(0x600), engine(0x2600), gearbox(0x700);
     put(car.data(),0x530,reinterpret_cast<uintptr_t>(engine.data()));
     put(car.data(),0x538,reinterpret_cast<uintptr_t>(gearbox.data()));

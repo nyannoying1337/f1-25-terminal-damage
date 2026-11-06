@@ -4,6 +4,7 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 unsigned calls;
@@ -12,7 +13,6 @@ bool enabled = true;
 bool keep_enabled = true;
 void *expected_module;
 uint32_t expected_command;
-void discard_log(const char *, ...) {}
 int read_setting(const char *id, uint32_t type, SwoftySettingValue *out)
 {
     if ((strcmp(id, "radio_command_probe") && strcmp(id, "keep_control")) || type != SWOFTY_SETTING_TOGGLE)
@@ -49,7 +49,7 @@ int main()
 {
     SwoftyApi api{};
     api.version = 4;
-    api.log = discard_log;
+    api.log = tu::quiet_log;
     api.setting = read_setting;
     api.watch_setting = watch_setting;
     swofty::api = &api;

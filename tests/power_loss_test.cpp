@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstdio>
 #include <random>
+#include "test_util.hpp"
 
 namespace {
 std::mt19937_64 rng{12345};

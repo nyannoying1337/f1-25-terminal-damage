@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstring>
 #include <cstdio>
+#include "test_util.hpp"
 
 namespace {
 

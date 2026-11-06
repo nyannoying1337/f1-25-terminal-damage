@@ -3,17 +3,17 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 namespace {
-void log_sink(const char*,...){}
 unsigned destroyed,freed,restarted,hud_updates;
 uint32_t hud_masks[2]{};
 uintptr_t expected,expected_allocator;
 void destroy(void *p){assert(reinterpret_cast<uintptr_t>(p)==expected);++destroyed;}
 void release(uintptr_t a,uintptr_t p){assert(a==expected_allocator && p==expected);++freed;}
-template<class T> void put(uint8_t *p,size_t at,T value){memcpy(p+at,&value,sizeof value);}
+using tu::put;
 }
 int main(){
- SwoftyApi api{};api.log=log_sink;swofty::api=&api;
+ SwoftyApi api{};api.log=tu::quiet_log;swofty::api=&api;
  uint8_t module[0x180]{},allocator[8]{},vt[0x40]{},crew[8]{},replacement[8]{};
  put(module,0x18,reinterpret_cast<uintptr_t>(allocator));put(allocator,0,reinterpret_cast<uintptr_t>(vt));
  put(vt,0x38,reinterpret_cast<uintptr_t>(&release));

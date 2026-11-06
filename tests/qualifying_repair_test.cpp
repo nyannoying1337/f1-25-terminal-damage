@@ -5,6 +5,7 @@
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
 #include <limits>
+#include "test_util.hpp"
 
 namespace {
 unsigned calls;
@@ -13,7 +14,6 @@ float stock_seconds = 480;
 uint32_t current_session = 5;
 struct Job { uint32_t kind; float seconds; } jobs[4];
 std::vector<uint8_t> record(0x58);
-void discard_log(const char *, ...) {}
 int watch(const char *, SwoftySettingFn, void *) { return 0; }
 int setting(const char *id, uint32_t type, SwoftySettingValue *out)
 {
@@ -64,7 +64,7 @@ int main()
 {
     SwoftyApi api{};
     api.version = 4;
-    api.log = discard_log;
+    api.log = tu::quiet_log;
     api.setting = setting;
     api.watch_setting = watch;
     swofty::api = &api;

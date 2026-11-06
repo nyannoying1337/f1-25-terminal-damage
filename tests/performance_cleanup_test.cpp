@@ -5,6 +5,7 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 unsigned settings_calls, choice_reads, logs, updates, crew_updates;

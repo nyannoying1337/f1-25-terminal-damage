@@ -4,10 +4,10 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 static unsigned scans;
 static int no_scan(const char *,const char *,uintptr_t *) {++scans;return 0;}
-static void discard(const char *,...) {}
 
 // Execute the exact emitted mid-function stub with the game's live RSI/RBX
 // convention. Tiny return targets identify its selected continuation.
@@ -23,7 +23,7 @@ static int run(void *stub,void *part,void *car,unsigned lhs=2,unsigned rhs=1)
 
 int main()
 {
-    SwoftyApi api{};api.log=discard;api.scan=no_scan;swofty::api=&api;
+    SwoftyApi api{};api.log=tu::quiet_log;api.scan=no_scan;swofty::api=&api;
     configure_player_wheels("stock");
     assert(!wheel_tether_test && !tether_plane_experiment && !tether_distance_experiment && !tether_collision_experiment);
     configure_player_wheels("reduced");

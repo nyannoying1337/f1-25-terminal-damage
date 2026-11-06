@@ -3,13 +3,13 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 uint8_t system_data[0x48]{}, collection[0x98]{}, cars[24][0x40]{};
 uintptr_t entries[24];
 unsigned reads, forwarded;
 void original(void *) { ++forwarded; assert(cars[23][0x31] == 0x28); }
-void log_sink(const char *, ...) {}
 int setting(const char *, uint32_t type, SwoftySettingValue *out)
 { out->type = type; out->toggle = 1; return 1; }
 bool read_bytes(uintptr_t at, void *out, size_t bytes)
@@ -49,7 +49,7 @@ int main()
     bounds(first, first + 0x800); assert(!find_stopped_player(base, 23, flags, hint, read_bytes));
     bounds(first, first); assert(!find_stopped_player(base, 23, flags, hint, read_bytes));
     bounds(first, first + sizeof entries);
-    SwoftyApi api{}; api.version = 4; api.log = log_sink; api.setting = setting; swofty::api = &api;
+    SwoftyApi api{}; api.version = 4; api.log = tu::quiet_log; api.setting = setting; swofty::api = &api;
     player_vehicle = 23; player_broken = true; orig_stopped_cars_update = original;
     on_stopped_cars_update(system_data);
     assert(forwarded == 1 && cars[23][0x31] == 0x20);

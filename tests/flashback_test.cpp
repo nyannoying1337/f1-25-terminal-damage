@@ -3,10 +3,10 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void discard_log(const char *, ...) {}
-template<class T> void put(uint8_t *p, size_t at, T value) { memcpy(p + at, &value, sizeof value); }
+using tu::put;
 void packet(uint32_t frame, uint32_t overall, bool flashback = false, uint32_t target = 0, uint64_t uid = 123)
 {
     uint8_t bytes[1448]{};
@@ -19,7 +19,7 @@ void packet(uint32_t frame, uint32_t overall, bool flashback = false, uint32_t t
 }
 int main()
 {
-    SwoftyApi api{}; api.log = discard_log; swofty::api = &api;
+    SwoftyApi api{}; api.log = tu::quiet_log; swofty::api = &api;
     std::vector<uint8_t> car(0x600), engine(0x2600), gearbox(0x700);
     put(car.data(), 0x530, reinterpret_cast<uintptr_t>(engine.data()));
     put(car.data(), 0x538, reinterpret_cast<uintptr_t>(gearbox.data()));
@@ -90,5 +90,27 @@ int main()
     packet(180, 580, true, 50); packet(50, 581);
     assert(!flashback_tracker.ready(GetTickCount64() + 6000));
     reset_session(); assert(!flashback_tracker.ready(GetTickCount64()));
+    // The UDP thread stamps a packet with its own clock read, so a caller that read `now` a few ms earlier sees a stamp
+    // NEWER than itself. That is age 0: the lock mark and the damage record must not be dropped (the unsigned
+    // difference used to wrap to 2^64).
+    {
+        FlashbackTracker t;
+        uint8_t bytes[1448]{};
+        put(bytes, 0, uint16_t(2026)); bytes[6] = 6; bytes[27] = 2;
+        put(bytes, 7, uint64_t(123)); put(bytes, 19, uint32_t(100)); put(bytes, 23, uint32_t(100));
+        t.packet(bytes, sizeof bytes, 1000);  // stamp = 1000
+        t.record_damage(0x18, 995);           // read the clock at 995: still fresh
+        assert(t.damage_count == 1 && t.lock_known);
+        FlashbackTracker u;
+        u.packet(bytes, sizeof bytes, 1000);
+        u.mark(995);
+        assert(u.lock_known && u.lock_frame == 100);
+        FlashbackTracker old;                 // really stale (600 ms) stays rejected
+        old.packet(bytes, sizeof bytes, 1000);
+        old.mark(1600);
+        assert(!old.lock_known);
+        old.record_damage(0x18, 1600);
+        assert(old.damage_count == 0);
+    }
     puts("PASS: flashback pre-damage resume, live repair gate, crash mask, after-damage retention and cleanup");
 }

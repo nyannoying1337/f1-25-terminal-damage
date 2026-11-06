@@ -4,9 +4,9 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void log_sink(const char *, ...) {}
 struct call {
     uint64_t vehicle;
     uint32_t ai;
@@ -33,7 +33,7 @@ uint64_t fake_set_controller(void *, uint64_t vehicle, uint32_t ai, int32_t reas
 int main()
 {
     SwoftyApi api{};
-    api.log = log_sink;
+    api.log = tu::quiet_log;
     swofty::api = &api;
     orig_set_controller = fake_set_controller;
 

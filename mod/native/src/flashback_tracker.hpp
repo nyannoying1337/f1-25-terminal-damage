@@ -10,6 +10,9 @@ struct FlashbackTracker {
         ~Guard() { ReleaseSRWLockExclusive(p); }
     };
     uint64_t session = 0, stamp = 0, deadline = 0;
+    // Milliseconds since the last telemetry packet. The UDP thread stores `stamp` from its own clock read, so a caller that
+    // read `now` a moment earlier sees a stamp newer than itself: that is age 0, not a 2^64 wrap that drops the record.
+    static uint64_t age(uint64_t now, uint64_t stamp) { return now >= stamp ? now - stamp : 0; }
     uint32_t frame = 0, lock_frame = 0, target = 0, event_frame = 0, event_overall = 0;
     bool lock_known = false, pending = false, resumed = false, before_lock = false;
 
@@ -20,7 +23,7 @@ struct FlashbackTracker {
     struct Rewind { uint32_t mask{}, target{}, overall{}; };
     void record_damage(uint32_t mask, uint64_t now) {
         Guard guard(mutex);
-        if (!session || !stamp || now - stamp > 500) return;
+        if (!session || !stamp || age(now, stamp) > 500) return;
         uint32_t previous = damage_count ? damage[damage_count-1].mask : 0;
         if ((previous | mask) == previous) return;
         if (damage_count == 128) { damage_overflow = true; return; }
@@ -56,7 +59,7 @@ struct FlashbackTracker {
     }
     void mark(uint64_t now) {
         Guard guard(mutex);
-        if (!lock_known && session && stamp && now - stamp <= 500) {
+        if (!lock_known && session && stamp && age(now, stamp) <= 500) {
             lock_frame = frame;
             lock_known = true;
         }

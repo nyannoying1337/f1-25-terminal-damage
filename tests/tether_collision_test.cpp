@@ -4,11 +4,11 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 uintptr_t body_wrapper,connection_wrapper;
 unsigned calls;
-void discard(const char *,...) {}
 void create(void *self,uint8_t)
 {
     ++calls;
@@ -16,15 +16,15 @@ void create(void *self,uint8_t)
     int32_t node;memcpy(&node,part+0xe0,4);assert(node==12);
     memcpy(part+0x40,&body_wrapper,8);memcpy(part+0x100,&connection_wrapper,8);part[0x10c]=1;
 }
-template<class T,size_t N> void put(uint8_t (&v)[N],size_t offset,T value){memcpy(v+offset,&value,sizeof value);}
+using tu::put;
+using tu::addr;
 }
 int main()
 {
-    SwoftyApi api{};api.log=discard;swofty::api=&api;
+    SwoftyApi api{};api.log=tu::quiet_log;swofty::api=&api;
     assert(!bool(tether_collision_experiment));
     alignas(16) uint8_t car[0x600]{},physics[0x350]{},bw[0x30]{},cw[0x30]{},jw[0x30]{},
         joint[0x3c0]{},wheel[0x500]{},chassis[0x500]{},part[0x120]{};
-    auto addr=[](auto &v){return reinterpret_cast<uintptr_t>(v);};
     wheel_joint_vtable=0x1234;wheel_part_vtable=0x5678;
     put(car,0x558,addr(physics));put(physics,0x340,addr(cw));
     put(bw,0x18,addr(wheel));put(cw,0x18,addr(chassis));

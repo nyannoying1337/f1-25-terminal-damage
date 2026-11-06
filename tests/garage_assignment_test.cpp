@@ -7,6 +7,7 @@
 #include <cstdio>
 #include "../mod/native/src/guarded_copy.hpp"
 #include "../mod/native/src/garage_assignment.hpp"
+#include "test_util.hpp"
 void ptr(void *p,uintptr_t v){memcpy(p,&v,8);}
 int main(){
  uint8_t module[0x60]{},roster[0x1e8]{},records[4][0x98]{},info[4][0x30]{};

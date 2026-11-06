@@ -4,9 +4,9 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void log_sink(const char *, ...) {}
 unsigned destroyed, freed, hud_updates;
 uint32_t hud_masks[2]{};
 uintptr_t expected, expected_allocator;
@@ -20,7 +20,7 @@ void release(uintptr_t a, uintptr_t p)
     assert(a == expected_allocator && p == expected);
     ++freed;
 }
-template <class T> void put(uint8_t *p, size_t at, T value) { memcpy(p + at, &value, sizeof value); }
+using tu::put;
 // gp_failures for the mode change test and debug_limp_roll for the limp test (nullptr: the code default); every
 // other setting keeps its default.
 const char *fake_gp_failures = nullptr;
@@ -42,7 +42,7 @@ int fake_watch(const char *, SwoftySettingFn, void *) { return 0; }
 int main()
 {
     SwoftyApi api{};
-    api.log = log_sink;
+    api.log = tu::quiet_log;
     swofty::api = &api;
 
     // ---- Issue #8: a flashback removes the race garage crew the addon spawned ----
@@ -125,6 +125,7 @@ int main()
     assert(garage_exit_locked());
     part_lock = false;
     assert(!garage_exit_locked());
+    part_lock = true;  // not the default, so the reset has something to clear
     reset_car_state();
     assert(!garage_failed_types && !part_lock);
 
@@ -527,6 +528,7 @@ int main()
     game_speed = 60;
     race_stop_tick(11);
     assert(race_stop_left.load() == 0 && retire_in.load() == 0.0);
+    race_stop_left = 5;  // not the default, so the reset has something to clear
     reset_car_state();
     assert(race_stop_left.load() == 0);
 

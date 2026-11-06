@@ -3,9 +3,9 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void log_sink(const char *, ...) {}
 std::mt19937_64 rng{777};
 float u() { return float(rng() >> 40) / float(1u << 24); }
 susp::Rolls rolls() { return {u(), u(), u(), u(), u(), u()}; }
@@ -14,7 +14,7 @@ susp::Rolls rolls() { return {u(), u(), u(), u(), u(), u()}; }
 int main()
 {
     SwoftyApi api{};
-    api.log = log_sink;
+    api.log = tu::quiet_log;
     swofty::api = &api;
     using namespace susp;
 

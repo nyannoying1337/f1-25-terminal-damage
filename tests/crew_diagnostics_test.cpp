@@ -4,11 +4,11 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 unsigned predicate_calls, original_calls;
 void *expected_state, *expected_logic;
-void discard_log(const char *, ...) {}
 bool predicate_with_context(uintptr_t, uintptr_t)
 {
     ++predicate_calls;
@@ -20,17 +20,13 @@ uint64_t original(void *state, void *logic)
     ++original_calls;
     return 0x12345678;
 }
-template <class T> void put(std::vector<uint8_t> &bytes, size_t at, T value)
-{
-    assert(at + sizeof value <= bytes.size());
-    memcpy(bytes.data() + at, &value, sizeof value);
-}
+using tu::put;
 }
 
 int main()
 {
     SwoftyApi api{};
-    api.log = discard_log;
+    api.log = tu::quiet_log;
     swofty::api = &api;
     crew_diagnostics_active = true;
     reset_session();

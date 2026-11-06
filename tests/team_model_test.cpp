@@ -8,9 +8,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include "test_util.hpp"
 
 namespace {
-bool near(double a, double b, double eps) { return std::fabs(a - b) <= eps; }
+using tu::close_to;
 
 struct Total {
     int year;
@@ -39,9 +40,9 @@ int main()
             starts += table.rows[i].starts;
             mech += table.rows[i].mech;
         }
-        assert(near(starts, t.starts, 1e-9) && near(mech, t.mech, 1e-9));
+        assert(close_to(starts, t.starts, 1e-9) && close_to(mech, t.mech, 1e-9));
         if (t.year < 2023 || t.year == 2026)  // 2023-25 are one pooled table, the seasons' own rates differ
-            assert(near(mech / starts, s.race_chance, 0.0006));
+            assert(close_to(mech / starts, s.race_chance, 0.0006));
         assert(table.prior >= 10.0 && table.prior <= 400.0);
 
         // The weights average to 1 over the real grid (weighted by starts): the season's overall rate is kept.
@@ -51,7 +52,7 @@ int main()
             assert(w > 0);
             weighted += table.rows[i].starts * w;
         }
-        assert(near(weighted / starts, 1.0, 1e-9));
+        assert(close_to(weighted / starts, 1.0, 1e-9));
 
         // The real grid, two cars a team: the factors average to 1, so a race has the season's expected failures.
         std::vector<std::string> ids;
@@ -65,11 +66,11 @@ int main()
         double sum = 0;
         for (double x : f)
             sum += x;
-        assert(near(sum, double(ids.size()), 1e-9));
+        assert(close_to(sum, double(ids.size()), 1e-9));
         double expected = 0;
         for (double x : f)
             expected += std::fmin(0.95, s.race_chance * x);
-        assert(near(expected, s.race_chance * double(ids.size()), 1e-9));
+        assert(close_to(expected, s.race_chance * double(ids.size()), 1e-9));
     }
 
     // ---- 2026: the spread between the teams ----
@@ -105,7 +106,7 @@ int main()
         double sum = 0;
         for (double x : b)
             sum += x;
-        assert(near(sum, double(b.size()), 1e-9));
+        assert(close_to(sum, double(b.size()), 1e-9));
         assert(b[0] > a[0]);  // Mercedes
         // An unknown team counts as an average car before the scaling, and is told apart from the known ones.
         odd = stock;
@@ -116,12 +117,12 @@ int main()
         sum = 0;
         for (double x : c)
             sum += x;
-        assert(near(sum, double(c.size()), 1e-9));
+        assert(close_to(sum, double(c.size()), 1e-9));
         assert(c.back() > b[0]);  // unknown (1.0) beats the 2026 Mercedes (a good team)
         // No cars, no factors; nothing known gives 1 for everybody.
         assert(fm::grid_factors(s, {}).empty());
         for (double x : fm::grid_factors(s, {"x", "y", "z"}))
-            assert(near(x, 1.0, 1e-12));
+            assert(close_to(x, 1.0, 1e-12));
     }
 
     // ---- Seasons where the teams hardly differ are nearly flat; a bad year has real differences ----
@@ -200,11 +201,11 @@ int main()
         double sum = 0;
         for (double x : f)
             sum += x;
-        assert(near(sum, 22.0, 1e-9));
+        assert(close_to(sum, 22.0, 1e-9));
         assert(f[20] > 1.9 && f[20] < 2.4);               // Cadillac
         assert(f[12] > f[20] && f[12] > 2.5);             // Aston Martin is the worst
         assert(f[0] < 0.7 && f[4] < f[0] && f[2] < 0.75);  // McLaren, Red Bull and Mercedes are the best
-        assert(near(f[0], f[1], 1e-12) && near(f[20], f[21], 1e-12));
+        assert(close_to(f[0], f[1], 1e-12) && close_to(f[20], f[21], 1e-12));
         // The same grid by registry-style ids gives the same factors.
         const char *names[11] = {"game/mclaren", "game/mercedes", "game/redbull", "game/ferrari", "game/williams",
                                  "game/tororosso", "game/forceindia", "game/haas", "game/sauber", "game/renault", "game/cadillac"};
@@ -215,20 +216,20 @@ int main()
         }
         std::vector<double> g = fm::grid_factors(s26, by_name);
         for (int i = 0; i < 22; ++i)
-            assert(near(f[i], g[i], 1e-9));
+            assert(close_to(f[i], g[i], 1e-9));
     }
 
     // ---- R&D durability: a team's finished upgrades beyond the start state take up to half of its rate off ----
     {
-        assert(near(fm::rnd_factor(0.0), 1.0, 1e-12) && near(fm::rnd_factor(1.0), 0.5, 1e-12) &&
-               near(fm::rnd_factor(0.25), 0.875, 1e-12));
-        assert(near(fm::rnd_factor(-1.0), 1.0, 1e-12) && near(fm::rnd_factor(9.0), 0.5, 1e-12));  // clamped
+        assert(close_to(fm::rnd_factor(0.0), 1.0, 1e-12) && close_to(fm::rnd_factor(1.0), 0.5, 1e-12) &&
+               close_to(fm::rnd_factor(0.25), 0.875, 1e-12));
+        assert(close_to(fm::rnd_factor(-1.0), 1.0, 1e-12) && close_to(fm::rnd_factor(9.0), 0.5, 1e-12));  // clamped
         // Progress beyond the start state (5 of the 52 Durability upgrades are done in every new Career): 1 % a node.
-        assert(near(fm::rnd_progress(5, 52), 0.0, 1e-12) && near(fm::rnd_progress(52, 52), 1.0, 1e-12) &&
-               near(fm::rnd_progress(0, 52), 0.0, 1e-12) && near(fm::rnd_progress(28, 52), 23.0 / 47.0, 1e-12) &&
-               near(fm::rnd_progress(5, 0), 0.0, 1e-12) && near(fm::rnd_progress(5, 5), 0.0, 1e-12) &&
-               near(fm::rnd_progress(99, 52), 1.0, 1e-12));
-        assert(near(fm::rnd_factor(fm::rnd_progress(6, 52)), 1.0 - 0.5 / 47.0, 1e-12));
+        assert(close_to(fm::rnd_progress(5, 52), 0.0, 1e-12) && close_to(fm::rnd_progress(52, 52), 1.0, 1e-12) &&
+               close_to(fm::rnd_progress(0, 52), 0.0, 1e-12) && close_to(fm::rnd_progress(28, 52), 23.0 / 47.0, 1e-12) &&
+               close_to(fm::rnd_progress(5, 0), 0.0, 1e-12) && close_to(fm::rnd_progress(5, 5), 0.0, 1e-12) &&
+               close_to(fm::rnd_progress(99, 52), 1.0, 1e-12));
+        assert(close_to(fm::rnd_factor(fm::rnd_progress(6, 52)), 1.0 - 0.5 / 47.0, 1e-12));
         // Only Completed (3) is a finished upgrade: not Failed (4), the Invalid placeholder (5) nor the mode 2 stages 6-8.
         for (int s = -1; s <= 9; ++s)
             assert(fm::rnd_state_done(s) == (s == 3));
@@ -256,18 +257,18 @@ int main()
         extra[0] = extra[1] = fm::rnd_factor(1.0);  // McLaren has every Durability upgrade
         std::vector<double> with = fm::grid_factors(s, ids, nullptr, &extra);
         // McLaren fails half as often as before; the others are neither made worse nor better.
-        assert(near(with[0], 0.5 * plain[0], 1e-12) && near(with[1], 0.5 * plain[1], 1e-12));
+        assert(close_to(with[0], 0.5 * plain[0], 1e-12) && close_to(with[1], 0.5 * plain[1], 1e-12));
         for (size_t i = 2; i < ids.size(); ++i)
-            assert(near(with[i], plain[i], 1e-12));
+            assert(close_to(with[i], plain[i], 1e-12));
         // The whole grid researches (the AI teams do): everybody fails less, nothing is shared out.
         std::vector<double> all(ids.size(), fm::rnd_factor(0.5));
         std::vector<double> every = fm::grid_factors(s, ids, nullptr, &all);
         for (size_t i = 0; i < ids.size(); ++i)
-            assert(near(every[i], 0.75 * plain[i], 1e-12));
+            assert(close_to(every[i], 0.75 * plain[i], 1e-12));
         std::vector<double> flat(ids.size(), 1.0);
         std::vector<double> same = fm::grid_factors(s, ids, nullptr, &flat);
         for (size_t i = 0; i < ids.size(); ++i)
-            assert(near(same[i], plain[i], 1e-12));
+            assert(close_to(same[i], plain[i], 1e-12));
     }
 
     // ---- A season outside the table uses the nearest one ----

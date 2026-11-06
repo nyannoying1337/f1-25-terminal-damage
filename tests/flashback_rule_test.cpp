@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstdarg>
 #include <string>
+#include "test_util.hpp"
 
 // The game's own flashback rule (GameFlashbackSystem canJumpIn) is only watched: the result stays the game's, a
 // refusal is logged with its reason (flashbacks off, none left) at most every 10 s, a pass logs nothing.

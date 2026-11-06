@@ -5,22 +5,18 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void discard_log(const char *, ...) {}
 unsigned spawns;
 void spawn(void *, uint32_t) { ++spawns; }
-template<class T> void put(std::vector<uint8_t> &b, size_t off, T v)
-{
-    assert(off + sizeof v <= b.size());
-    memcpy(b.data() + off, &v, sizeof v);
-}
+using tu::put;
 }
 
 int main()
 {
     SwoftyApi api{};
-    api.log = discard_log;
+    api.log = tu::quiet_log;
     swofty::api = &api;
     auto *code = static_cast<uint8_t *>(VirtualAlloc(nullptr, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
     assert(code);

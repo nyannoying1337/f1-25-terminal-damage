@@ -15,7 +15,8 @@ mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA 
 - **Realistic failures** at the real rate of the season you pick (2012-2026), often with warning signs first: power
   loss, cut-outs, slow shifts, a lost gear, rear brake trouble. AI cars break down too. Since 0.75.5 also in Career and
   My Team (experimental). Since 0.75.6 every team has its own rate, and in Career a team's finished Durability R&D
-  lowers it ([failure factors per season](docs/team-failure-factors.md)).
+  lowers it ([failure factors per season](docs/team-failure-factors.md)). Since 0.75.8 an AI car with terminal damage
+  that the game never removes is put in its garage after two minutes on the track (30 seconds in the pit lane).
 - **Game settings:** the addon is built and tested with the game's own *Car Damage* and *Car Damage Rate* (Damage
   Settings) on **Simulation**.
 - **Damage status panel** at the top right of the race HUD, and **engineer radio** calls with the game's own voice lines.
@@ -37,7 +38,8 @@ to observe retirement and recovery without polling game memory.
 
 ## Building
 
-Needs [zig](https://ziglang.org/) 0.15 on PATH.
+Needs [zig](https://ziglang.org/) 0.15.2 (`.tools\zig-x86_64-windows-0.15.2` is used when it exists, otherwise zig on PATH;
+the scripts refuse another version, because a different zig builds a different DLL).
 
 ```
 mod\native\build.ps1      # Windows
@@ -45,6 +47,19 @@ mod/native/build.sh       # Linux (cross-compiles the Windows DLL)
 ```
 
 The DLL lands in `mod/native/`. Zip the contents of the `mod` folder (swofty.json at the zip root) to import it in the Swofty Launcher.
+
+The source is one translation unit: `mod/native/src/terminal_damage_probe.cpp` holds the settings and the ordered list of
+includes, the topic files are in `mod/native/src/probe/`, and the pure modules (failure model, team rates, presets, ...) are
+the other headers in `mod/native/src/`.
+
+## Tests
+
+```
+powershell -File tests\run_tests.ps1        # builds every tests\*.cpp in parallel and runs it; -Name picks some
+```
+
+It prints `pass=N fail=M`, exits 1 on a failure and keeps its build files under `%TEMP%`. [tests/README.md](tests/README.md)
+says what each test covers.
 
 ## License and attribution
 

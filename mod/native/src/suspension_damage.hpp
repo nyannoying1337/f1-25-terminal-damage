@@ -266,7 +266,7 @@ struct History {
     void clear() { e.clear(); }
 };
 
-// ---- Contacts (pure) ----
+// ---- Contacts, the damage page value and the corner names (pure) ----
 // A contact counts when the impulse changed the car's speed by at least dv_min and it came in at vn_min or more (the
 // game's own body damage gate is 1.0/1.0). A scrape along a wall pushes the car only a little per physics step and
 // barely moves into it; a polystyrene board breaks at its activation impulse (re/collision-impact.md section 4).
@@ -396,7 +396,6 @@ inline const char *corner_tag(int i)
     return i >= 0 && i < 4 ? tags[i] : "?";
 }
 
-#ifndef SUSP_MODEL_ONLY
 // ---- Runtime ----
 bool enabled = false;       // suspension_damage at game start and both hooks in place
 bool test_enabled = false;  // debug_suspension_test not off at game start
@@ -1765,6 +1764,5 @@ void tick(std::string_view test_setting, uint32_t flashbacks)
         stat_next = now + 30000;
     }
 }
-#endif
 
 }  // namespace susp

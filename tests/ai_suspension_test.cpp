@@ -4,9 +4,9 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
-void log_sink(const char *, ...) {}
 // A counted contact of hit size v (normal speed v, confirmed by an impulse of v / 2).
 void push(int vehicle, int corner, float v)
 {
@@ -21,7 +21,7 @@ void push(int vehicle, int corner, float v)
 int main()
 {
     SwoftyApi api{};
-    api.log = log_sink;
+    api.log = tu::quiet_log;
     swofty::api = &api;
     susp::enabled = true;
     susp::ai::enabled = true;

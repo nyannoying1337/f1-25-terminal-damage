@@ -4,11 +4,11 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 // The game's damage rating: only the flashback check's own record (on its stack) is rated without the terminal level
 // while keep_control handles the damage; the stored records, which send the terminal message, stay the game's.
 namespace {
-void discard_log(const char *, ...) {}
 int watch(const char *, SwoftySettingFn, void *) { return 0; }
 bool keep = true;
 int setting(const char *id, uint32_t type, SwoftySettingValue *out)
@@ -43,7 +43,7 @@ int32_t at(const uint8_t *r, size_t off)
 
 int main()
 {
-    SwoftyApi api{}; api.version = 4; api.log = discard_log; api.setting = setting; api.watch_setting = watch;
+    SwoftyApi api{}; api.version = 4; api.log = tu::quiet_log; api.setting = setting; api.watch_setting = watch;
     swofty::api = &api;
     orig_damage_rating = &fake_rating;
     std::vector<uint8_t> system(0x1000);

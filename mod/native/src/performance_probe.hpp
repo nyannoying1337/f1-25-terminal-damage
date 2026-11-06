@@ -10,8 +10,8 @@ enum Slot { vehicle_before, vehicle_after, crew, stopped_before, stopped_after, 
 // minute in a session (report_frame): Swofty's perf.log showed 43-69 us a frame for the whole callback (0.51.115).
 inline constexpr int first_frame_slot = frame_total;
 inline std::atomic<bool> enabled{false};
-// Local replay investigation: only wheel slots are forced on when a wheel
-// option is installed. Do not include original-game time in addon work totals.
+// Times the wheel slots (wheel_before onwards) without the general diagnostics. Nothing in the addon sets it; only
+// tests/wheel_tether_test.cpp does. Do not include original-game time in addon work totals.
 inline std::atomic<bool> wheel_capture{false};
 struct Counter {
     std::atomic<uint64_t> samples{0}, ticks{0}, worst{0};

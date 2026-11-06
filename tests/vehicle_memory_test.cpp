@@ -4,15 +4,14 @@
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
 #include <algorithm>
+#include "test_util.hpp"
 
 namespace {
-void discard_log(const char *, ...) {}
-template <class T> void put(std::vector<uint8_t> &data, size_t at, T value)
-{ assert(at + sizeof value <= data.size()); memcpy(data.data() + at, &value, sizeof value); }
+using tu::put;
 }
 int main()
 {
-    SwoftyApi api{}; api.log = discard_log; swofty::api = &api;
+    SwoftyApi api{}; api.log = tu::quiet_log; swofty::api = &api;
     std::vector<uint8_t> sys(0xd00), rec(0x70), car(0x600), replacement(0x600), engine(0x2600), gearbox(0x700);
     uintptr_t base = reinterpret_cast<uintptr_t>(sys.data());
     put(sys, 0xc20, uint64_t(4));

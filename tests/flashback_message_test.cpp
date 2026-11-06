@@ -3,10 +3,10 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 // Flashback without UDP (MessageFlashbackUsed + the game's terminal record) and the pit lane standstill retirement.
 namespace {
-void discard_log(const char *, ...) {}
 int watch(const char *, SwoftySettingFn, void *) { return 0; }
 int setting(const char *id, uint32_t type, SwoftySettingValue *out)
 {
@@ -16,7 +16,7 @@ int setting(const char *id, uint32_t type, SwoftySettingValue *out)
     out->toggle = true;
     return 1;
 }
-template<class T> void put(uint8_t *p, size_t at, T value) { memcpy(p + at, &value, sizeof value); }
+using tu::put;
 std::vector<uint8_t> car(0x600), engine(0x2600), gearbox(0x700);
 uintptr_t c = 0;
 void broken(uint32_t mask, float ice)
@@ -34,7 +34,7 @@ void flashback() { flashback_used_at = GetTickCount64(); }
 
 int main()
 {
-    SwoftyApi api{}; api.version = 4; api.log = discard_log; api.setting = setting; api.watch_setting = watch;
+    SwoftyApi api{}; api.version = 4; api.log = tu::quiet_log; api.setting = setting; api.watch_setting = watch;
     swofty::api = &api;
     put(car.data(), 0x530, reinterpret_cast<uintptr_t>(engine.data()));
     put(car.data(), 0x538, reinterpret_cast<uintptr_t>(gearbox.data()));

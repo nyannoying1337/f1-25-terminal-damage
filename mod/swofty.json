@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.75.6",
+  "version": "0.75.8",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: limp on, pull over or bring it in. Realistic failures with warning signs, a damage HUD, engineer radio, FIA rules, garage repairs and presets. Experimental and off by default: suspension damage from hits.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -303,6 +303,15 @@
       "type": "toggle",
       "label": "Experimental: clear retirement pit box",
       "description": "Hides tyre-stop equipment during a race retirement approach. Preserves the shared box while your teammate is pitting. Garage push crew remains visible.",
+      "default": true,
+      "binds": "native",
+      "hidden": true
+    },
+    {
+      "id": "ai_terminal_cleanup",
+      "type": "toggle",
+      "label": "Send abandoned AI wrecks to their garage",
+      "description": "An AI car with terminal damage that the game has not removed after 2 minutes on track (30 seconds in the pit lane) is put in its garage. Never during a safety car or red flag.",
       "default": true,
       "binds": "native",
       "hidden": true

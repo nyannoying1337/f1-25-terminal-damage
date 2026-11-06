@@ -12,7 +12,8 @@
 
 namespace fm {
 
-// The first seven are the game's power unit parts (trigger_failure index); the rest the addon handles itself.
+// The first six are the game's power unit parts and the seventh its gearbox (trigger_failure index); suspension and
+// brakes the addon handles itself.
 enum Outcome : int { ice, mguk, mguh, es, tc, ce, gearbox, suspension, brakes, n_outcomes };
 
 inline const char *outcome_name(int o)
@@ -356,5 +357,31 @@ inline double seconds_until_fault(const Season &s, double u, double scale = 1.0)
         return 1e18;
     return -std::log(u) / h;
 }
+
+// Table consistency, checked at compile time: every era's shares add up to 1000 per mille, each era has a fault era,
+// and every season names an existing era.
+constexpr bool era_tables_consistent()
+{
+    for (const Era &e : eras) {
+        int sum = 0;
+        for (int v : e.share)
+            sum += v;
+        if (sum != 1000)
+            return false;
+    }
+    for (const FaultEra &e : fault_eras) {
+        int sum = 0;
+        for (int v : e.share)
+            sum += v;
+        if (sum != 1000)
+            return false;
+    }
+    for (const Season &s : seasons)
+        if (s.era < 0 || s.era >= int(sizeof eras / sizeof eras[0]))
+            return false;
+    return true;
+}
+static_assert(sizeof eras / sizeof eras[0] == sizeof fault_eras / sizeof fault_eras[0], "one fault era for each era");
+static_assert(era_tables_consistent(), "era shares add up to 1000 per mille and every season names an existing era");
 
 }  // namespace fm

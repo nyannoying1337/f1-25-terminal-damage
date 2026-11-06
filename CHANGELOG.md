@@ -1,3 +1,35 @@
+# Terminal Damage 0.75.8 beta
+
+AI wrecks that the game forgets are cleared, and a few small fixes. Everything from 0.75.6 is in this release (0.75.7 was never released).
+
+## Read this first
+
+- **Updating from 0.75.6:** nothing to set up. Your options stay as they are. If you are new, the setup is in the description (Quick start and Game settings): in the game's own settings put *Car Damage* and *Car Damage Rate* on **Simulation**, and keep *Mechanical failures in Grand Prix* on **Realistic**.
+
+## New
+
+- **AI cars with terminal damage that the game never removes are put in their garage.** The game removes a crashed AI car about 15 seconds after the damage and a car that one of the addon's failures broke after up to two minutes. After a flashback it sometimes did not remove them at all: in my logs four cars stood on the track until the session ended, and one retired car was never removed. Now the addon puts such a car in its garage after two minutes on the track, or after 30 seconds in the pit lane or at the pit exit, and only after the car has stood still. It never does this during a safety car, a red flag or a formation lap, never in practice or qualifying, and never for your car. The hidden option *Send abandoned AI wrecks to their garage* (on by default) switches it off; the log lines start with *AI cleanup:*.
+- **A red flag no longer leaks into the next session.** A session that ended while the red flag strategy screen was open left its state behind: in the next session it could block the flashback and heavy damage handling, or retire your car from the old screen's state. It is cleared now. (Found by reading the code, not seen in a log yet.)
+- **A flashback no longer loses a damage record to a timing race.** In rare cases the record the addon keeps of a crash was dropped when the game's telemetry stamp was a few milliseconds ahead of the addon's clock.
+- **Small fixes:** the UDP telemetry (off by default) waits instead of spinning on a receive error and logs it, and a garage flag is safe across threads.
+- **Game settings:** the description now says that the game's *Player Faults* options (*Fault Frequency*, *Fault Types*) can stay on Off and Low, and the presets text says that all three presets also switch *Keep control after terminal damage*, *Keep control after a scripted failure* and *Engineer radio for damage and failures* on.
+- **Source code:** the source in the repository is split into topic files (mod/native/src/probe) and comes with a test runner. The behavior is the same.
+
+## Something not working?
+
+Every part has its own option. Turn off only the part that gives you trouble for now (for example *Mechanical failures in Grand Prix*, *Damage status panel*, *Engineer radio* or *Suspension damage from hits*), keep the rest, and send me your log: loader.log in the newest folder of %LOCALAPPDATA%\Swofty\sessions. Post it on OverTake or open an issue on GitHub, and say what happened and roughly when.
+
+## Known issues
+
+- Realistic failures in Career are new: one gearbox failure from the real rates has been seen in a Career race so far, and it played out as designed. An AI car that fails in Career stays where it stopped for up to two minutes before the game takes it to its garage.
+- AI cars with terminal damage stand where they stopped until the game takes them to their garage: about 15 seconds after a crash, up to two minutes after a failure the addon planned. If the game never does (it happened after flashbacks), the addon puts the car in its garage after two minutes on track or 30 seconds in the pit lane, never during a safety car or red flag.
+- The Career R&D effect is small (about 1 % per Durability upgrade) and its cap of half with every upgrade done is a first guess: I will tune it once I have seen how fast the AI teams research.
+- Suspension damage is experimental: its tuning can still change.
+- Career: the "PART FITTED" message named in the 0.75.0 notes may not show when you fit the new part.
+- Career is not fully tested with the limping, red flag and garage repair rules yet.
+- No safety car HUD while your car is terminally damaged.
+- Qualifying ICE replacement, Skip repairs and practice replacement timing: **not tested, might be broken**.
+
 # Terminal Damage 0.75.6 beta
 
 Every team now breaks down at its own real rate, and in Career and My Team a team's finished Durability R&D lowers it. Everything from 0.75.5, 0.75.4 and 0.75.3 is in this release.

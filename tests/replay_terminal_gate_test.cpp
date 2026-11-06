@@ -3,10 +3,10 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 bool enabled = true;
-void log_sink(const char *, ...) {}
 int watch(const char *, SwoftySettingFn, void *) { return 0; }
 int setting(const char *name, uint32_t type, SwoftySettingValue *out) {
     out->type = type;
@@ -16,7 +16,7 @@ int setting(const char *name, uint32_t type, SwoftySettingValue *out) {
 }
 int main()
 {
-    SwoftyApi api{}; api.version = 4; api.log = log_sink; api.setting = setting; api.watch_setting = watch; swofty::api = &api;
+    SwoftyApi api{}; api.version = 4; api.log = tu::quiet_log; api.setting = setting; api.watch_setting = watch; swofty::api = &api;
     auto *code = static_cast<uint8_t *>(VirtualAlloc(nullptr, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
     assert(code);
     emitter e{code};
@@ -44,7 +44,7 @@ int main()
     player_pit = 9; power_loss(0); assert(replay_terminal_vehicle == -1);
     player_pit = 1; enabled = false; power_loss(0); assert(replay_terminal_vehicle == -1);
     enabled = true; session_ended = true; power_loss(0); assert(replay_terminal_vehicle == -1);
-    reset_car_state(); assert(replay_terminal_vehicle == -1);
+    replay_terminal_vehicle = 3; reset_car_state(); assert(replay_terminal_vehicle == -1);
     assert(VirtualFree(code, 0, MEM_RELEASE));
     puts("PASS: terminal replay branch is player-only, nonterminal/other-player legacy branches preserved; lifecycle guards clear override");
 }

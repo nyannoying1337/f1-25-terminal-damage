@@ -38,4 +38,19 @@ typedef const TdApi *(*TerminalDamageGetApiFn)(uint32_t requested_version);
 // callback thread. A callback already running on another thread may still finish.
 #ifdef __cplusplus
 }
+
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
+#include <stddef.h>
+// Version 1 is a binary interface: a changed size or offset needs a new TERMINAL_DAMAGE_API_VERSION.
+static_assert(sizeof(TdPlayerState) == 24, "TdPlayerState size");
+static_assert(offsetof(TdPlayerState, size) == 0 && offsetof(TdPlayerState, state) == 4 &&
+                  offsetof(TdPlayerState, vehicle_id) == 8 && offsetof(TdPlayerState, damage_mask) == 12 &&
+                  offsetof(TdPlayerState, player_out) == 16 && offsetof(TdPlayerState, reserved) == 20,
+              "TdPlayerState field offsets");
+// With 8-byte pointers (x64, the only game build).
+static_assert(sizeof(void *) != 8 || (sizeof(TdApi) == 32 && offsetof(TdApi, version) == 0 &&
+                                      offsetof(TdApi, size) == 4 && offsetof(TdApi, get_state) == 8 &&
+                                      offsetof(TdApi, subscribe) == 16 && offsetof(TdApi, unsubscribe) == 24),
+              "TdApi size and field offsets");
+#endif
 #endif

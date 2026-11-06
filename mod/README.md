@@ -4,6 +4,13 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
+## New in 0.75.8
+
+- **AI wrecks the game forgets are cleared:** an AI car with terminal damage that is still on the track after two minutes (30 seconds in the pit lane) is put in its garage, never during a safety car or red flag.
+- **A red flag no longer leaks into the next session** (it could block the flashback handling there).
+- **A flashback keeps its damage record** where a timing race used to drop it.
+- **Game settings:** the game's *Player Faults* can stay on Off and Low; the presets text says what all presets switch on.
+
 ## New in 0.75.6
 
 - **Failures per team:** each team's cars break down at that team's real rate in the season, and in Career a team's finished Durability R&D lowers it, about 1 % per upgrade (see Realistic failures).
@@ -46,6 +53,7 @@ Terminal Damage is built and tested with the game's own damage on **Simulation**
 - **Car Damage Rate: Simulation.** How fast damage builds up.
 - Reduced and Standard are not tested. If you use them and something looks wrong, tell me what you set.
 - The random failures of *Mechanical failures in Grand Prix* are the addon's own (Realistic is the default). They come in races and sprints, not in practice or qualifying; the *Failure season* sets the real rates they follow.
+- **Player Faults (Fault Frequency, Fault Types)** are on the same page. Leave them as they are: Off and Low work. In Career the addon ignores them, because it plans your failures and faults itself. In Grand Prix and custom races Off is the cleanest, since a higher Fault Frequency lets the game add its own faults on top of yours.
 
 ## Presets
 
@@ -54,7 +62,7 @@ Terminal Damage is built and tested with the game's own damage on **Simulation**
 - **Hardcore:** Realistic with 20 % power and no damage panel.
 - **Custom:** change one of these options yourself and the preset shows Custom.
 
-Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in the launcher: it applies at the next game start. A preset never changes hotkeys, the failure season, wheel physics, sounds, suspension damage or debug options.
+Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in the launcher: it applies at the next game start. All three presets also switch *Keep control after terminal damage*, *Keep control after a scripted failure* and *Engineer radio for damage and failures* on. A preset never changes hotkeys, the failure season, wheel physics, the engine sound, suspension damage or debug options.
 
 ## The HUD
 
@@ -157,10 +165,10 @@ Every part has its own option. Turn off only the part that gives you trouble for
 
 - The Career R&D effect is small (about 1 % per Durability upgrade) and its cap of half with every upgrade done is a first guess: I will tune it once I have seen how fast the AI teams research.
 - Suspension damage is experimental: its tuning can still change.
-- Career is not fully tested with the limping, red flag and garage repair rules yet. The realistic failures there (0.75.5) are new: one from the real rates has not been seen in a Career race yet (the test setting has), and in Career an AI car that fails stayed where it stopped for about two minutes before the game took it to its garage.
+- Career is not fully tested with the limping, red flag and garage repair rules yet. The realistic failures there (0.75.5) are new: one gearbox failure from the real rates has been seen in a Career race so far, and it played out as designed. An AI car that fails in Career stays where it stopped for up to two minutes before the game takes it to its garage.
 - No safety car HUD while your car is terminally damaged: the game shows it only to cars it does not count as terminally damaged.
 - A red flag during terminal damage can still cause AI or spectator camera issues.
-- AI cars with terminal damage can stop at the pit exit or on track.
+- AI cars with terminal damage stand where they stopped until the game takes them to their garage: about 15 seconds after a crash, up to two minutes after a failure the addon planned. If the game never does (it happened after flashbacks), the addon puts the car in its garage after two minutes on track or 30 seconds in the pit lane, never during a safety car or red flag.
 - A flashback during the box stop or the garage push is not fully tested in game.
 - **Qualifying ICE replacement, Skip repairs and practice replacement timing: NOT TESTED, MIGHT BE BROKEN.**
 - A game update can switch parts of the addon off until it is updated.

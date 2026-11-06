@@ -4,13 +4,13 @@
 #endif
 #include "../mod/native/src/terminal_damage_probe.cpp"
 #include <cassert>
+#include "test_util.hpp"
 
 namespace {
 unsigned calls;
 int32_t expected_node;
 bool create_body;
 bool check_timing;
-void discard_log(const char *, ...) {}
 void detach(void *self,uint8_t notify)
 {
     ++calls;
@@ -28,12 +28,12 @@ void detach(void *self,uint8_t notify)
         memcpy(static_cast<uint8_t *>(self)+0x40,&body,sizeof body);
     }
 }
-template<class T> void put(std::vector<uint8_t>& b,size_t o,T x) {memcpy(b.data()+o,&x,sizeof x);}
+using tu::put;
 }
 
 int main()
 {
-    SwoftyApi api{};api.log=discard_log;swofty::api=&api;
+    SwoftyApi api{};api.log=tu::quiet_log;swofty::api=&api;
     // Default-off must return before scanning or installing any wheel hook.
     assert(!bool(wheel_tether_test));
     assert(!bool(ai_wheel_tethers));
