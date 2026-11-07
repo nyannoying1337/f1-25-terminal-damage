@@ -1,3 +1,7 @@
+# Terminal Damage 0.75.12 beta
+
+The addon's Swofty manifest now names its source repository, as Swofty recommends for addons with native code. Nothing changes in the game. Everything from 0.75.11 is in this release.
+
 # Terminal Damage 0.75.11 beta
 
 Two small fixes: End Session works again in practice and qualifying, and an attempt to bring back your car's engine sound in the race replay after a retirement. Everything from 0.75.10 is in this release.
