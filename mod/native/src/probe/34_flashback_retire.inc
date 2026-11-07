@@ -169,7 +169,8 @@ void request_retire(const char *source)
 
 // Pause menu Retire: Game::retireLocalPlayer (0x142cea5b0, `push rsi; push rdi; sub rsp, 0x28; mov edi, edx`, then
 // setLocalPlayersStatuses(7)). On track it becomes a retire request instead: nothing breaks, you pull over or drive
-// into your box. Choosing Retire again changes nothing.
+// into your box. Choosing Retire again changes nothing. In practice and qualifying the same call is End Session: the
+// game ends it (a friend's log 2026-11-07: End Session became a retire request and the session went on).
 constexpr const char *sig_retire_local_player =
     "56 57 48 83 EC 28 89 D7 48 89 CE 80 3D ?? ?? ?? ?? 01 75 ?? B8 5F 01 00 00";
 
@@ -177,8 +178,9 @@ constexpr const char *sig_retire_local_player =
 extern "C" bool on_retire_local_player(void *, uint32_t reason)
 {
     if (!keep_control || !pause_menu_retire || player_vehicle.load() < 0 || player_pit.load() != 1 ||
-        retire_in.load() != -1.0) {
-        swofty::log("[td-probe] pause menu retire (reason %u): the game retires your car", reason);
+        retire_in.load() != -1.0 || practice_like()) {
+        swofty::log("[td-probe] pause menu retire (reason %u): the game %s", reason,
+                    practice_like() ? "ends your practice or qualifying session" : "retires your car");
         own_retire_until = GetTickCount64() + 10000;
         return false;
     }

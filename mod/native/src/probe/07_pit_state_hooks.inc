@@ -25,6 +25,9 @@ uint64_t on_pit_state_changed(void *ai, void *msg)
     if (guarded_read(base + 0x10, id) && guarded_read(base + 0x18, state) && is_player(id)) {
         swofty::log("[td-probe] pit state vehicle=%u -> %u %s", id, state, label(pit_states, state));
         player_pit = int(state);
+        // The DNF camera is over and the game has put your car away for the results.
+        if (state == 0 || state == 9)
+            release_retired_engine_sound(id, "car put away after the race");
         if (state == 9 && player_broken && keep_control && practice_like()) {
             // It came in under its own power on one broken corner: the team rebuilds the corner.
             bool rebuild = !garage_teleport && limp_state.load() == 1 && crash_corners.load() &&

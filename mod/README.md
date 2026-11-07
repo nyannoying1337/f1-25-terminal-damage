@@ -4,6 +4,11 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
+## New in 0.75.11
+
+- **End Session in practice and qualifying:** ends the session at once again, as in the game.
+- **Attempt: engine sound in the race replay:** your car should have its engine sound again in the replay after a retirement.
+
 ## New in 0.75.10
 
 - **Practice and qualifying next to the Spectator HUD:** the addon finds the pit lane even when another addon hooked it first, so the garage repair of a damaged suspension works there too.

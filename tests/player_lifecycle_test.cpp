@@ -136,6 +136,36 @@ int main()
     // back (a test report: the replays after a retirement had your car muted).
     assert(on_set_controller(nullptr, 3, 1, 10) == 77);
     assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1 && engine_kill_vehicle == -1);
+    // 0.75.11: a full replay from the results sends no SESSION_NOT_STARTED (log 2026-11-07 08:54-08:55): the game puts
+    // the car away after the DNF camera, and the sound comes back there. Not while the race still runs, not for AI cars.
+    player_controller_flags.fetch_and(~(1u << 3));
+    retired_engine_off_vehicle = 3; engine_off_vehicle = 3; engine_kill_vehicle = 3;
+    {
+        orig_pit_state_changed = [](void *, void *) -> uint64_t { return 0; };
+        human[3] = true;
+        human[4] = true;  // a second human car, not the retired one
+        // {u8 vehicle @+0x10, u32 state @+0x18}
+        std::array<uint8_t, 0x20> pit_msg{};
+        auto pit_to = [&](uint8_t vehicle, uint32_t state) {
+            pit_msg[0x10] = vehicle;
+            std::memcpy(pit_msg.data() + 0x18, &state, 4);
+            on_pit_state_changed(nullptr, pit_msg.data());
+        };
+        pit_to(3, 9);  // pushed into the garage while the race runs
+        assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3 && engine_kill_vehicle == 3);
+        assert(on_set_controller(nullptr, 3, 1, 3) == 77);
+        assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3);
+        pit_to(4, 0);  // another car
+        assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3 && engine_kill_vehicle == 3);
+        pit_to(3, 4);  // not put away
+        assert(retired_engine_off_vehicle == 3 && engine_off_vehicle == 3 && engine_kill_vehicle == 3);
+        pit_to(3, 0);  // put away after the DNF camera
+        assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1 && engine_kill_vehicle == -1);
+        retired_engine_off_vehicle = 3; engine_off_vehicle = 3; engine_kill_vehicle = 3;
+        pit_to(3, 9);
+        assert(retired_engine_off_vehicle == -1 && engine_off_vehicle == -1 && engine_kill_vehicle == -1);
+        human[4] = false;
+    }
     retired_engine_off_vehicle = 3;
     engine_off_vehicle = 3;
     reset_for_session_restart(nullptr);

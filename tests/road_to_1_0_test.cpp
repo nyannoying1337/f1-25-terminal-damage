@@ -1280,5 +1280,22 @@ int main()
         reset_session();
     }
 
+    // ---- 0.75.11: End Session in practice and qualifying is the game's (it calls the pause menu's Retire) ----
+    {
+        alignas(16) std::array<uint8_t, 0x400> lane{};
+        reset_session();
+        player_vehicle = 7;
+        player_pit = 1;
+        pit_lane_system = reinterpret_cast<uintptr_t>(lane.data());
+        lane[0x300] = 1;  // practice or qualifying
+        assert(!on_retire_local_player(nullptr, 0));  // the game ends the session
+        assert(!player_broken && !retire_requested && retire_in.load() == -1.0);
+        lane[0x300] = 0;  // a race: pull over or box first
+        assert(on_retire_local_player(nullptr, 0));
+        assert(retire_requested);
+        pit_lane_system = 0;
+        reset_session();
+    }
+
     std::puts("road to 1.0 ok");
 }

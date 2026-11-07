@@ -1,3 +1,12 @@
+# Terminal Damage 0.75.11 beta
+
+Two small fixes: End Session works again in practice and qualifying, and an attempt to bring back your car's engine sound in the race replay after a retirement. Everything from 0.75.10 is in this release.
+
+## New
+
+- **End Session works in practice and qualifying.** The game uses the same function for End Session there as for Retire in a race, and the addon turned it into a retirement: you were asked to pull over and the session went on. End Session now ends the session at once, as in the game. In a race, Retire in the pause menu still asks you to pull over or box first.
+- **Attempt: engine sound in the race replay after a retirement.** The addon keeps a retired car's engine off through the retirement camera. When you watched the full race replay from the results, your car could stay silent in it. The sound now comes back once the game puts your car away after the race.
+
 # Terminal Damage 0.75.10 beta
 
 One small fix: the addon now recognises practice and qualifying when another addon, such as the Spectator HUD, hooks the pit lane before it. Everything from 0.75.9 is in this release.

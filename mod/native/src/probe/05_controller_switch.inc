@@ -9,6 +9,18 @@ std::atomic<void *> controller_system{nullptr};
 void reset_car_state(bool preserve_retirement_audio = false, bool preserve_request_timeline = false, bool preserve_damage_timeline = false);
 std::atomic<uint32_t> player_controller_flags{0};
 
+// The retired car's engine stays off through the DNF camera. Once the race is over for it (NOT_IN_SESSION) and the game
+// moves on, the silence ends: kept any longer it mutes your car in the replay (test reports 0.51.124, 2026-11-07).
+void release_retired_engine_sound(uint32_t id, const char *why)
+{
+    if (!(player_controller_flags.load() & (1u << 3)) || retired_engine_off_vehicle.load() != int(id))
+        return;
+    retired_engine_off_vehicle = -1;
+    engine_off_vehicle = -1;
+    engine_kill_vehicle = -1;
+    swofty::log("[td-probe] engine: sound back for vehicle %u (%s)", id, why);
+}
+
 // Defined in 31_garage_return_failure_helpers.inc.
 void trigger_failure(int forced_part = -1);
 // Part the game's own failure planner picked for the player's car (0 ICE .. 5 CE, 6 gearbox), -1 if none yet.
@@ -94,16 +106,10 @@ bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
         swofty::log("[td-probe] session end (NOT_IN_SESSION set): clearing gameplay, retaining DNF audio");
         reset_car_state(true);
     }
-    // After the race (NOT_IN_SESSION) the game puts your retired car back to SESSION_NOT_STARTED when the replay
-    // from the results screen starts (0.51.124 logs 18:47:38 and 19:14:09: every car reset as at a start) or a
-    // restart follows. The DNF camera is over by then; the kept silence muted your car in the replay (test report).
-    if (mine && ai && reason == 10 && (player_controller_flags.load() & (1u << 3)) &&
-        retired_engine_off_vehicle.load() == int(id)) {
-        retired_engine_off_vehicle = -1;
-        engine_off_vehicle = -1;
-        engine_kill_vehicle = -1;
-        swofty::log("[td-probe] engine: sound back for vehicle %u (the race is over: replay or restart)", id);
-    }
+    // After the race (NOT_IN_SESSION) the game can put your retired car back to SESSION_NOT_STARTED when a replay
+    // or a restart follows (0.51.124 logs 18:47:38 and 19:14:09). The DNF camera is over by then.
+    if (mine && ai && reason == 10)
+        release_retired_engine_sound(id, "SESSION_NOT_STARTED");
     // The game's own scripted mechanical failure (career, My Team) pulls the car over and hands it to the AI with
     // RETIRED, with no terminal-damage message first. Keep the car yours unless you or the addon retire it.
     // Only while racing on track with a failure the game planned for this car (planner hook): a red flag, safety car or
