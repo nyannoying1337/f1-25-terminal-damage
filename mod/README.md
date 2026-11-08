@@ -4,6 +4,11 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
+## New in 0.75.14
+
+- **Attempt: no warnings in the Career weekend menu:** the failure clock waits until your car moves, so no CAR WARNING or radio call comes before the race.
+- **Attempt: works together with Cool-down Lap:** no failure or pit call on the cool-down lap after the flag, and the cars it parks in parc ferme are left alone.
+
 ## New in 0.75.11
 
 - **End Session in practice and qualifying:** ends the session at once again, as in the game.

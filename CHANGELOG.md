@@ -1,3 +1,12 @@
+# Terminal Damage 0.75.14 beta
+
+Two attempted fixes: no car warnings in the Career weekend menu, and Terminal Damage works together with Cool-down Lap. Everything from 0.75.12 is in this release (0.75.13 was never released).
+
+## New
+
+- **Attempt: no failures or warning signs in the Career weekend menu.** After qualifying, the game loads the race behind the weekend menu with your car standing in it. The addon took that for racing: its failure clock ran in the menu, and a planned failure could show its warning signs (the CAR WARNING panel, the engineer's radio) before the race began. The failure clock now starts once your car moves.
+- **Attempt: Cool-down Lap compatibility (issue #19).** Cool-down Lap (by vmknolle) lets you keep driving after the chequered flag and holds back the game's end-of-race hand-over of your car, which Terminal Damage uses to know your race is over. Depending on which addon hooked first, Terminal Damage could take the cool-down lap for racing: a planned failure or a pit call could still come. Cool-down Lap 0.38.8 and newer tell Terminal Damage when your race is over and which AI cars it parks in parc ferme; Terminal Damage stops its failures there and leaves those cars alone. Without Cool-down Lap nothing changes.
+
 # Terminal Damage 0.75.12 beta
 
 The addon's Swofty manifest now names its source repository, as Swofty recommends for addons with native code. Nothing changes in the game. Everything from 0.75.11 is in this release.

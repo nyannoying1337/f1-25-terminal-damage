@@ -25,9 +25,11 @@ uint64_t on_update_vehicle(void *system, uint8_t vehicle)
     }
     if (int(vehicle) == player_vehicle.load()) {
         player_update_ms = GetTickCount64();
+        cooldown_tick(player_update_ms.load());
         uintptr_t car = car_of(reinterpret_cast<uintptr_t>(system), vehicle);
         throttle_hook.car = car;
-        if (player_broken || log_telemetry || susp::speed_wanted() || test_run_on.load() || power_speed_wanted.load())
+        if (player_broken || log_telemetry || susp::speed_wanted() || test_run_on.load() || power_speed_wanted.load() ||
+            !player_has_moved.load())
             read_game_speed(car);
         susp::game_thread(car);
         sample_throttle(car);

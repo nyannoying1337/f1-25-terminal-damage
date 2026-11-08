@@ -383,7 +383,7 @@ void ai_watch_step(uintptr_t sys, uint8_t v, uint64_t now)
     in.standing = still_since && now >= still_since ? double(now - still_since) / 1000.0 : 0.0;
     in.record = record;
     in.pit = pit;
-    in.racing = ai_cleanup_racing();
+    in.racing = ai_cleanup_racing() && !cooldown_parked(v);  // issue #19: Cool-down's parc ferme cars
     in.enabled = ai_terminal_cleanup;
     in.already_asked = (ai_watch_asked.load() & bit) != 0;
     const aic::Action act = aic::decide(in);

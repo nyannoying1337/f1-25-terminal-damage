@@ -160,6 +160,89 @@ uint64_t on_set_controller(void *system, uint64_t vehicle, uint32_t ai, int32_t 
     return result;
 }
 
+// Issue #19: Cool-down Lap (vmknolle) holds back your car's NOT_IN_SESSION hand-over at the chequered flag and says so
+// in a shared block (cooldown_link.hpp). Mapped read-only once it exists; without Cool-down nothing changes.
+std::atomic<const cdl::State *> cooldown_state{nullptr};
+uint64_t cooldown_open_at = 0;     // next try to open the block
+uint64_t cooldown_next_poll = 0;   // polled four times a second from your car's update
+bool cooldown_applied = false;     // the held hand-over was taken for this finish (until Cool-down clears the bit)
+
+const cdl::State *cooldown_map(uint64_t now)
+{
+    if (const cdl::State *s = cooldown_state.load())
+        return s;
+    if (now < cooldown_open_at)
+        return nullptr;
+    cooldown_open_at = now + 2000;
+    wchar_t name[64];
+    swprintf(name, 64, cdl::name_format, static_cast<unsigned long>(GetCurrentProcessId()));
+    HANDLE h = OpenFileMappingW(FILE_MAP_READ, FALSE, name);
+    if (!h)
+        return nullptr;
+    void *view = MapViewOfFile(h, FILE_MAP_READ, 0, 0, sizeof(cdl::State));
+    CloseHandle(h);  // the view keeps the mapping
+    if (!view)
+        return nullptr;
+    const auto *s = static_cast<const cdl::State *>(view);
+    cdl::View v = cdl::read(*s);
+    static bool logged_bad = false;
+    if (!cdl::valid(v)) {
+        if (!logged_bad)
+            swofty::log("[td-probe] Cool-down Lap: shared state has magic 0x%08x version %u, not one this version "
+                        "reads; ignored", v.magic, v.version);
+        logged_bad = true;
+        UnmapViewOfFile(view);
+        return nullptr;
+    }
+    swofty::log("[td-probe] Cool-down Lap: shared state found (version %u): its held finish hand-over counts as yours",
+                v.version);
+    cooldown_state = s;
+    return s;
+}
+
+// For the tests: forget the block and the poll state.
+[[maybe_unused]] void cooldown_forget()
+{
+    if (const cdl::State *s = cooldown_state.exchange(nullptr))
+        UnmapViewOfFile(const_cast<cdl::State *>(s));
+    cooldown_open_at = 0;
+    cooldown_next_poll = 0;
+    cooldown_applied = false;
+}
+
+// Game thread, from your car's update. Cool-down marked your car finished while it holds the hand-over back: take it
+// as the NOT_IN_SESSION hand-over (once per finish; the real one later changes nothing).
+void cooldown_tick(uint64_t now)
+{
+    if (now < cooldown_next_poll)
+        return;
+    cooldown_next_poll = now + 250;
+    int player = player_vehicle.load();
+    const cdl::State *s = player >= 0 ? cooldown_map(now) : nullptr;
+    if (!s)
+        return;
+    cdl::View v = cdl::read(*s);
+    if (!cdl::bit(v.finished, player)) {
+        cooldown_applied = false;
+        return;
+    }
+    if (cooldown_applied || !cdl::finished(v, player, uint32_t(now)))
+        return;
+    cooldown_applied = true;
+    if (player_controller_flags.load() & (1u << 3))
+        return;
+    swofty::log("[td-probe] Cool-down Lap holds your car's NOT_IN_SESSION hand-over for its cool-down lap: your race "
+                "is over");
+    note_controller_switch(uint8_t(player), 1, 3);
+}
+
+// An AI car Cool-down parks in parc ferme now: the stopped-car cleanup leaves it alone.
+bool cooldown_parked(int vehicle)
+{
+    const cdl::State *s = cooldown_state.load();
+    return s && cdl::parked(cdl::read(*s), vehicle, uint32_t(GetTickCount64()));
+}
+
 // Swofty 1.7 hook points (attach_session_events). They run next to the setController hook above and call the same
 // note_controller_switch; both are installed. The log lines "session.player.control fires" and
 // "car.controllers.rebuilt" show that the events arrive (they do in the 0.75.6 test logs).

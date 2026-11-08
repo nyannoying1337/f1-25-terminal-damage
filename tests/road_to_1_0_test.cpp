@@ -1297,5 +1297,106 @@ int main()
         reset_session();
     }
 
+    // ---- 0.75.13: no failure clock in the Career weekend menu (the car stands OnTrack there, no practice flag) ----
+    {
+        api.version = 4;
+        api.setting = fake_setting;
+        api.watch_setting = fake_watch;
+        reset_session();
+        player_vehicle = 3;
+        player_pit = 1;
+        fake_gp_failures = "realistic";
+        telemetry_not_before = 0;
+        auto at = [](int kmh) {
+            game_speed = kmh;
+            game_speed_ms = GetTickCount64();
+        };
+        at(0);
+        for (int i = 0; i < 10; ++i)
+            gp_failure_tick(1.0);
+        assert(gp_clock == 0 && gp_at == -1 && !player_has_moved);  // standing in the menu: no clock, no plan
+        at(4);
+        gp_failure_tick(1.0);
+        assert(gp_clock == 0 && !player_has_moved);  // rolling a little is not driving yet
+        at(40);
+        gp_failure_tick(1.0);
+        assert(player_has_moved && gp_clock > 0);
+        double clock = gp_clock;
+        at(0);
+        gp_failure_tick(1.0);
+        assert(gp_clock > clock);  // once moved, standing on the grid or after a spin counts again
+        reset_race_faults();
+        assert(!player_has_moved);  // the next race waits for the car again
+        game_speed_ms = 0;
+        gp_failure_tick(1.0);
+        assert(player_has_moved);  // no speed known: the clocks are not held
+        fake_gp_failures = nullptr;
+        api.setting = nullptr;
+        api.watch_setting = nullptr;
+        api.version = 0;
+        gp_failure_tick(0.016);
+        reset_session();
+    }
+
+    // ---- 0.75.14, issue #19: Cool-down Lap's held finish hand-over counts as NOT_IN_SESSION ----
+    {
+        reset_session();
+        cooldown_forget();
+        player_vehicle = 3;
+        human[3] = true;
+        uint64_t now = GetTickCount64();
+        cooldown_tick(now);  // no Cool-down: nothing happens
+        assert(!cooldown_state.load() && !(player_controller_flags.load() & (1u << 3)));
+        wchar_t name[64];
+        swprintf(name, 64, cdl::name_format, static_cast<unsigned long>(GetCurrentProcessId()));
+        HANDLE map = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(cdl::State), name);
+        assert(map);
+        auto *st = static_cast<cdl::State *>(MapViewOfFile(map, FILE_MAP_WRITE, 0, 0, sizeof(cdl::State)));
+        assert(st);
+        st->magic = 0x12345678;  // not Cool-down's layout: ignored
+        st->version = 1;
+        cooldown_tick(now += 3000);
+        assert(!cooldown_state.load());
+        st->magic = cdl::magic;
+        cooldown_tick(now += 3000);
+        assert(cooldown_state.load());
+        // A finish bit of another car, then yours with a stale heartbeat or no active cool-down: nothing yet.
+        st->active = 1;
+        st->updated_ms = uint32_t(now);
+        st->finished_mask = 1u << 4;
+        cooldown_tick(now += 300);
+        assert(!(player_controller_flags.load() & (1u << 3)));
+        st->finished_mask = 1u << 3;
+        st->updated_ms = uint32_t(now - 10000);
+        cooldown_tick(now += 300);
+        assert(!(player_controller_flags.load() & (1u << 3)));
+        st->active = 0;
+        st->updated_ms = uint32_t(now);
+        cooldown_tick(now += 300);
+        assert(!(player_controller_flags.load() & (1u << 3)));
+        // Live: your race is over, as with the game's own hand-over; the panel and the failure clocks stop.
+        st->active = 1;
+        st->updated_ms = uint32_t(now);
+        cooldown_tick(now += 300);
+        assert(player_controller_flags.load() & (1u << 3));
+        assert(last_ai[3] == 1 && last_reason[3] == 3);
+        // Once per finish: the flag cleared (a restart) does not come back while Cool-down keeps the same bit.
+        player_controller_flags = 0;
+        st->updated_ms = uint32_t(now);
+        cooldown_tick(now += 300);
+        assert(!(player_controller_flags.load() & (1u << 3)));
+        // Parc ferme cars while the cool-down runs, not after it.
+        st->parked_mask = 1u << 5;
+        st->updated_ms = uint32_t(GetTickCount64());  // cooldown_parked reads the real clock
+        assert(cooldown_parked(5) && !cooldown_parked(6) && !cooldown_parked(-1));
+        st->active = 0;
+        assert(!cooldown_parked(5));
+        UnmapViewOfFile(st);
+        CloseHandle(map);
+        cooldown_forget();
+        human[3] = false;
+        reset_session();
+    }
+
     std::puts("road to 1.0 ok");
 }

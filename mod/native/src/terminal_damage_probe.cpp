@@ -123,6 +123,7 @@ namespace {
 #include "damage_icons.hpp"
 #include "brake_telemetry.hpp"
 #include "ai_cleanup.hpp"
+#include "cooldown_link.hpp"
 
 #include "probe/02_core_state.inc"  // session, crash, repair and plan state
 

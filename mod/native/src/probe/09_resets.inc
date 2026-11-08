@@ -86,6 +86,7 @@ void reset_race_faults()
     shown_power_kind = 0;
     shown_power_cuts = false;
     power_speed_wanted = false;
+    player_has_moved = false;
     gearbox_decline = {};
     decline_shift_scale = 0.0f;
     rear_brake_loss_target = 0.0f;

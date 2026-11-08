@@ -163,6 +163,12 @@ std::atomic<float> shown_power_loss{0.0f};   // panel: the steady loss in force 
 std::atomic<int> shown_power_kind{0};        // panel: pl::Kind with the bigger loss
 std::atomic<bool> shown_power_cuts{false};   // panel: the engine cuts out
 std::atomic<bool> power_speed_wanted{false}; // the battery derate needs the speed from the game thread
+// Your car has moved this race (above moved_kmh). The Career weekend menu after qualifying runs the race's session
+// with your car standing OnTrack in the game's pit records and no practice flag, and the race itself later runs in
+// that same session (log 2026-11-06 08:45, context still qualifying_1): the failure clocks ran in the menu, a brake
+// failure was planned and its warning signs shown there (Nick, 2026-11-08 03:25 Suzuka). They start once the car moves.
+std::atomic<bool> player_has_moved{false};
+constexpr int moved_kmh = 10;
 // Share of the last minute the player ran at full throttle (game thread): lift and coast lowers it.
 std::atomic<float> full_throttle_share{0.65f};
 // Read by the throttle stub (game thread): when the car being updated is `car`, its throttle is capped at `cap`.

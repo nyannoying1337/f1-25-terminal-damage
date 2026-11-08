@@ -223,6 +223,14 @@ void gp_failure_tick(double dt)
     if (session_ended || practice_like() || player_broken || player_vehicle.load() < 0 || player_pit.load() != 1 ||
         pending_failure.load() || retire_requested)
         return;  // the clocks stand in the pit lane or once the car is out (power_tick gives full power there)
+    // Standing since the session (or the race) began: the Career weekend menu, not driving yet. An unknown speed (-1)
+    // does not hold the clocks.
+    if (!player_has_moved) {
+        if (int kmh = player_speed(); kmh >= 0 && kmh < moved_kmh)
+            return;
+        player_has_moved = true;
+        swofty::log("[td-probe] gp failures: your car is moving, the failure clocks run");
+    }
     // Nursing: during the warning signs the part wears slower with less time at full throttle.
     bool warning = realistic && gp_at >= 0 && gp_at < 1e17 && gp_clock >= gp_warn.warn_at;
     gp_clock += warning ? dt * fm::nursing_factor(full_throttle_share.load()) : dt;
