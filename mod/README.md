@@ -55,7 +55,7 @@ mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA 
 
 ## Quick start
 
-1. Steam version of F1 25 with Swofty Launcher 1.7.0 or newer. Install Terminal Damage from the Addon Browser, then restart the game.
+1. Steam version of F1 25 with Swofty Launcher 1.8.36 or newer. Install Terminal Damage from the Addon Browser, then restart the game.
 2. In the game's own settings (Damage Settings) put **Car Damage** and **Car Damage Rate** on **Simulation** (see Game settings below).
 3. A one-time message on the main menu points you to the preset. **Realistic** is the default: nothing else to set up.
 4. Want it easier or harder? In the game: ADDON SETTINGS, Terminal Damage, **Preset**. Every option has a description there.

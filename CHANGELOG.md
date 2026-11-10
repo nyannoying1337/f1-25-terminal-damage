@@ -1,3 +1,7 @@
+# Terminal Damage 0.75.15 beta
+
+The addon's Swofty manifest now says that it supports the Steam version of F1 25 only and needs Swofty Launcher 1.8.36 or newer. Nothing changes in the game. Everything from 0.75.14 is in this release.
+
 # Terminal Damage 0.75.14 beta
 
 Two attempted fixes: no car warnings in the Career weekend menu, and Terminal Damage works together with Cool-down Lap. Everything from 0.75.12 is in this release (0.75.13 was never released).
