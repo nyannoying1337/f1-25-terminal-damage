@@ -1,7 +1,9 @@
 #pragma once
-// Suspension damage from hits (0.51.88): a hit on a wheel can bend that corner (toe: the car pulls) and weaken it; a
-// weak corner can collapse later under heavy load. A hit that breaks a corner lets it go at once or, since 0.51.132,
-// only later while driving (failing). Plus the debug suspension test (Ctrl+Shift+F8).
+// Suspension damage from hits (0.51.88, model v2 since 0.76): a hit on a wheel can bend that corner (toe: the car
+// pulls), weaken it (heavy kerb loads then wear it down) or break it: collapsed (the wheel stays on, the car limps) or,
+// for a big hit, the wheel torn off. While the model runs the game's own suspension damage scales are 0, so the model
+// alone decides (43_frame.inc). No timers and no dice decide a corner's fate. Plus the debug suspension test and the
+// damage lab (Ctrl+Shift+F8).
 // AI cars (suspension_damage_ai, issue #18): hits bend, weaken and collapse their corners the same way (no kerb
 // fatigue); a collapsed corner retires the car through the game's own terminal damage handling, or, if the game sends
 // no terminal damage message within 15 s, through a retirement status request.
@@ -41,52 +43,82 @@ namespace susp {
 
 // ---- Model (pure, unit tested) ----
 constexpr float deg = 0.0174533f;
-// Hit sizes (the normal speed into the object, m/s) from the real cases (re/failure-realism-research.md sections 2
-// and 5, a wheel against concrete or Armco): below 1.5 nothing (brushes and taps: Russell Monaco 2022, Verstappen
-// Monaco 2023 "clipped a few barriers", Norris Singapore 2024); 1.5-4 bent by 0.2-1 deg (Norris Singapore 2023:
-// steering off-centre, finished 2nd), about 1 in 10 break; 4-8 break 30-70 %, otherwise bent by more than 1 deg;
-// 8-12 over 80 %; from 12 always (the corner collapses or the wheel hangs on its tethers). Engineering check: about
-// 8.5 kN per m/s on the wheel, parts fail at 18-28 kN (safety factor 1.5-2), so 2-3.5 m/s for a square hit.
-constexpr float hit_min = 1.5f, hit_always = 12.0f;
+// Model v2 (0.76; re/suspension-damage-audit.md section 8, re/irl-damage-research.md). Per corner one structure
+// value, `health` (1 new, 0 nothing left: the margin before the corner gives), and its toe change `bend`. Damage comes
+// only from events: a wheel hit, a heavy kerb strike or a landing. Nothing changes with distance or time, and no dice
+// decide a corner's fate: the outcome follows from the hit and what is left of the corner. Stages:
+//   bent      the toe changes, the car pulls (verified 0.51.87)
+//   weakened  health below weak_health: no sign on the car; heavy loads now wear it down (crack growth)
+//   collapsed corner state 2: the wheel stays on and drives like a flat tyre; the car can limp (verified 0.51.89)
+//   wheel off the game's D past its wheel detach limit: the wheel hangs on its tether, terminal (lab runs 2-4)
+// The only random parts: each corner's own strength (part to part, 0.85-1.15, drawn at a reset) and the size and
+// direction of a bend.
+//
+// Hit sizes are the normal speed into the object (m/s), the measure the old model was tested with
+// (re/failure-realism-research.md section 5): below 1.5 nothing (brushes and taps), 1.5-4 a bend of 0.2-1 deg, 4-8
+// most cars broke something, from 12 always. `brk` is a fresh corner's strength: a solid hit of that size breaks it
+// (Realistic 7, inside the old 30-70 % band). A hit of off_factor x brk tears the wheel off (Realistic 11.9, the old
+// "always" of 12). Up to elastic x brk a hit only bends (the structure springs back; Realistic 2.8 m/s). Above it a hit
+// takes health by the square of the part past that limit, hit_loss x ((v - elastic brk) / (brk - elastic brk))^2, and
+// a corner's strength falls with its health to 25 % of new: two medium hits on one corner can break it where one does
+// not. Tuned with the offline simulator (tests/suspension_sim_test.cpp): ten wall brushes never break a corner.
+constexpr float hit_min = 1.5f;
+constexpr float elastic = 0.4f;
+constexpr float strength_realistic = 7.0f, strength_forgiving = 9.5f, strength_brutal = 5.0f;
+constexpr float off_factor = 1.7f;
+constexpr float hit_loss = 1.0f;
 constexpr float bend_max = 3.5f * deg;
-constexpr float weak_health = 0.4f;
-constexpr float heavy_fatigue = 0.0005f;
-// A healthy corner never fails from kerbs alone: every real kerb failure we found had new or raised kerbs or a part
-// damaged before (re/failure-realism-research.md section 2.2).
-constexpr float base_failure = 0.0f;
-constexpr float weak_failure = 0.03f;  // per heavy load, times how far below weak_health the corner is
+constexpr float weak_health = 0.5f;
+// The driver hears of lost margin before it is weakened: below warn_health another solid hit can break the corner
+// (0.76 test: FR at 0.57 after two hits, no warning, then a 9.3 m/s hit collapsed it).
+constexpr float warn_health = 0.75f;
+// Heavy loads (a kerb strike or a landing, the travel rate above heavy_rate): q = rate / heavy_rate. They wear only a
+// weakened corner (health below weak_health: the crack is there), faster the deeper it is (a crack grows from what is
+// there: Alonso Monza 2025, lap-1 damage, "low-level, continuous loading" broke it later): fatigue x q^2 x
+// ((weak_health - health) / weak_health)^1.5, plus a floor so a corner just below the line still wears. A corner
+// that is not weakened never fails from kerbs alone (most cars with light damage finish: re/irl-damage-research.md
+// section 2). Gameplay approximation: no real crack growth rate is published; tuned with the simulator.
+constexpr float fatigue = 0.04f, fatigue_floor = 0.002f;
+// A collapsed corner has nothing left to hold the wheel: a solid hit of collapsed_off x its fresh strength or a heavy
+// load of q >= collapsed_off_q tears it off. Limping gently keeps it on.
+constexpr float collapsed_off = 0.5f, collapsed_off_q = 2.0f;
 
 struct Corner {
     float bend = 0;    // toe change in radians
     float health = 1;  // 1 new, 0 gone
-    bool told_bend = false, told_weak = false, collapsed = false;
-    uint64_t crack_at = 0;  // hidden crack: fails at the first heavy load after this driving time (ms), 0 = none
+    float part = 1;    // this corner's own strength, 0.85-1.15 of the model's (drawn at a reset)
+    bool told_bend = false, told_damaged = false, told_weak = false, collapsed = false, off = false;
 };
 struct Model {
     Corner c[4];
+    float brk = strength_realistic;  // a fresh corner's strength, m/s (the suspension_strength option)
 };
+inline float strength_of(std::string_view option)
+{
+    return option == "forgiving" ? strength_forgiving : option == "brutal" ? strength_brutal : strength_realistic;
+}
+// A fresh model with the same strength; r[i] in [0, 1) draws each corner's part.
+inline Model fresh_model(float brk, const float r[4])
+{
+    Model m;
+    m.brk = brk;
+    for (int i = 0; i < 4; ++i)
+        m.c[i].part = 0.85f + 0.3f * std::clamp(r[i], 0.0f, 1.0f);
+    return m;
+}
+// What it takes now to break corner c with one solid hit (m/s).
+inline float strength_now(const Model &m, const Corner &c) { return m.brk * c.part * (0.25f + 0.75f * c.health); }
 
 struct HitResult {
-    float severity = 0, delta = 0, chance = 0;
-    // failing: the hit broke the corner, but it holds for now and lets go later (failing_delay_ms)
-    bool collapse = false, newly_bent = false, newly_weak = false, cracked = false, failing = false;
+    float severity = 0;  // v against the fresh corner's strength
+    float delta = 0, loss = 0;
+    bool collapse = false, wheel_off = false, newly_bent = false, newly_damaged = false, newly_weak = false;
 };
 
-inline float severity_of(float speed) { return std::clamp((speed - hit_min) / (hit_always - hit_min), 0.0f, 1.0f); }
-
-// Chance that a hit of this size breaks a healthy corner at once.
-inline float break_chance(float v)
-{
-    if (!(v >= hit_min))
-        return 0.0f;
-    if (v < 4.0f)
-        return 0.25f * (v - hit_min) / (4.0f - hit_min);
-    if (v < 8.0f)
-        return 0.25f + 0.45f * (v - 4.0f) / 4.0f;
-    if (v < hit_always)
-        return 0.70f + 0.30f * (v - 8.0f) / (hit_always - 8.0f);
-    return 1.0f;
-}
+// The size and direction of a bend, uniform in [0, 1).
+struct Rolls {
+    float size = 0.5f, sign = 0.5f;
+};
 
 // Toe change of a hit that bends but does not break (degrees): 0.2-1 below 4 m/s, 1-2.5 above, r in [0, 1) scales
 // it by 0.6-1.4.
@@ -96,128 +128,99 @@ inline float bend_deg(float v, float r)
     return base * (0.6f + 0.8f * r);
 }
 
-// Delayed failure: 10-20 % of the hits that do not break a corner leave a hidden crack, which lets go under a heavy
-// load from moments to about 25 laps later (Montoya Canada 2006 "no visible damage", stopped moments later; Leclerc
-// Monaco 2021, a crack missed in inspection; Alonso Monza 2025, a pushrod failed 23 laps after lap-1 kerb damage).
-// Since 0.51.132 the due time is front-loaded (r squared, the same range): half within about 10 minutes of driving,
-// so more of them come in one session (uniform, half came after 19 minutes and none in the test logs).
-inline float crack_chance(float severity) { return 0.10f + 0.10f * severity; }
-inline uint64_t crack_delay_ms(float r)
-{
-    float x = std::clamp(r, 0.0f, 1.0f);
-    return 5000 + uint64_t(x * x * 2245000.0f);
-}
-// A due crack also lets go under ordinary loads (braking, cornering) when no heavy load came within a minute.
-constexpr uint64_t crack_grace_ms = 60000;
-
-// Of the solid hits that break a corner, this share lets go at once: 30 % up to 4 m/s, rising to all from 12 m/s.
-// The rest break the corner without letting go yet (failing): it holds for now and fails later, while driving, like a
-// part cracked through (Montoya Canada 2006). A report after 0.51.131: 'i get suspension damage but not to a point where
-// its damaged hard enough to limp and or that the suspension might collaps while driving. the car is always dead'.
-// A kerb or road strike that breaks a damaged corner, a corner with a crack in it and one with no health left go at
-// once.
-inline float break_now_share(float v)
-{
-    return 0.3f + 0.7f * std::clamp((v - 4.0f) / (hit_always - 4.0f), 0.0f, 1.0f);
-}
-// A failing corner's crack is due after 5 s to 3 min of driving, more than half within the first minute (r squared);
-// then it lets go at the next heavy load, or crack_grace_ms later anyway. Its health drops to failing_health: the
-// weakened warning, and heavy loads can finish it before.
-inline uint64_t failing_delay_ms(float r)
-{
-    float x = std::clamp(r, 0.0f, 1.0f);
-    return 5000 + uint64_t(x * x * 175000.0f);
-}
-constexpr float failing_health = 0.25f;
-inline bool crack_gives(const Corner &c, uint64_t now_ms)
-{
-    return !c.collapsed && c.crack_at && now_ms >= c.crack_at + crack_grace_ms;
-}
-
-// Uniform random numbers in [0, 1) for one hit. now: a break below break_now_share lets go at once (the default 0:
-// every break at once); when: the due time of a crack or of a failing corner.
-struct Rolls {
-    float size = 0.5f, sign = 0.5f, brk = 0.99f, crack = 0.99f, when = 0.5f, now = 0.0f;
-};
-
-// A hit of size v on corner i. surface: only the road or a kerb (their tilted faces), which never breaks a healthy
-// corner but can finish a damaged one. now_ms: the driving clock, for a crack's due time.
-inline HitResult apply_hit(Model &m, int i, float v, bool surface, const Rolls &r, uint64_t now_ms)
+// A hit of size v on corner i. surface: the road or a kerb (their tilted faces): it never breaks a corner that is
+// not weakened yet and takes half the health a solid hit would.
+inline HitResult apply_hit(Model &m, int i, float v, bool surface, const Rolls &r)
 {
     HitResult h;
     Corner &c = m.c[i];
-    if (c.collapsed || !(v >= hit_min))
+    if (c.off || !(v >= hit_min))
         return h;
-    float s = h.severity = std::max(severity_of(v), 1e-6f);
-    // A damaged corner breaks more easily (heavy kerb strikes finish off a bent one).
-    float chance = surface ? break_chance(v) * std::min(1.0f, 2.0f * (1.0f - c.health)) : break_chance(v) * (2.0f - c.health);
-    h.chance = std::min(1.0f, chance);
-    c.health = std::max(0.0f, c.health - (0.05f + 0.55f * s));
-    bool breaks = r.brk < h.chance;
-    if (c.health <= 0 || (breaks && (surface || c.crack_at || r.now < break_now_share(v)))) {
+    float fresh = m.brk * c.part;
+    h.severity = std::max(v / fresh, 1e-6f);
+    if (c.collapsed) {
+        if (!surface && v >= collapsed_off * fresh)
+            h.wheel_off = c.off = true;
+        return h;
+    }
+    if (!surface && v >= off_factor * fresh) {
+        h.loss = c.health;
+        c.health = 0;
+        h.collapse = h.wheel_off = c.collapsed = c.off = true;
+        return h;
+    }
+    float now = strength_now(m, c);
+    bool breaks = v >= now && (!surface || c.health < weak_health);
+    float past = std::max(0.0f, (v - elastic * fresh) / ((1.0f - elastic) * fresh));
+    h.loss = std::min(c.health, (surface ? 0.5f : 1.0f) * hit_loss * past * past);
+    if (surface && c.health >= weak_health)
+        h.loss = std::min(h.loss, c.health - 0.05f);  // a kerb face leaves a corner that was not weakened standing
+    c.health -= h.loss;
+    if (breaks || c.health <= 0.0f) {
+        c.health = 0;
         h.collapse = c.collapsed = true;
         return h;
     }
-    if (breaks) {
-        h.failing = true;
-        c.health = std::min(c.health, failing_health);
-        c.crack_at = now_ms + failing_delay_ms(r.when);
-    }
-    h.delta = bend_deg(v, r.size) * deg * (r.sign < 0.5f ? -1.0f : 1.0f);
+    // A bent part keeps bending the same way (0.76 test: random sides let a second hit straighten the first bend).
+    float side = c.bend != 0.0f ? (c.bend > 0.0f ? 1.0f : -1.0f) : (r.sign < 0.5f ? -1.0f : 1.0f);
+    h.delta = bend_deg(v, r.size) * deg * side;
     c.bend = std::clamp(c.bend + h.delta, -bend_max, bend_max);
     if (!c.told_bend && std::fabs(c.bend) >= 0.4f * deg)
         c.told_bend = h.newly_bent = true;
+    if (!c.told_damaged && c.health < warn_health)
+        c.told_damaged = h.newly_damaged = true;
     if (!c.told_weak && c.health < weak_health)
         c.told_weak = h.newly_weak = true;
-    if (!c.crack_at && r.crack < crack_chance(s)) {
-        c.crack_at = now_ms + crack_delay_ms(r.when);
-        h.cracked = true;
-    }
     return h;
 }
 
-// A heavy kerb strike or landing on corner i. Returns true when the corner collapses: a due crack lets go, a weak
-// corner can fail.
-inline bool heavy_load(Model &m, int i, float r, uint64_t now_ms)
+// A heavy kerb strike or landing on corner i, q = travel rate / heavy_rate (>= 1).
+enum class Load { none, worn, collapse, wheel_off };
+inline Load heavy_load(Model &m, int i, float q)
 {
     Corner &c = m.c[i];
-    if (c.collapsed)
-        return false;
-    if (c.crack_at && now_ms >= c.crack_at)
-        return c.collapsed = true;
-    c.health = std::max(0.0f, c.health - heavy_fatigue);
-    float p = base_failure + (c.health < weak_health ? (weak_health - c.health) * weak_failure : 0.0f);
-    if (r < p || c.health <= 0)
-        return c.collapsed = true;
-    return false;
+    if (c.off || !(q >= 1.0f))
+        return Load::none;
+    if (c.collapsed) {
+        if (q < collapsed_off_q)
+            return Load::none;
+        c.off = true;
+        return Load::wheel_off;
+    }
+    if (c.health >= weak_health)
+        return Load::none;
+    c.health -= q * q * (fatigue_floor + fatigue * std::pow((weak_health - c.health) / weak_health, 1.5f));
+    if (c.health <= 0.0f) {
+        c.health = 0;
+        c.collapsed = true;
+        return Load::collapse;
+    }
+    return Load::worn;
 }
 
-// Garage service (practice and qualifying, 0.51.135). A report after 0.51.134: 'i literally went into the pits with a
-// broken corner, but the repair instantly clears up upon entering pits'. A corner that holds but took a hit (bent,
-// weakened or cracked) is repaired in the garage, and that takes time: 4-8 minutes for a light bend (toe, a track
-// rod), 8-14 for a weakened corner (health below 0.8) or one with a crack, 14-20 for one close to breaking (health
-// below 0.5: wishbones, pushrod, upright). The crews work side by side: the longest corner plus half of each other
-// one. A broken corner is the crash repair's (20-45 minutes). Kerb wear alone (heavy_fatigue, 0.0005 a heavy load)
-// needs 200 heavy loads to reach service_health.
+// Garage service (practice and qualifying, 0.51.135). A corner that holds but took damage (bent or weakened) is
+// repaired in the garage, and that takes time: 4-8 minutes for a light bend (toe, a track rod), 8-14 for a corner
+// below 0.8, 14-20 for a weakened one (below weak_health: wishbones, pushrod, upright; the team finds the crack). The
+// crews work side by side: the longest corner plus half of each other one. A collapsed corner is the crash repair's.
 constexpr float service_bend = 0.1f * deg, service_health = 0.9f;
 inline bool needs_service(const Corner &c)
 {
-    return !c.collapsed && (std::fabs(c.bend) >= service_bend || c.health < service_health || c.crack_at);
+    return !c.collapsed && (std::fabs(c.bend) >= service_bend || c.health < service_health);
 }
 // Minutes for one corner, r in [0, 1).
 inline float service_minutes(const Corner &c, float r)
 {
     float x = std::clamp(r, 0.0f, 1.0f);
-    if (c.health < 0.5f)
+    if (c.health < weak_health)
         return 14.0f + 6.0f * x;
-    if (c.health < 0.8f || c.crack_at)
+    if (c.health < 0.8f)
         return 8.0f + 6.0f * x;
     return 4.0f + 4.0f * x;
 }
 struct ServicePlan {
     float seconds = 0;     // 0: nothing to repair
     uint32_t corners = 0;  // bit i = corner i
-    bool crack = false;    // the team finds a crack
+    bool crack = false;    // the team finds a crack (a weakened corner)
 };
 inline ServicePlan service_plan(const Model &m, const float r[4])
 {
@@ -229,7 +232,7 @@ inline ServicePlan service_plan(const Model &m, const float r[4])
             continue;
         float t = service_minutes(c, r[i]);
         p.corners |= 1u << i;
-        p.crack |= c.crack_at != 0;
+        p.crack |= c.health < weak_health;
         longest = std::max(longest, t);
         sum += t;
     }
@@ -419,6 +422,7 @@ struct Pending {
 Pending pending[4];
 std::atomic<float> rate_peak[4];       // highest |travel rate| since the last frame
 std::atomic<uint32_t> collapse_request{0};  // corner bits, applied on the game thread
+std::atomic<uint32_t> off_request{0};       // corner bits whose wheel the model tears off (game thread)
 std::atomic<uint64_t> drive_us{0};          // driving clock: sum of the geometry step dt
 std::atomic<uint64_t> steps{0};
 // Contact hook calls (every car, your car), for the 30 s stats: its cost is known, its rate not (0.51.117 review).
@@ -472,9 +476,10 @@ int index_of_car(uintptr_t c)
 }
 }  // namespace ai
 
-// Kerb strikes and landings: |travel rate| above this, travel units per second. Placeholder until the 30 s load stats
-// in the log show the range.
-constexpr float heavy_rate = 1.5f;
+// Kerb strikes and landings: |travel rate| above this, travel units per second. Measured 2026-11-10 (0.76.0, practice,
+// session 20261110-080753, 30 s peaks): three clean laps 0.25-0.76; three laps attacking every kerb 1.0-1.64, about
+// 1-3 loads past 1.0 a lap; the car dropped on track at the session start 2.8 (below 50 km/h, not counted).
+constexpr float heavy_rate = 1.0f;
 
 void store_max(std::atomic<float> &a, float v)
 {
@@ -568,6 +573,14 @@ float random01()
 
 uint64_t drive_ms() { return drive_us.load() / 1000; }
 
+// A fresh model for a new car or a repair: the strength option, each corner's part drawn anew.
+float strength = strength_realistic;  // set at install from suspension_strength
+Model new_model()
+{
+    float r[4] = {random01(), random01(), random01(), random01()};
+    return fresh_model(strength, r);
+}
+
 void publish()
 {
     for (int i = 0; i < 4; ++i)
@@ -581,8 +594,8 @@ void reset(const char *why)
 {
     bool damaged = false;
     for (const Corner &c : model.c)
-        damaged |= c.bend != 0 || c.health < 1 || c.collapsed;
-    model = Model{};
+        damaged |= c.bend != 0 || c.health < 1 || c.collapsed || c.off;
+    model = new_model();
     history.clear();
     for (int i = 0; i < 4; ++i) {
         gate[i].clear();
@@ -590,6 +603,7 @@ void reset(const char *why)
         rate_peak[i] = 0;
     }
     collapse_request = 0;
+    off_request = 0;
     publish();
     if (damaged)
         swofty::log("[td-probe] suspension: all corners repaired (%s)", why);
@@ -599,7 +613,7 @@ void reset(const char *why)
 void ai_reset()
 {
     for (int v = 0; v < ai::n; ++v) {
-        ai::model[v] = Model{};
+        ai::model[v] = new_model();
         ai::history[v].clear();
         ai::retire_at[v] = 0;
         ai::collapse_req[v] = 0;
@@ -611,6 +625,23 @@ void ai_reset()
     }
     ai::terminal_seen = 0;
 }
+
+// ---- Damage lab (debug_suspension_test "lab", developer only) ----
+// Proves the native levers before the damage model is rebuilt on them (re/suspension-damage-audit.md). Each
+// Ctrl+Shift+F8 runs the next step on the front-left corner; the game thread does the writes, the log keeps what was
+// asked, what reads back and what the game did (corner state, the wheel part's detached flag, the terminal message)
+// apart. Static evidence the steps rest on (reference build): the corner state getter 0x1446568e0 derives states 3-5
+// only from the damage value D (comp+0x130 + 4i) against W and P; a wheel part detaches through its predicate
+// 0x144655570 (D >= W, polled by 0x144662010); the collision handler and the front wing overflow (0x1446601fc) both
+// multiply by the front/rear damage scales; the loose-wheel drift 0x1446566b0 raises D only while W <= D < P.
+namespace lab {
+std::atomic<bool> on{false};       // "lab" at game start and the hooks in place
+std::atomic<int> requested{-1};    // the step the hotkey asked for (frame thread), run on the game thread
+std::atomic<float> camber{0};      // radians added to the front-left camber after the geometry step
+std::atomic<float> in_handler[4];  // the game's own D rise inside its collision handler (physics thread adds)
+std::atomic<uint64_t> hit_second{0};
+std::atomic<int> hit_lines{0};  // hit lines logged in the current second (physics thread)
+}  // namespace lab
 
 // ---- Debug test (Ctrl+Shift+F8, front-left wheel) ----
 namespace test {
@@ -693,11 +724,12 @@ uint64_t on_step(void *sys, float dt)
             *reinterpret_cast<volatile float *>(w + 0x1fc) = cos_h * c - sin_h * sn;
             *reinterpret_cast<volatile float *>(w + 0x1f8) = written_sin[i];
         }
-        if (i != 2 || !tm)
+        float lab_camber = i == 2 ? lab::camber.load(std::memory_order_relaxed) : 0.0f;
+        if (i != 2 || (!tm && lab_camber == 0))
             continue;
-        float camber = 0, damage = 0;
-        if (tm == 2 && toff != 0 && guarded_read(w + 0x154, camber) && camber != test::written_camber) {
-            test::written_camber = camber + toff;
+        float camber = 0, damage = 0, coff = tm == 2 ? toff : lab_camber;
+        if (coff != 0 && guarded_read(w + 0x154, camber) && camber != test::written_camber) {
+            test::written_camber = camber + coff;
             *reinterpret_cast<volatile float *>(w + 0x154) = test::written_camber;
         }
         if (guarded_read(w + 0x98, damage)) {
@@ -979,6 +1011,36 @@ uint64_t on_hit(void *component, void *contact)
             if (dmax < 0 || x > dd[dmax])
                 dmax = i;
         }
+    if (lab::on.load(std::memory_order_relaxed) && vehicle < 0)
+        for (int i = 0; i < 4; ++i)
+            if (dd[i] > 0)
+                add_float(lab::in_handler[i], dd[i]);
+    // The lab's calibration record: every wheel hit with the contact speeds the game wrote (m/s, +0x24 another car,
+    // +0x2c anything else) next to the D it added, so a hit's strength can be mapped to the game's damage. At most 10
+    // lines a second.
+    if (lab::on.load(std::memory_order_relaxed) && vehicle < 0 && (any || dsum > 0)) {
+        uint64_t now = GetTickCount64();
+        if (now - lab::hit_second.load(std::memory_order_relaxed) >= 1000) {
+            lab::hit_second.store(now, std::memory_order_relaxed);
+            lab::hit_lines.store(0, std::memory_order_relaxed);
+        }
+        if (lab::hit_lines.fetch_add(1, std::memory_order_relaxed) < 10) {
+            char parts[4][48];
+            for (int i = 0; i < 4; ++i) {
+                float a = 0, b = 0;
+                if (w[i]) {
+                    guarded_read(w[i] + 0x24, a);
+                    guarded_read(w[i] + 0x2c, b);
+                }
+                snprintf(parts[i], sizeof parts[i], "%s%s car %.2f other %.2f D %+.4f", corner[i] ? "*" : "",
+                         corner_tag(i), double(corner[i] ? a : 0), double(corner[i] ? b : 0), double(dd[i]));
+            }
+            swofty::log("[td-probe] damage lab hit: %s | %s | %s | %s; speed %d km/h", parts[0], parts[1], parts[2],
+                        parts[3], player_speed());
+        }
+    }
+    if (!enabled)
+        return r;  // the lab without the model: the game's own damage is only measured
     if (!any && dmax >= 0) {  // the game damaged a corner but wrote no contact speed (its damage bits): take that one
         corner[dmax] = true;
         any = true;
@@ -1044,6 +1106,288 @@ void log_game_settings()
                 "rear scale %.5f, wheel detach at %.2f, parts detach at %.2f%s",
                 double(v[0]), double(v[1]), double(v[2]), double(v[3]), double(v[4]), note);
 }
+
+// ---- Damage lab: the steps (game thread) and the evidence log ----
+namespace lab {
+enum Kind { arm, set_camber, d_of_w, d_of_p, repair, finish };
+struct Step {
+    Kind kind;
+    float value;  // camber in degrees, or the factor on W or P
+    const char *title, *watch;
+};
+// The order keeps the car drivable as long as possible: the steps that end in terminal damage come last, with a
+// session restart before the final one.
+constexpr Step steps[] = {
+    {arm, 0, "Lab 1/8: the game's suspension damage scales set to 0",
+     "Hit kerbs hard and tap a wall with the front-left. The log should show no damage rise."},
+    {set_camber, 2.0f, "Lab 2/8: front-left camber +2 degrees", "Drive a lap. Does the car feel or pull differently?"},
+    {d_of_w, 0.5f, "Lab 3/8: front-left damage at half the wheel detach limit",
+     "Nothing should change: the wheel stays on."},
+    {d_of_w, 1.02f, "Lab 4/8: front-left damage just past the wheel detach limit, held for 30 s",
+     "The front-left wheel should come loose and stay loose for 30 s. Drive slowly and watch it."},
+    {repair, 0, "Lab 5/8: the game's corner repair", "The wheel should be back on and the car normal again."},
+    {d_of_p, 1.02f, "Lab 6/8: front-left damage past the parts detach limit",
+     "The wheel should come off and the crash handling start. Then restart the session."},
+    {d_of_p, 2.05f, "Lab 7/8: front-left damage past twice the parts limit",
+     "After the restart: the wheel should be lost completely."},
+    {finish, 0, "Lab 8/8: done", "Scales restored. Set Debug: suspension test back to Off."},
+};
+constexpr int n_steps = int(sizeof steps / sizeof steps[0]);
+constexpr int corner = 2;  // front-left
+
+// Game thread only.
+int step = -1;
+uint32_t tokens[2] = {};
+int layered_for = -1;  // the player's vehicle the scale layers are on
+bool layers_refused = false, unsupported = false;
+float last_d[4] = {-1, -1, -1, -1};
+uint32_t last_state = 0xffffffff;
+uint8_t last_detached[4] = {0xff, 0xff, 0xff, 0xff};
+uint64_t readback_at = 0;
+uint64_t hold_until = 0;  // step 4: the lab writes D back down to `asked` every update until then (a loose wheel
+                          // the game's drift would otherwise take to the parts limit in about half a second)
+int holds = 0;
+uintptr_t seen_car = 0, seen_frame_car = 0;
+float asked = -1;
+int lines_this_second = 0;
+uint64_t second_start = 0;
+
+// W and P of the car's suspension damage component (XOR-keyed floats, re/collision-impact.md section 6); false
+// when they do not look like this build's layout (W 1.0, P 1.5 stock; x2 while the model's layers are on).
+bool limits(uintptr_t comp, float &w, float &p)
+{
+    uint32_t a = 0, b = 0, c = 0, d = 0;
+    if (!guarded_read(comp + 0x58, a) || !guarded_read(comp + 0x60, b) || !guarded_read(comp + 0x68, c) ||
+        !guarded_read(comp + 0x70, d))
+        return false;
+    w = std::bit_cast<float>(a ^ b);
+    p = std::bit_cast<float>(c ^ d);
+    return std::isfinite(w) && std::isfinite(p) && w >= 0.2f && w <= 20.0f && p >= w && p <= 40.0f;
+}
+
+// The wheel part of corner i (comp+0xe8 + 8i, re/wheel-tether-investigation.md), its detached flag +0x38.
+uint8_t detached(uintptr_t comp, int i)
+{
+    uintptr_t part = 0;
+    uint8_t f = 0xfe;
+    if (!guarded_read(comp + 0xe8 + 8 * i, part) || !part || !guarded_read(part + 0x38, f))
+        return 0xfe;  // unreadable
+    return f;
+}
+
+void scales(bool want, int player)
+{
+    auto t = swofty::detail::live_car_ops_v2();
+    if (!t)
+        return;
+    if (layered_for >= 0 && (!want || player != layered_for)) {
+        for (uint32_t &tk : tokens)
+            if (tk)
+                t->unlayer(std::exchange(tk, 0u));
+        swofty::log("[td-probe] damage lab: the suspension damage scales of car %d are the game's again", layered_for);
+        layered_for = -1;
+    }
+    if (!want || player < 0 || layered_for == player || layers_refused)
+        return;
+    const uint32_t fields[2] = {SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE, SWOFTY_CAR_SUSP_REAR_DAMAGE_SCALE};
+    int ok = 0;
+    for (int k = 0; k < 2; ++k) {
+        int r = t->layer("addon", uint32_t(player), fields[k], SWOFTY_CAR_OP_SET, 0.0f, 60, &tokens[k]);
+        float v = -1;
+        int g = t->get ? t->get(uint32_t(player), nullptr, fields[k], &v) : -1;
+        swofty::log("[td-probe] damage lab: %s damage scale asked 0, layer result %d, reads back %.6f (result %d)",
+                    k ? "rear" : "front", r, double(v), g);
+        ok += r == SWOFTY_ASSET_OK && g == SWOFTY_ASSET_OK && v == 0.0f;
+    }
+    layered_for = player;
+    if (ok != 2) {
+        layers_refused = true;
+        swofty::log("[td-probe] damage lab: LIMITATION: the scales could not be set to 0; the game's own suspension "
+                    "damage stays active and the lab only measures it");
+    }
+}
+
+// The scales as the component holds them (XOR-keyed like W and P): the core's `get` returned the game's base values
+// with the layer on (runs 2 and 3), so this is what the collision handler actually multiplies by.
+void log_scales(uintptr_t comp, const char *why)
+{
+    uint32_t v[6] = {};
+    const int off[6] = {0x28, 0x30, 0x38, 0x40, 0x48, 0x50};
+    for (int k = 0; k < 6; ++k)
+        if (!guarded_read(comp + off[k], v[k]))
+            return;
+    swofty::log("[td-probe] damage lab: the component's own values (%s): speed threshold %.4f, front damage scale "
+                "%.6f, rear damage scale %.6f", why, double(std::bit_cast<float>(v[0] ^ v[1])),
+                double(std::bit_cast<float>(v[2] ^ v[3])), double(std::bit_cast<float>(v[4] ^ v[5])));
+}
+
+void run(const Step &s, uintptr_t comp)
+{
+    float w = 0, p = 0;
+    if (s.kind == arm || s.kind == finish)
+        readback_at = GetTickCount64() + 1000;
+    camber = s.kind == set_camber ? s.value * deg : 0.0f;
+    if (s.kind == set_camber)
+        swofty::log("[td-probe] damage lab: asked front-left camber %+.2f deg on top of the game's", double(s.value));
+    if (s.kind == repair) {
+        uint32_t before = wheel_state_get(reinterpret_cast<void *>(comp));
+        wheel_state_apply(reinterpret_cast<void *>(comp), 0);
+        swofty::log("[td-probe] damage lab: asked the game's corner repair (state 0): states 0x%03x -> 0x%03x",
+                    before, wheel_state_get(reinterpret_cast<void *>(comp)));
+    }
+    if (s.kind == d_of_w || s.kind == d_of_p) {
+        if (!limits(comp, w, p)) {
+            unsupported = true;
+            swofty::log("[td-probe] damage lab: LIMITATION: the detach limits do not decode (unknown layout); no "
+                        "damage is written");
+            return;
+        }
+        float target = s.value * (s.kind == d_of_w ? w : p), before = 0;
+        guarded_read(comp + 0x130 + 4 * corner, before);
+        *reinterpret_cast<volatile float *>(comp + 0x130 + 4 * corner) = target;
+        asked = target;
+        readback_at = GetTickCount64() + 1000;
+        hold_until = s.kind == d_of_w && s.value > 1.0f ? GetTickCount64() + 30000 : 0;
+        holds = 0;
+        swofty::log("[td-probe] damage lab: asked front-left D %.3f (was %.3f; W %.3f, P %.3f), state now 0x%03x",
+                    double(target), double(before), double(w), double(p),
+                    wheel_state_get(reinterpret_cast<void *>(comp)));
+    }
+}
+
+// Game thread, every update of the player's car while the lab is on.
+void game_tick(uintptr_t car)
+{
+    uintptr_t comp = suspension_damage_of(car);
+    int player = player_vehicle.load();
+    if (!comp || unsupported) {
+        scales(false, player);
+        return;
+    }
+    if (uintptr_t fc = player_car(); car != seen_car || fc != seen_frame_car) {
+        seen_car = car;
+        seen_frame_car = fc;
+        swofty::log("[td-probe] damage lab: the game thread's car %p, the frame's player car %p (%s); hits, camber "
+                    "and the 2 s wheel fields follow the frame's car", reinterpret_cast<void *>(car),
+                    reinterpret_cast<void *>(fc), car == fc ? "the same" : "DIFFERENT");
+        log_scales(comp, "new car");
+    }
+    if (int want = requested.exchange(-1); want >= 0 && want < n_steps) {
+        hold_until = 0;
+        step = want;
+        const Step &s = steps[step];
+        swofty::log("[td-probe] damage lab: step %s", s.title);
+        run(s, comp);
+    }
+    scales(step >= 0 && steps[step].kind != finish, player);
+    uint64_t now = GetTickCount64();
+    float d[4] = {};
+    if (!guarded_copy(comp + 0x130, d, sizeof d))
+        return;
+    if (hold_until) {
+        if (now >= hold_until || d[corner] < asked - 0.01f) {
+            swofty::log("[td-probe] damage lab: hold of front-left D at %.3f ended (%s), %d write(s) back, D now %.3f",
+                        double(asked), now >= hold_until ? "30 s over" : "D fell below it", holds, double(d[corner]));
+            hold_until = 0;
+        } else if (d[corner] > asked) {
+            *reinterpret_cast<volatile float *>(comp + 0x130 + 4 * corner) = asked;
+            d[corner] = asked;
+            ++holds;
+        }
+    }
+    if (readback_at && now >= readback_at) {
+        readback_at = 0;
+        swofty::log("[td-probe] damage lab: read back 1 s later: front-left D %.3f (asked %.3f)", double(d[corner]),
+                    double(asked));
+        log_scales(comp, "1 s after the step");
+    }
+    // What the game did: corner states and the wheel parts' detached flags, on every change.
+    uint32_t state = wheel_state_get(reinterpret_cast<void *>(comp));
+    uint8_t det[4];
+    for (int i = 0; i < 4; ++i)
+        det[i] = detached(comp, i);
+    if (state != last_state || memcmp(det, last_detached, 4)) {
+        swofty::log("[td-probe] damage lab: observed corner states 0x%03x -> 0x%03x (RL RR FL FR: %u %u %u %u), wheel "
+                    "detached flags %u %u %u %u, D %.3f %.3f %.3f %.3f", last_state == 0xffffffff ? 0 : last_state,
+                    state, state & 7, (state >> 3) & 7, (state >> 6) & 7, (state >> 9) & 7, det[0], det[1], det[2],
+                    det[3], double(d[0]), double(d[1]), double(d[2]), double(d[3]));
+        last_state = state;
+        memcpy(last_detached, det, 4);
+    }
+    // Every rise of D: how much came inside the game's collision handler, the rest from outside it (the front wing
+    // overflow, the loose wheel drift, a lab write). At most 8 lines a second.
+    if (now - second_start >= 1000) {
+        if (lines_this_second > 8)
+            swofty::log("[td-probe] damage lab: %d more D changes in the last second not logged", lines_this_second - 8);
+        second_start = now;
+        lines_this_second = 0;
+    }
+    for (int i = 0; i < 4; ++i) {
+        float in = lab::in_handler[i].exchange(0);
+        if (last_d[i] >= 0 && std::fabs(d[i] - last_d[i]) > 0.0005f && ++lines_this_second <= 8)
+            swofty::log("[td-probe] damage lab: %s D %.4f -> %.4f (%+.4f; inside the collision handler %+.4f, outside "
+                        "it %+.4f), speed %d km/h", corner_tag(i), double(last_d[i]), double(d[i]),
+                        double(d[i] - last_d[i]), double(in), double(d[i] - last_d[i] - in), player_speed());
+        last_d[i] = d[i];
+    }
+}
+
+// Frame thread: the hotkey, and every 2 s what the telemetry and the wheel fields show (camber, tyre temperatures
+// and wear, wheel+0x88 and +0x98: which of them is a wear value is not known; the lab only reads them).
+void frame_tick(bool &was_down, uint64_t &next_log, int &asked_step)
+{
+    uint64_t now = GetTickCount64();
+    static bool greeted = false, f8_was = false;
+    if (!greeted && player_sys.load() && swofty::hud::available()) {
+        greeted = true;
+        swofty::hud::toast("DAMAGE LAB", "Lab is on. Ctrl+Shift+F8 starts step 1.", 8);
+        swofty::log("[td-probe] damage lab: start toast shown");
+    }
+    // Any F8 press, with the modifiers, so a missed hotkey can be told apart from no press at all.
+    bool f8 = (GetAsyncKeyState(VK_F8) & 0x8000) != 0;
+    if (f8 && !f8_was)
+        swofty::log("[td-probe] damage lab: F8 pressed (Ctrl %d, Shift %d), step so far %d", int((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0),
+                    int((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0), asked_step + 1);
+    f8_was = f8;
+    bool down = ctrl_shift_down(VK_F8);
+    if (down && !was_down && asked_step + 1 < n_steps) {
+        ++asked_step;
+        requested = asked_step;
+        if (swofty::hud::available())
+            swofty::hud::toast("DAMAGE LAB", steps[asked_step].watch, 8);
+    }
+    was_down = down;
+    uintptr_t s = player_sys.load();
+    if (!s || now < next_log)
+        return;
+    next_log = now + 2000;
+    float camb[4] = {}, f88[4] = {}, f98[4] = {};
+    for (int i = 0; i < 4; ++i) {
+        uintptr_t w = 0;
+        if (guarded_read(s + 0x70 + i * 8, w) && w) {
+            guarded_read(w + 0x154, camb[i]);
+            guarded_read(w + 0x88, f88[i]);
+            guarded_read(w + 0x98, f98[i]);
+        }
+    }
+    swofty::telemetry::CarState cs{};
+    cs.version = swofty::telemetry::version;
+    int player = player_vehicle.load();
+    auto tr = player >= 0 ? swofty::telemetry::car(uint32_t(player), &cs) : swofty::telemetry::Result::invalid;
+    bool tel = tr == swofty::telemetry::Result::ok;
+    char tel_tag[48] = "";
+    if (!tel)
+        snprintf(tel_tag, sizeof tel_tag, "(no telemetry: %s, car %d)", swofty::telemetry::name(tr), player);
+    swofty::log("[td-probe] damage lab (2 s, step %d): camber RL RR FL FR %+.2f %+.2f %+.2f %+.2f deg (asked FL %+.2f); "
+                "tyre temp %s %.0f %.0f %.0f %.0f, wear %.3f %.3f %.3f %.3f; wheel+0x88 %.3f %.3f %.3f %.3f, +0x98 %.3f "
+                "%.3f %.3f %.3f; speed %d km/h", asked_step + 1, double(camb[0] / deg), double(camb[1] / deg),
+                double(camb[2] / deg), double(camb[3] / deg), double(camber.load() / deg), tel_tag,
+                double(cs.tyre_temp[0]), double(cs.tyre_temp[1]), double(cs.tyre_temp[2]), double(cs.tyre_temp[3]),
+                double(cs.tyre_wear[0]), double(cs.tyre_wear[1]), double(cs.tyre_wear[2]), double(cs.tyre_wear[3]),
+                double(f88[0]), double(f88[1]), double(f88[2]), double(f88[3]), double(f98[0]), double(f98[1]),
+                double(f98[2]), double(f98[3]), player_speed());
+}
+}  // namespace lab
 
 // ---- Damage MFD page ----
 // The car damage panel (mfd.attacher.car_damage_panel, vtable 0x1456ed810, update 0x141530970) shows one value per
@@ -1132,32 +1476,75 @@ void publish_mfd(uintptr_t car)
     *mfd_car = enabled ? car : 0;
 }
 
-void install(bool feature, std::string_view test_setting, bool ai_feature = false)
+void install(bool feature, std::string_view test_setting, bool ai_feature = false,
+             std::string_view strength_setting = "realistic")
 {
-    test_enabled = test::mode_of(test_setting) != 0;
+    strength = strength_of(strength_setting);
+    model = new_model();
+    bool want_lab = test_setting == "lab";
+    test_enabled = test::mode_of(test_setting) != 0 || want_lab;
     if (!feature && !test_enabled)
         return;
     step_hooked = detour("suspension: wheel geometry step", step_sig, step_prologue, sizeof step_prologue,
                          reinterpret_cast<void *>(&on_step), reinterpret_cast<void **>(&orig_step));
-    if (feature)
+    if (feature || want_lab)
         hit_hooked = detour("suspension: wheel collision", hit_sig, hit_prologue, sizeof hit_prologue,
                             reinterpret_cast<void *>(&on_hit), reinterpret_cast<void **>(&orig_hit));
     enabled = feature && step_hooked && hit_hooked;
+    lab::on = want_lab && step_hooked && hit_hooked && crash_repair_available();
+    if (want_lab)
+        swofty::log("[td-probe] damage lab: %s (geometry hook %d, collision hook %d, corner state functions %d); "
+                    "Ctrl+Shift+F8 runs the next step", lab::on ? "on" : "OFF, a hook or function is missing",
+                    int(step_hooked), int(hit_hooked), int(crash_repair_available()));
     ai::enabled = enabled && ai_feature;
     if (enabled)
         install_mfd();
     if (ai_feature)
         swofty::log("[td-probe] suspension damage for AI cars: %s", ai::enabled ? "on" : "OFF");
     if (feature)
-        swofty::log("[td-probe] suspension damage: %s (geometry hook %d, collision hook %d)", enabled ? "on" : "OFF",
-                    int(step_hooked), int(hit_hooked));
+        swofty::log("[td-probe] suspension damage: %s (geometry hook %d, collision hook %d), strength %s: a fresh "
+                    "corner breaks at %.1f m/s, its wheel comes off at %.1f m/s", enabled ? "on" : "OFF",
+                    int(step_hooked), int(hit_hooked), std::string(strength_setting).c_str(), double(strength),
+                    double(strength * off_factor));
 }
 
 bool speed_wanted() { return enabled; }
 
+// Game thread: tear the wheels of `corners` off: the game's damage D just past its wheel detach limit W. The wheel
+// part detaches through the game's own predicate (D >= W) in the next update, and the game rates the car terminal about
+// 1 s later (lab runs 2-4, re/suspension-damage-audit.md section 7). With the damage scales at 0 nothing else writes
+// D but the game's loose-wheel drift, which takes it on to the parts limit.
+void tear_off(uintptr_t car, uint32_t corners, const char *whose)
+{
+    uintptr_t comp = suspension_damage_of(car);
+    float w = 0, p = 0;
+    if (!comp || !lab::limits(comp, w, p)) {
+        swofty::log("[td-probe] suspension: wheel off not possible for %s (component %p, limits unreadable)", whose,
+                    reinterpret_cast<void *>(comp));
+        return;
+    }
+    for (int i = 0; i < 4; ++i) {
+        if (!((corners >> i) & 1))
+            continue;
+        float d = 0;
+        guarded_read(comp + 0x130 + 4 * i, d);
+        if (!(d >= w))
+            *reinterpret_cast<volatile float *>(comp + 0x130 + 4 * i) = 1.02f * w;
+        swofty::log("[td-probe] suspension: %s %s wheel torn off: the game's damage %.2f -> %.2f (detach limit %.2f), "
+                    "state now 0x%03x", whose, corner_tag(i), double(d), double(std::max(d, 1.02f * w)), double(w),
+                    wheel_state_get(reinterpret_cast<void *>(comp)));
+    }
+}
+
 // Game thread (player update): collapse the requested corners.
 void game_thread(uintptr_t car)
 {
+    if (lab::on.load() && car)
+        lab::game_tick(car);
+    if (uint32_t off = off_request.exchange(0); off && car) {
+        tear_off(car, off, "your car");
+        collapse_request.fetch_and(~off);  // the game's terminal message for the wheel decides the rest
+    }
     uint32_t want = collapse_request.exchange(0);
     if (!want)
         return;
@@ -1267,7 +1654,16 @@ void collapse(int i, const char *why)
     collapse_request.fetch_or(1u << i);
     swofty::log("[td-probe] suspension: %s collapses (%s, health %.2f, bend %+.2f deg)", corner_tag(i), why,
                 double(model.c[i].health), double(model.c[i].bend / deg));
-    toast("SUSPENSION FAILURE", "%s suspension collapsed", i, 6);
+    if (!keep_control)  // with it the crash decision names the broken corner and what to do (decide_limp)
+        toast("BROKEN SUSPENSION", "%s broken.", i, 6);
+    hold_minor_toasts(6000);
+}
+
+void tear_off_request(int i, const char *why)
+{
+    off_request.fetch_or(1u << i);
+    swofty::log("[td-probe] suspension: %s wheel comes off (%s, health %.2f)", corner_tag(i), why,
+                double(model.c[i].health));
     hold_minor_toasts(6000);
 }
 
@@ -1278,9 +1674,10 @@ void process_hit(int i, const HitGate::Hit &hit)
     char tag[5];
     tag_text(hit.tag, tag);
     Model before = model;
-    Rolls r{random01(), random01(), random01(), random01(), random01(), random01()};
+    Rolls r{random01(), random01()};
     uint64_t at = drive_ms();
-    HitResult h = apply_hit(model, i, hit.v, !hit.solid, r, at);
+    float now_strength = strength_now(model, model.c[i]);
+    HitResult h = apply_hit(model, i, hit.v, !hit.solid, r);
     if (h.severity <= 0) {
         if (model.c[i].collapsed)
             return;
@@ -1290,27 +1687,24 @@ void process_hit(int i, const HitGate::Hit &hit)
         return;
     }
     history.remember(at, before);
-    char extra[64] = "";
-    if (h.failing)
-        snprintf(extra, sizeof extra, ", lets go after %.0f s of driving",
-                 double(model.c[i].crack_at > at ? model.c[i].crack_at - at : 0) / 1000.0);
-    else if (h.cracked)
-        snprintf(extra, sizeof extra, ", hidden crack");
-    swofty::log("[td-probe] suspension: %s hit %.1f m/s with %s (sum dv %.1f, peak vn %.1f, %d contacts%s%s), break "
-                "chance %.0f %%: %s, bend %+.2f deg (now %+.2f), health %.2f -> %.2f%s",
+    swofty::log("[td-probe] suspension: %s hit %.1f m/s with %s (sum dv %.1f, peak vn %.1f, %d contacts%s%s), the "
+                "corner held up to %.1f m/s: %s, bend %+.2f deg (now %+.2f), health %.2f -> %.2f",
                 corner_tag(i), double(hit.v), tag, double(hit.sum_dv), double(hit.peak_vn), hit.contacts,
-                hit.face ? ", tyre face" : "", hit.solid ? "" : ", kerb or road", double(h.chance) * 100.0,
-                h.collapse ? "BREAKS" : h.failing ? "BREAKS LATER" : "holds", double(h.delta / deg),
-                double(model.c[i].bend / deg), double(before.c[i].health), double(model.c[i].health), extra);
-    if (h.collapse) {
+                hit.face ? ", tyre face" : "", hit.solid ? "" : ", kerb or road",
+                double(before.c[i].collapsed ? collapsed_off * model.brk * model.c[i].part : now_strength),
+                h.wheel_off ? "WHEEL OFF" : h.collapse ? "COLLAPSES" : before.c[i].collapsed ? "no change" : "holds",
+                double(h.delta / deg), double(model.c[i].bend / deg), double(before.c[i].health),
+                double(model.c[i].health));
+    if (h.wheel_off)
+        tear_off_request(i, before.c[i].collapsed ? "a hit on the collapsed corner" : "hit");
+    else if (h.collapse)
         collapse(i, "hit");
-    } else if (h.failing) {
-        toast("SUSPENSION DAMAGE", "%s suspension badly damaged. It can fail at any moment.", i, 6);
-        hold_minor_toasts(6000);
-    } else if (h.newly_weak)
-        toast("SUSPENSION DAMAGE", "%s suspension weakened. It may fail.", i, 6, true);
+    else if (h.newly_weak)
+        toast("DAMAGE", "%s cracked. Stay off the kerbs.", i, 6, true);
+    else if (h.newly_damaged)
+        toast("DAMAGE", "%s damaged. Another big hit will break it.", i, 6, true);
     else if (h.newly_bent)
-        toast("SUSPENSION DAMAGE", "%s corner bent: the car pulls", i, 5, true);
+        toast("DAMAGE", "%s bent. The car pulls.", i, 5, true);
 }
 
 // Frame thread: the player's new contacts for calibrating the thresholds. Every counted one (a real hit) and every
@@ -1339,6 +1733,10 @@ struct BodyBurst {
     uint64_t first = 0, last = 0;  // ms
     int n = 0, wheels = 0;  // contacts, of them on a wheel proxy
     float dv = 0, vn = 0, fwd = 0, left = 0, up_lo = 2, up_hi = -2;  // fwd, left: dv-weighted sums
+    // What reaches the suspension (body_to_corners): the contacts off the ground with something that can hurt, scaled
+    // by their class (a tyre wall gives way) as the wheel contacts are; hfwd, hleft: hdv-weighted sums.
+    float hdv = 0, hvn = 0, hfwd = 0, hleft = 0;
+    uint32_t htag = 0;
     float out[4] = {};
     Contact peak{};
     uint8_t peak_cls = 0;
@@ -1362,7 +1760,20 @@ struct BodyBurst {
         left += r.c.dv * r.c.at_left;
         up_lo = std::min(up_lo, r.c.n_up);
         up_hi = std::max(up_hi, r.c.n_up);
+        float k = class_scale(r.cls);
+        if (k > 0 && r.c.n_up <= floor_up && !r.c.self) {
+            float d = r.c.dv * k;
+            hdv += d;
+            if (r.c.vn * k >= hvn)
+                htag = r.c.tag;
+            hvn = std::max(hvn, r.c.vn * k);
+            hfwd += d * r.c.at_fwd;
+            hleft += d * r.c.at_left;
+        }
     }
+    float hit_v() const { return contact_speed(hvn, hdv); }
+    float hit_fwd() const { return hdv > 0 ? hfwd / hdv : 0.0f; }
+    float hit_left() const { return hdv > 0 ? hleft / hdv : 0.0f; }
     void add_out(int i, float x, uint64_t now)
     {
         touch(now);
@@ -1383,6 +1794,25 @@ inline const char *body_region(float fwd, float left)
     if (fwd < -1.0f)
         return l ? "rear left" : r ? "rear right" : "rear";
     return l ? "left side" : r ? "right side" : "middle";
+}
+
+// A body hit by an axle (the nose and the front wing, the floor's ends, the sidepod by a wheel) also loads the wishbones
+// of the nearest corners (0.76.0: Nick hit a tyre wall front-right at 70 km/h and the suspension took nothing, as the
+// contacts were on the body, not the wheel). The crash structure takes most of it: body_share of the hit goes on, split
+// between the axle's corners by how far out it was (a square nose hit loads both, one by the wheel mostly that corner).
+// Hits between the axles (a sidepod) reach no corner. out: the hit speed per corner (RL RR FL FR), 0 for none.
+constexpr float body_share = 0.6f, body_axle = 1.0f, body_track = 0.8f;
+inline void body_to_corners(float v, float fwd, float left, float out[4])
+{
+    for (int i = 0; i < 4; ++i)
+        out[i] = 0;
+    if (!(v > 0) || std::fabs(fwd) < body_axle)
+        return;
+    int l = fwd > 0 ? 2 : 0, r = l + 1;  // the axle's left and right corners
+    float s = std::clamp(left / body_track, -1.0f, 1.0f);
+    float near_w = std::sqrt((1 + std::fabs(s)) / 2), far_w = std::sqrt((1 - std::fabs(s)) / 2);
+    out[s >= 0 ? l : r] = body_share * v * near_w;
+    out[s >= 0 ? r : l] = body_share * v * far_w;
 }
 
 void log_burst(const BodyBurst &b)
@@ -1409,6 +1839,22 @@ void log_burst(const BodyBurst &b)
                 b.peak.veh != 0xff ? ", car" : "", double(b.peak.j), double(b.peak.dv), double(b.peak.vn),
                 double(b.peak.face), out[0] ? "; the game's suspension damage outside its handler (front wing overflow?)" : "",
                 out);
+}
+
+// The body hit's share for the corners goes through their hit gates as one contact each: within a wheel hit's quiet time
+// it counts only when clearly harder, so a crash that hit the wheel and the nose is not counted twice.
+void body_hit(const BodyBurst &b, uint64_t now)
+{
+    float v[4];
+    body_to_corners(b.hit_v(), b.hit_fwd(), b.hit_left(), v);
+    for (int i = 0; i < 4; ++i) {
+        if (v[i] < hit_min)
+            continue;
+        swofty::log("[td-probe] suspension: body hit %.1f m/s at %+.2f m forward %+.2f m left reaches %s: %.1f m/s",
+                    double(b.hit_v()), double(b.hit_fwd()), double(b.hit_left()), corner_tag(i), double(v[i]));
+        // dv so that contact_speed gives v[i]: half of it, as a square hit
+        gate[i].contact(now, v[i] / 2, v[i], b.htag, true, 1, false);
+    }
 }
 
 // Which ignored contact the 5 s log shows: the most impulse, then the fastest normal speed.
@@ -1451,6 +1897,7 @@ void log_contacts(uint64_t now)
         }
     if (burst.due(now)) {
         log_burst(burst);
+        body_hit(burst, now);
         burst = {};
     }
     if (best_score >= 0 && now >= next_ignored) {
@@ -1582,19 +2029,19 @@ void ai_process_hit(int v, int i, const HitGate::Hit &hit, uint64_t now)
 {
     Model &m = ai::model[v];
     Model before = m;
-    Rolls r{random01(), random01(), random01(), random01(), random01(), random01()};
-    HitResult h = apply_hit(m, i, hit.v, !hit.solid, r, drive_ms());
+    Rolls r{random01(), random01()};
+    HitResult h = apply_hit(m, i, hit.v, !hit.solid, r);
     if (h.severity <= 0)
         return;
     ai::history[v].remember(drive_ms(), before);
     char tag[5];
     tag_text(hit.tag, tag);
-    swofty::log("[td-probe] suspension: AI car %d %s hit %.1f m/s with %s (sum dv %.1f, peak vn %.1f), break chance "
-                "%.0f %%: bend %+.2f deg, health %.2f%s%s",
-                v, corner_tag(i), double(hit.v), tag, double(hit.sum_dv), double(hit.peak_vn), double(h.chance) * 100.0,
+    swofty::log("[td-probe] suspension: AI car %d %s hit %.1f m/s with %s (sum dv %.1f, peak vn %.1f): bend %+.2f "
+                "deg, health %.2f%s",
+                v, corner_tag(i), double(hit.v), tag, double(hit.sum_dv), double(hit.peak_vn),
                 double(m.c[i].bend / deg), double(m.c[i].health),
-                h.collapse ? ", collapses" : h.failing ? ", fails later" : "", h.cracked ? ", hidden crack" : "");
-    if (h.collapse)
+                h.wheel_off ? ", wheel off" : h.collapse ? ", collapses" : "");
+    if (h.collapse || h.wheel_off)
         ai_collapse(v, i, now);
 }
 
@@ -1635,13 +2082,6 @@ void ai_tick(uint64_t now, bool flashback)
             take_pending(ai::pending[v][i], ai::gate[v][i], now);
             if (HitGate::Hit hit = ai::gate[v][i].take(now); hit.v > 0)
                 ai_process_hit(v, i, hit, now);
-            if (crack_gives(m.c[i], drive_ms())) {
-                Model before = m;
-                m.c[i].collapsed = true;
-                ai::history[v].remember(drive_ms(), before);
-                swofty::log("[td-probe] suspension: AI car %d %s collapses (hidden crack)", v, corner_tag(i));
-                ai_collapse(v, i, now);
-            }
             ai::toe[v][i] = m.c[i].collapsed ? 0.0f : m.c[i].bend;
         }
         if (ai::retire_at[v] && now >= ai::retire_at[v]) {
@@ -1663,9 +2103,15 @@ void tick(std::string_view test_setting, uint32_t flashbacks)
     if ((!enabled && !test_enabled) || !step_hooked || !car || !guarded_read(car + 0x580, sys))
         sys = 0;
     player_sys = sys;
-    hit_car = enabled && sys ? car : 0;
+    hit_car = (enabled || lab::on.load()) && sys ? car : 0;
     if (test_enabled)
         test_tick(test_setting);
+    if (lab::on.load()) {
+        static bool was_down = false;
+        static uint64_t next_log = 0;
+        static int asked_step = -1;
+        lab::frame_tick(was_down, next_log, asked_step);
+    }
     if (!enabled) {
         corner_view = 0;
         return;
@@ -1717,7 +2163,7 @@ void tick(std::string_view test_setting, uint32_t flashbacks)
     } else {
         garage_reset_done = false;
     }
-    // A car in its garage takes no loads: no hits, no heavy loads, and a crack does not let go there.
+    // A car in its garage takes no loads: no hits and no heavy loads.
     if (!sys || in_garage) {
         if (in_garage) {
             for (int i = 0; i < 4; ++i) {
@@ -1738,21 +2184,21 @@ void tick(std::string_view test_setting, uint32_t flashbacks)
             process_hit(i, hit);
         float rate = rate_peak[i].exchange(0);
         stat_rate[i] = std::max(stat_rate[i], rate);
-        if (rate > heavy_rate && speed > 50 && now >= heavy_after[i] && !model.c[i].collapsed) {
+        if (rate > heavy_rate && speed > 50 && now >= heavy_after[i] && !model.c[i].off) {
             heavy_after[i] = now + 500;
             ++stat_heavy[i];
             Model before = model;
-            bool due = model.c[i].crack_at && drive_ms() >= model.c[i].crack_at;
-            if (heavy_load(model, i, random01(), drive_ms())) {
+            Load l = heavy_load(model, i, rate / heavy_rate);
+            if (l != Load::none) {
                 history.remember(drive_ms(), before);
-                collapse(i, due ? "hidden crack, heavy load" : "heavy load");
+                swofty::log("[td-probe] suspension: %s heavy load (travel rate %.2f, %.1fx): health %.2f -> %.2f%s", corner_tag(i),
+                            double(rate), double(rate / heavy_rate), double(before.c[i].health), double(model.c[i].health),
+                            l == Load::wheel_off ? ", the collapsed corner lets the wheel go" : "");
             }
-        }
-        if (crack_gives(model.c[i], drive_ms())) {
-            Model before = model;
-            model.c[i].collapsed = true;
-            history.remember(drive_ms(), before);
-            collapse(i, "hidden crack");
+            if (l == Load::collapse)
+                collapse(i, "heavy load on the weakened corner");
+            else if (l == Load::wheel_off)
+                tear_off_request(i, "heavy load on the collapsed corner");
         }
     }
     log_contacts(now);

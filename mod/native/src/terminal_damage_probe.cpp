@@ -108,6 +108,7 @@ SWOFTY_SETTING(std::string_view, udp_port_choice, "off");
 SWOFTY_SETTING(bool, garage_assets_in_race, true);
 SWOFTY_SETTING(bool, suspension_damage, false);  // experimental and opt-in since 0.75 (Heavier Damage users)
 SWOFTY_SETTING(bool, suspension_damage_ai, false);
+SWOFTY_SETTING(std::string_view, suspension_strength, "realistic");  // 0.76: forgiving, realistic, brutal
 SWOFTY_SETTING(std::string_view, preset, "realistic");  // the defaults are the Realistic preset (0.75)
 std::atomic<bool> crew_diagnostics_active{false}; // cached for the frequently called crew callbacks
 

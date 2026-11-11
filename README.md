@@ -23,8 +23,10 @@ mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA 
 - **Crashes:** one broken corner, front or rear, may let the car crawl on; heavy aero or body damage keeps the drive
   and calls you in. **FIA rules:** in a race a car on a broken corner must stop; pit by the end of the next lap after a
   scripted failure or heavy damage.
-- **Suspension damage from hits** is experimental and **off by default**. Since 0.75.3 it works together with
-  Heavier Damage: while it is on, the game's own suspension damage stays at stock, so the two do not add up.
+- **Suspension damage from hits** is experimental and **off by default**. Since 0.76 how hard you hit decides
+  whether a corner bends, cracks or breaks (option *Suspension strength*), and in a race a broken corner means box,
+  box. It works together with Heavier Damage: while it is on, the game's own suspension damage stays at stock, so
+  the two do not add up.
 - **Something not working?** Every part has its own option: turn off only that part for now and send me your
   `loader.log` (newest folder in `%LOCALAPPDATA%\Swofty\sessions`) in an [issue](../../issues).
 

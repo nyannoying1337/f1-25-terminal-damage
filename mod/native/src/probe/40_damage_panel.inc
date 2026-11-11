@@ -5,8 +5,8 @@
 // Textual fragment of terminal_damage_probe.cpp: included there, in order, inside the anonymous
 // namespace. It is not a standalone header; it uses what the fragments before it define.
 
-// Damage panel (issue #15): a header and a row of icon tiles at the top right (damage_icons.hpp), in the race
-// HUD's style: engine, ERS, gearbox, brakes, suspension, power. Bar, icon and label block in yellow, orange or red
+// Damage panel (issue #15): a header and a row of icon tiles at the top right (damage_icons.hpp), in the 2026 halo
+// look (Project Halo's glass capsule): engine, ERS, gearbox, brakes, suspension, power. Bar, icon and label pill in yellow, orange or red
 // by how bad it is. "auto" shows the badges with a problem, "always" all six while on track, "off" none.
 // Render thread: reads atomics only.
 dicons::icon icon_of_outcome(int o)

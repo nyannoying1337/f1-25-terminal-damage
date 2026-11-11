@@ -4,6 +4,14 @@ When your car breaks, F1 25 normally takes it away from you on the spot. With Te
 with the failure like a real driver: limp on, pull over or bring it to your box. On top of that come realistic
 mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA rules and garage repairs.
 
+## New in 0.76
+
+- **Suspension damage, rebuilt** (experimental option): how hard you hit decides it, no dice or timers. A light hit bends a corner, a medium one damages it (kerbs can then crack it), a heavy one breaks it, a very heavy one rips the wheel off. Nose and wing crashes count too (see Suspension damage from hits).
+- **New option *Suspension strength*:** Forgiving, Realistic (default) or Brutal.
+- **Race, broken corner (with suspension damage on): box, box.** Drive slowly into the pits this lap or the next instead of stopping within 20 seconds.
+- **Flashback after a crash in the pit lane:** a crash at the pit entry no longer blocks Instant Replay and flashbacks.
+- **Damage panel, new look:** a glass panel with rounded tiles and a coloured label under each part (see The HUD).
+
 ## New in 0.75.14
 
 - **Attempt: no warnings in the Career weekend menu:** the failure clock waits until your car moves, so no CAR WARNING or radio call comes before the race.
@@ -86,7 +94,7 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 
 ![Damage status panel: the six tiles, the colours and examples](https://raw.githubusercontent.com/nyannoying1337/f1-25-terminal-damage/main/docs/damage-panel.png)
 
-**Damage status panel** (option *Damage status panel*): tiles at the top right of the race HUD, under the lap times. The header shows the worst state: OK, CHECK (yellow), WARNING (orange) or FAILURE (red).
+**Damage status panel** (option *Damage status panel*): tiles at the top right of the race HUD, under the lap times. The header shows CAR and the worst state: OK, CHECK (yellow), WARNING (orange) or FAILURE (red); from orange on, the panel's edge glows in that colour.
 
 - **Six tiles:** engine, ERS, gearbox, brakes, suspension and power, each coloured by how bad it is.
 - **Yellow:** an early sign, such as a gearbox starting to wear, or a bent corner.
@@ -95,7 +103,7 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 - **The label under a tile:** OUT (failed), -15% (power lost), CUTS (power cutting in and out), x6 (shifts 6 times slower), NO 3 (3rd gear lost), -40% (rear braking lost; + means the rear brakes grab), FL, FRONT or ALL (which corners), LIMP (crawling on a broken corner).
 - **Auto** (default) shows only the tiles with a problem, so nothing is shown while all is fine. **Always on track** shows all six, **Off** none. The panel goes away once your race is over.
 
-**Messages** in the middle of the screen tell you what happened and what to do next: SUSPENSION DAMAGE, BROKEN FRONT CORNER, WHEEL LOST, MECHANICAL FAILURE, BRAKE FAILURE, HEAVY DAMAGE, STOP THE CAR, DISQUALIFIED, CAR WITHDRAWN, CORNER REPAIR, CAR REPAIRED and more. Messages titled ENGINEER give advice, for example "the rear brakes are grabbing, bias forward".
+**Messages** in the middle of the screen tell you what happened and what to do next: SUSPENSION DAMAGE, BROKEN FRONT CORNER, WHEEL LOST, MECHANICAL FAILURE, BRAKE FAILURE, HEAVY DAMAGE, STOP THE CAR, BOX BOX, DISQUALIFIED, CAR WITHDRAWN, CORNER REPAIR, CAR REPAIRED and more. Messages titled ENGINEER give advice, for example "the rear brakes are grabbing, bias forward".
 
 **Engineer radio** (option *Engineer radio for damage and failures*): the same events as voice calls. Off: only the messages stay.
 
@@ -106,7 +114,7 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 - **Engine (ICE) or gearbox:** no drive; the car rolls out.
 - **Turbo, MGU-K, MGU-H, battery or control electronics:** reduced power (30 % throttle in Realistic; option *Power with a broken turbo/ERS part*).
 - **A crash that breaks a corner:** the car usually cannot be driven. With **one** broken corner it may still crawl on with about a third of its power: a collapsed suspension 85 % at the front and 60 % at the rear, a front wheel coming loose 35 %. Never once the game tears the wheel off: that also stops the engine.
-- **Race, crawling on a broken corner:** STOP THE CAR. Pull over as soon as it is safe, or get to the pit lane. After 20 s of driving on track the car retires as unsafe.
+- **Race, crawling on a broken corner:** STOP THE CAR. Pull over as soon as it is safe, or get to the pit lane. After 20 s of driving on track the car retires as unsafe. With *Suspension damage from hits* on: BOX, BOX instead. Drive slowly into the pits this lap or the next; the crew pushes the car into the garage and your race ends there. Stay out longer and the car retires.
 - **Practice and qualifying, crawling on a broken corner:** bring it back to the garage for a rebuild.
 - **Heavy aero or body damage** that the game calls terminal (front wing, sidepods, floor, rear wing, diffuser): the car keeps its drive. Race: pit by the end of the next lap or retire. Practice and qualifying: back to the garage, out for the session.
 - **Engine sound:** a failed engine goes silent at once; after terminal crash damage the engine dies after 3-6 s; a broken car standing still switches off after 6 s.
@@ -152,9 +160,10 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 
 Turn on *Suspension damage from hits (experimental)*, then restart the game.
 
-- A clear hit on a wheel can bend that corner (the car pulls to one side), weaken it, leave a hidden crack that lets go later, or break it. Scrapes, boards and normal kerbs do not break a healthy corner.
-- A badly damaged corner can collapse within seconds to a few minutes of driving, usually over a kerb.
-- With it on, the game tears a wheel off only in big crashes; moderate hits end in a bent or broken corner instead.
+- How hard you hit decides what happens, no dice and no timers. A light hit **bends** a corner (the car pulls to one side). A medium hit **damages** it; kerbs then wear a damaged corner down until it **cracks** and can break. A heavy hit **breaks** it: the car limps on that corner. A very heavy hit **rips the wheel off**.
+- A hit on the nose, the front wing or the rear of the car reaches the nearest corners too. Scrapes, boards and normal kerbs do not break a healthy corner.
+- *Suspension strength*: **Realistic** (default): a hit straight into a wall at about 25 km/h breaks a corner, about 45 km/h rips the wheel off. **Forgiving** takes more, **Brutal** takes less. Needs a game restart.
+- The messages say what you feel and what to do: bent, damaged, cracked, broken.
 - Shown on the damage panel and the game's damage MFD page; repaired in the practice and qualifying garage; undone by a flashback.
 - **Using Heavier Damage?** They work together: while this option is on, the game's own suspension damage stays at stock on the cars it covers (your car; every car with the AI option), so Heavier Damage's *Suspension & wheel damage* does not add up with it. Heavier Damage's wing damage and its other settings stay.
 - *Suspension damage for AI cars* is a separate experimental option.
@@ -183,6 +192,7 @@ Every part has its own option. Turn off only the part that gives you trouble for
 
 - The Career R&D effect is small (about 1 % per Durability upgrade) and its cap of half with every upgrade done is a first guess: I will tune it once I have seen how fast the AI teams research.
 - Suspension damage is experimental: its tuning can still change.
+- Suspension damage: a hard landing (after a big kerb, or flying off the track) does not break a healthy corner yet.
 - Career is not fully tested with the limping, red flag and garage repair rules yet. The realistic failures there (0.75.5) are new: one gearbox failure from the real rates has been seen in a Career race so far, and it played out as designed. An AI car that fails in Career stays where it stopped for up to two minutes before the game takes it to its garage.
 - No safety car HUD while your car is terminally damaged: the game shows it only to cars it does not count as terminally damaged.
 - A red flag during terminal damage can still cause AI or spectator camera issues.

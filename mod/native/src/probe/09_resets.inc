@@ -35,6 +35,8 @@ void reset_car_state(bool preserve_retirement_audio, bool preserve_request_timel
     limp_state = -1;
     limp_corner = -1;
     race_stop_left = 0;
+    race_stop_lap = -1;
+    race_stop_crossing = -1;
     crash_corners = 0;
     garage_repair = 0;
     garage_service_corners = 0;

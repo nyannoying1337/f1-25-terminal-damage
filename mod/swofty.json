@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.75.15",
+  "version": "0.76.0",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: limp on, pull over or bring it in. Realistic failures with warning signs, a damage HUD, engineer radio, FIA rules, garage repairs and presets. Experimental and off by default: suspension damage from hits.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -233,7 +233,7 @@
       "id": "suspension_damage",
       "type": "toggle",
       "label": "Suspension damage from hits (experimental)",
-      "description": "Experimental, off by default. Hits on a wheel can bend that corner (the car pulls), break it, or crack it so it fails later. While on, the game's own suspension damage stays stock, also with Heavier Damage. Needs a game restart.",
+      "description": "Experimental. Hit a wall and the corner bends (the car pulls), cracks or breaks. A broken corner can still crawl to the pits; a big crash rips the wheel off. A cracked corner breaks on kerbs. Replaces the game's suspension damage. Needs a restart.",
       "default": false,
       "binds": "native"
     },
@@ -243,6 +243,19 @@
       "label": "Suspension damage for AI cars (experimental)",
       "description": "Experimental. AI cars that hit barriers or other cars can get a bent corner too, or a collapsed one: then they retire. Their game suspension damage stays stock too. Needs 'Suspension damage from hits' and a game restart.",
       "default": false,
+      "binds": "native"
+    },
+    {
+      "id": "suspension_strength",
+      "type": "choice",
+      "label": "Suspension strength",
+      "description": "For 'Suspension damage from hits': how much the suspension takes. Realistic: a 25 km/h hit straight into a wall breaks it, about 45 km/h rips the wheel off. Forgiving: takes more. Brutal: takes less. Needs a game restart.",
+      "values": [
+        {"value": "forgiving", "label": "Forgiving"},
+        {"value": "realistic", "label": "Realistic (default)"},
+        {"value": "brutal", "label": "Brutal"}
+      ],
+      "default": "realistic",
       "binds": "native"
     },
     {
@@ -446,12 +459,13 @@
       "id": "debug_suspension_test",
       "type": "choice",
       "label": "Debug: suspension test",
-      "description": "Test only. Ctrl+Shift+F8 steps a change on your front-left wheel: toe, camber or suspension damage. Needs a game restart after changing it.",
+      "description": "Test only. Ctrl+Shift+F8 steps a change on your front-left wheel: toe, camber or suspension damage. Damage lab: 8 steps that test the game's damage levers. Needs a game restart.",
       "values": [
         {"value": "off", "label": "Off"},
         {"value": "toe", "label": "Toe"},
         {"value": "camber", "label": "Camber"},
-        {"value": "damage", "label": "Suspension damage"}
+        {"value": "damage", "label": "Suspension damage"},
+        {"value": "lab", "label": "Damage lab (developer)"}
       ],
       "default": "off",
       "binds": "native"

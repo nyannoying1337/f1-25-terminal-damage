@@ -97,6 +97,11 @@ unsigned limp_chance(unsigned state, int corner)
     return state >= 4 ? 0 : state == 3 ? (front ? 35 : 0) : front ? 85 : 60;
 }
 
+// With the addon's suspension model on (0.76) no dice decide: the game adds no suspension damage of its own (its
+// damage scales are 0), so a broken corner is the model's. A collapsed corner (state 2) keeps its wheel and the car
+// limps; a wheel off (3 and up, the model tore it off, the tether stops the car: lab run 4) cannot be driven.
+unsigned limp_chance_model(unsigned state) { return state <= 2 ? 100 : 0; }
+
 // Game thread. A crash broke a corner: decide once whether the car can still be driven. Only a single broken corner
 // can limp (limp_chance). While it limps, a wheel that comes off, another broken corner or the limping rear wheel
 // coming off stops it. A wheel the game only damaged (state 2, a flat tyre) is no broken corner (broken_corners)
@@ -121,7 +126,9 @@ void decide_limp(uintptr_t car)
         // Another corner broke: one that is not the limping one (a wheel the game only damaged does not count
         // next to it, broken_corners); a limping rear corner whose wheel comes off stops the car too.
         bool more = at >= 0 && at < 4 ? (mask & ~(1u << at)) != 0 : broken > 1;
-        bool loose_rear = at >= 0 && at < 2 && ((packed >> (3 * at)) & 7) >= 3;
+        // With the model on, the limping corner's wheel coming off (a hit or a hard kerb on the collapsed corner)
+        // ends it at the front too.
+        bool loose_rear = at >= 0 && (at < 2 || susp::enabled) && ((packed >> (3 * at)) & 7) >= 3;
         if (ok && (more || gone || loose_rear)) {
             crash_corners = packed;
             limp_state = 0;
@@ -154,7 +161,8 @@ void decide_limp(uintptr_t car)
     }
     unsigned chance = 0, roll = roll_percent();
     if (broken == 1)
-        chance = limp_chance((packed >> (3 * corner)) & 7, corner);
+        chance = susp::enabled ? limp_chance_model((packed >> (3 * corner)) & 7)
+                               : limp_chance((packed >> (3 * corner)) & 7, corner);
     roll = forced_roll(debug_limp_roll, chance, roll);
     crash_corners = packed;
     limp_state = roll < chance ? 1 : 0;
@@ -173,7 +181,27 @@ void decide_limp(uintptr_t car)
     char what[64] = "";
     if (limp_state.load() == 1)
         snprintf(what, sizeof what, "%s %s", susp::corner_name(corner), corner_damage_name(packed, collapsed, corner));
-    if (limp_state.load() == 1 && !practice_like()) {
+    if (limp_state.load() == 1 && !practice_like() && susp::enabled) {
+        // The model's collapsed corner (0.76): no 20 s stop. Like the officials' black-and-orange flag the car must
+        // come in: into the pit lane before it completes the next lap (two crossings of the line would retire it).
+        // The game's lap is not always readable (its failure object comes later): then the line crossings count.
+        race_stop_left = 1.0;  // race_stop_tick runs; it checks the lap
+        if (int lap = game_lap(); lap >= 0) {
+            race_stop_lap = lap + 2;
+            swofty::log("[td-probe] crash: race, the car must be in the pit lane before lap %d ends (now lap %d)",
+                        race_stop_lap.load(), lap + 1);
+        } else {
+            race_stop_crossing = player_crossings.load() + 2;
+            swofty::log("[td-probe] crash: race, the game's lap is unknown; the car must be in the pit lane before it "
+                        "crosses the line twice more (crossings now %d)", player_crossings.load());
+        }
+        char text[120];
+        snprintf(text, sizeof text, "%s broken. Drive slowly into the pits, this lap or next.",
+                 susp::corner_name(corner));
+        if (swofty::hud::available())
+            swofty::hud::toast("BOX, BOX", text, 6);
+        radio_say(radio_box);
+    } else if (limp_state.load() == 1 && !practice_like()) {
         race_stop_left = race_stop_grace;
         swofty::log("[td-probe] crash: race, the car must stop as soon as it is safe (%.0f s of driving)",
                     race_stop_grace);
@@ -184,9 +212,9 @@ void decide_limp(uintptr_t car)
         radio_say(radio_mech_dnf);
     } else if (limp_state.load() == 1) {
         char text[120];
-        snprintf(text, sizeof text, "%s. The car can still crawl: bring it back to the garage.", what);
+        snprintf(text, sizeof text, "%s broken. Drive slowly back to the garage.", susp::corner_name(corner));
         if (swofty::hud::available())
-            swofty::hud::toast(corner >= 2 ? "BROKEN FRONT CORNER" : "BROKEN REAR CORNER", text, 6);
+            swofty::hud::toast("BROKEN SUSPENSION", text, 6);
         radio_say(radio_box);
     } else {
         char text[120];

@@ -69,7 +69,7 @@ SWOFTY_ON_LOAD
     hook_crew_states();
     hook_red_flag_strategy();
     find_crash_repair();
-    susp::install(suspension_damage, debug_suspension_test, suspension_damage_ai);
+    susp::install(suspension_damage, debug_suspension_test, suspension_damage_ai, suspension_strength);
     hook_change_vehicle_status();
     hook_failure_planner();
     hook_rules_enter();
@@ -80,7 +80,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.75.15, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.76.0, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

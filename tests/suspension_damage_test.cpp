@@ -5,12 +5,6 @@
 #include <cassert>
 #include "test_util.hpp"
 
-namespace {
-std::mt19937_64 rng{777};
-float u() { return float(rng() >> 40) / float(1u << 24); }
-susp::Rolls rolls() { return {u(), u(), u(), u(), u(), u()}; }
-}  // namespace
-
 int main()
 {
     SwoftyApi api{};
@@ -18,195 +12,160 @@ int main()
     swofty::api = &api;
     using namespace susp;
 
-    // ---- Thresholds (re/failure-realism-research.md section 5) ----
-    assert(break_chance(1.4f) == 0 && break_chance(1.5f) == 0);
-    assert(std::fabs(break_chance(4.0f) - 0.25f) < 1e-6f && std::fabs(break_chance(8.0f) - 0.70f) < 1e-6f);
-    assert(break_chance(12.0f) == 1 && break_chance(35.0f) == 1);
-    for (float v = 1.5f; v < 13; v += 0.25f)
-        assert(break_chance(v + 0.25f) >= break_chance(v));
+    // ---- Model v2 (0.76): the stages follow from the hit and what is left of the corner ----
+    assert(strength_of("realistic") == 7.0f && strength_of("forgiving") == 9.5f && strength_of("brutal") == 5.0f);
+    assert(strength_of("anything") == strength_realistic);
+    {
+        float r0[4] = {0, 0.5f, 1, 2};
+        Model m = fresh_model(5.0f, r0);
+        assert(m.brk == 5.0f && m.c[0].part == 0.85f && std::fabs(m.c[1].part - 1.0f) < 1e-6f);
+        assert(std::fabs(m.c[2].part - 1.15f) < 1e-6f && std::fabs(m.c[3].part - 1.15f) < 1e-6f);
+    }
     // Below 1.5 m/s nothing happens.
     {
         Model m;
-        HitResult h = apply_hit(m, 2, 1.4f, false, Rolls{0, 0, 0, 0, 0}, 1000);
-        assert(h.severity == 0 && m.c[2].health == 1 && m.c[2].bend == 0 && !h.collapse && !m.c[2].crack_at);
+        HitResult h = apply_hit(m, 2, 1.4f, false, Rolls{});
+        assert(h.severity == 0 && m.c[2].health == 1 && m.c[2].bend == 0 && !h.collapse);
     }
-    // A clip at 2.5 m/s that holds: bent by 0.2-1 deg, a little health lost.
-    {
-        Model m;
-        HitResult h = apply_hit(m, 2, 2.5f, false, Rolls{1.0f, 1.0f, 0.99f, 0.99f, 0.5f}, 1000);
-        assert(!h.collapse && h.delta > 0 && h.delta / deg <= 1.0f && h.delta / deg >= 0.2f);
-        assert(m.c[2].health < 1 && m.c[2].health > 0.85f && !m.c[2].crack_at);
-        assert(h.chance > 0.05f && h.chance < 0.15f);
-    }
-    // A square hit at 12 m/s or more always breaks (the 0.51.88 "35 m/s wheel hit" case too).
-    for (float v : {12.0f, 20.0f, 35.0f}) {
-        Model m;
-        HitResult h = apply_hit(m, 0, v, false, Rolls{0.5f, 0.5f, 0.999f, 0.5f, 0.5f}, 1000);
-        assert(h.collapse && m.c[0].collapsed && h.chance == 1);
-        // A collapsed corner takes no more hits or loads.
-        HitResult again = apply_hit(m, 0, v, false, Rolls{}, 2000);
-        assert(again.severity == 0 && !again.collapse);
-        assert(!heavy_load(m, 0, 0.0f, 3000));
-    }
-    // Monte Carlo against the table: break share per hit size on a healthy corner (at once or failing), and the
-    // share that lets go at once (0.51.132: break_now_share, 30 % up to 4 m/s, all from 12 m/s).
-    {
-        struct Shares {
-            double broke, now;
-        };
-        auto share = [](float v) {
-            int broke = 0, now = 0, n = 20000;
-            for (int k = 0; k < n; ++k) {
-                Model m;
-                HitResult h = apply_hit(m, 1, v, false, rolls(), 0);
-                broke += h.collapse || h.failing;
-                now += h.collapse;
-                assert(!(h.collapse && h.failing));
-            }
-            return Shares{double(broke) / n, double(now) / n};
-        };
-        Shares s2 = share(2.5f), s6 = share(6.0f), s10 = share(10.0f), s14 = share(14.0f);
-        assert(s2.broke > 0.05 && s2.broke < 0.15);   // 1.5-4: about 1 in 10
-        assert(s6.broke > 0.40 && s6.broke < 0.55);   // 4-8: 30-70 %
-        assert(s10.broke > 0.80 && s10.broke < 0.90); // 8-12: over 80 %
-        assert(s14.broke == 1.0 && s14.now == 1.0);   // 12 and more: always, at once
-        assert(s2.now > 0.015 && s2.now < 0.045);     // 0.10 * 0.30
-        assert(s6.now > 0.20 && s6.now < 0.25);       // 0.475 * 0.475
-        assert(s10.now > 0.67 && s10.now < 0.73);     // 0.85 * 0.825
-        assert(std::fabs(break_now_share(3.0f) - 0.3f) < 1e-6f && std::fabs(break_now_share(8.0f) - 0.65f) < 1e-6f);
-        assert(break_now_share(12.0f) == 1.0f && break_now_share(30.0f) == 1.0f);
-    }
-    // Failing corners (0.51.132): a solid hit that breaks the corner but does not let go yet. It holds, bent, its
-    // health down to failing_health, and its crack is due after 5 s to 3 min of driving, mostly within a minute.
-    {
-        Model m;
-        HitResult h = apply_hit(m, 2, 6.0f, false, Rolls{0.5f, 0.9f, 0.0f, 0.0f, 0.5f, 0.99f}, 100000);
-        assert(h.failing && !h.collapse && !h.cracked && !m.c[2].collapsed);
-        assert(m.c[2].health == failing_health && h.newly_weak && m.c[2].told_weak);
-        assert(h.delta > 0 && m.c[2].bend == h.delta && h.newly_bent);
-        assert(m.c[2].crack_at == 100000 + failing_delay_ms(0.5f));
-        assert(failing_delay_ms(0.0f) == 5000 && failing_delay_ms(1.0f) == 180000 && failing_delay_ms(0.5f) == 48750);
-        // It lets go at the first heavy load once due, or crack_grace_ms later under ordinary loads.
-        Model a = m;
-        assert(!heavy_load(a, 2, 0.99f, m.c[2].crack_at - 1) && !a.c[2].collapsed);
-        assert(heavy_load(a, 2, 0.99f, m.c[2].crack_at) && a.c[2].collapsed);
-        assert(!crack_gives(m.c[2], m.c[2].crack_at + crack_grace_ms - 1) &&
-               crack_gives(m.c[2], m.c[2].crack_at + crack_grace_ms));
-        // Hit again while failing: a break lets go at once (it has a crack); a hit that holds keeps the due time.
-        Model b = m;
-        HitResult again = apply_hit(b, 2, 3.0f, false, Rolls{0.5f, 0.5f, 0.0f, 0.0f, 0.5f, 0.99f}, 110000);
-        assert(again.collapse && b.c[2].collapsed);
-        Model c = m;
-        HitResult held = apply_hit(c, 2, 2.0f, false, Rolls{0.5f, 0.5f, 0.999f, 0.0f, 0.0f, 0.99f}, 110000);
-        assert(!held.collapse && !held.failing && !held.cracked && c.c[2].crack_at == m.c[2].crack_at);
-        // A kerb or road strike that breaks a damaged corner lets go at once, never later.
-        Model d;
-        d.c[1].health = 0.3f;
-        HitResult kerb = apply_hit(d, 1, 8.0f, true, Rolls{0.5f, 0.5f, 0.0f, 0.99f, 0.5f, 0.99f}, 0);
-        assert(kerb.collapse && !kerb.failing);
-        // A corner with an older hidden crack breaks at once too.
-        Model e;
-        e.c[3].crack_at = 900000;
-        assert(apply_hit(e, 3, 6.0f, false, Rolls{0.5f, 0.5f, 0.0f, 0.99f, 0.5f, 0.99f}, 0).collapse);
-        // The failing delays: 5 s to 3 min, more than half within the first minute of driving.
-        int within_minute = 0, n = 20000;
-        for (int k = 0; k < n; ++k) {
-            uint64_t ms = failing_delay_ms(u());
-            assert(ms >= 5000 && ms <= 180000);
-            within_minute += ms <= 60000;
-        }
-        assert(within_minute > n / 2 && within_minute < n * 6 / 10);
-        // A flashback undoes it like any other hit.
-        History hist;
-        Model f;
-        hist.remember(1000, f);
-        apply_hit(f, 0, 6.0f, false, Rolls{0.5f, 0.5f, 0.0f, 0.0f, 0.5f, 0.99f}, 1000);
-        assert(f.c[0].crack_at && hist.undo_since(0, f) && !f.c[0].crack_at && f.c[0].health == 1);
-    }
-    // Hidden cracks: 10-20 % of the hits that hold; due between 5 s and about 25 laps later.
-    {
-        int held = 0, cracked = 0;
-        uint64_t lo = ~0ull, hi = 0;
-        int soon = 0;
-        for (int k = 0; k < 20000; ++k) {
-            Model m;
-            HitResult h = apply_hit(m, 3, 1.5f + 6.0f * u(), false, rolls(), 100000);
-            if (h.collapse || h.failing)
-                continue;
-            ++held;
-            if (h.cracked) {
-                ++cracked;
-                lo = std::min(lo, m.c[3].crack_at - 100000);
-                hi = std::max(hi, m.c[3].crack_at - 100000);
-                soon += m.c[3].crack_at - 100000 <= 600000;
-            }
-        }
-        double share = double(cracked) / held;
-        assert(share > 0.10 && share < 0.20);
-        assert(lo >= 5000 && hi <= 2250000 && hi > 2000000);
-        // 0.51.132: front-loaded, about half within 10 minutes of driving (uniform: about a quarter).
-        double early = double(soon) / cracked;
-        assert(early > 0.45 && early < 0.58);
-        // A due crack lets go at the next heavy load, or a minute later anyway.
-        Model m;
-        apply_hit(m, 3, 3.0f, false, Rolls{0.5f, 0.5f, 0.99f, 0.0f, 0.0f}, 0);
-        assert(m.c[3].crack_at == 5000);
-        assert(!heavy_load(m, 3, 0.99f, 4000) && !m.c[3].collapsed);
-        assert(heavy_load(m, 3, 0.99f, 5000) && m.c[3].collapsed);
-        Model m2;
-        apply_hit(m2, 2, 3.0f, false, Rolls{0.5f, 0.5f, 0.99f, 0.0f, 0.0f}, 0);
-        assert(!crack_gives(m2.c[2], 5000 + crack_grace_ms - 1) && crack_gives(m2.c[2], 5000 + crack_grace_ms));
-    }
-    // Kerbs and the road: never break a healthy corner, can finish a damaged one.
-    {
-        for (int k = 0; k < 1000; ++k) {
-            Model m;
-            assert(!apply_hit(m, 1, 1.5f + 10.0f * u(), true, rolls(), 0).collapse);
-        }
-        Model m;
-        m.c[1].health = 0.3f;
-        HitResult h = apply_hit(m, 1, 8.0f, true, Rolls{0.5f, 0.5f, 0.5f, 0.99f, 0.5f}, 0);
-        assert(h.chance > 0.69f && h.collapse);
-    }
-    // A damaged corner breaks more easily.
+    // A clip at 2.5 m/s (below the elastic limit, 2.8 on Realistic): bent by 0.2-1 deg, no health lost. A hit past
+    // it loses health by the square of the part past it. The same hit, the same result.
     {
         Model a, b;
-        b.c[2].health = 0.5f;
-        float ca = apply_hit(a, 2, 3.0f, false, Rolls{}, 0).chance, cb = apply_hit(b, 2, 3.0f, false, Rolls{}, 0).chance;
-        assert(std::fabs(cb - 1.5f * ca) < 1e-6f);
+        HitResult h = apply_hit(a, 2, 2.5f, false, Rolls{1.0f, 1.0f});
+        assert(!h.collapse && h.delta > 0 && h.delta / deg <= 1.0f && h.delta / deg >= 0.2f && h.newly_bent);
+        assert(a.c[2].health == 1.0f && h.loss == 0.0f);
+        HitResult h4 = apply_hit(a, 1, 4.0f, false, Rolls{});
+        apply_hit(b, 1, 4.0f, false, Rolls{});
+        float past = (4.0f - 2.8f) / 4.2f;
+        assert(std::fabs(h4.loss - hit_loss * past * past) < 1e-5f && a.c[1].health == b.c[1].health);
     }
-    // Repeated clips: the bent warning once, the weak warning once, the bend capped.
+    // One solid hit: holds below the strength, collapses from it, the wheel comes off from 1.7x. No dice.
+    {
+        for (float v = 1.5f; v < 7.0f; v += 0.25f) {
+            Model m;
+            HitResult h = apply_hit(m, 0, v, false, Rolls{});
+            assert(!h.collapse && !h.wheel_off && !m.c[0].collapsed && m.c[0].health > 0);
+        }
+        for (float v : {7.0f, 9.0f, 11.8f}) {
+            Model m;
+            HitResult h = apply_hit(m, 0, v, false, Rolls{});
+            assert(h.collapse && !h.wheel_off && m.c[0].collapsed && !m.c[0].off && m.c[0].health == 0);
+        }
+        for (float v : {12.0f, 20.0f, 35.0f}) {
+            Model m;
+            HitResult h = apply_hit(m, 0, v, false, Rolls{});
+            assert(h.collapse && h.wheel_off && m.c[0].collapsed && m.c[0].off);
+            assert(apply_hit(m, 0, v, false, Rolls{}).severity == 0);  // nothing more after the wheel is off
+            assert(heavy_load(m, 0, 5.0f) == Load::none);
+        }
+        // A corner's own part: a weaker one (0.85) breaks at 5.95, a stronger one (1.15) holds at 8.
+        Model m;
+        m.c[1].part = 0.85f;
+        m.c[2].part = 1.15f;
+        assert(apply_hit(m, 1, 6.0f, false, Rolls{}).collapse && !apply_hit(m, 2, 8.0f, false, Rolls{}).collapse);
+    }
+    // Two medium hits on one corner break it where one does not: the strength falls with the health.
     {
         Model m;
-        int bent = 0, weak = 0;
-        for (int k = 0; k < 8 && !m.c[3].collapsed; ++k) {
-            HitResult h = apply_hit(m, 3, 3.5f, false, Rolls{1.0f, 0.0f, 0.999f, 0.999f, 0.5f}, 0);
+        HitResult first = apply_hit(m, 3, 6.0f, false, Rolls{});
+        assert(!first.collapse && m.c[3].health < weak_health && first.newly_weak && m.c[3].told_weak);
+        assert(strength_now(m, m.c[3]) < 5.0f);
+        assert(first.newly_damaged && m.c[3].told_damaged);
+        HitResult second = apply_hit(m, 3, 5.0f, false, Rolls{});
+        assert(second.collapse && m.c[3].collapsed && !m.c[3].off);
+        // Light clips add up too, and warn once each.
+        Model n;
+        int bent = 0, weak = 0, k = 0;
+        for (; k < 40 && !n.c[1].collapsed; ++k) {
+            HitResult h = apply_hit(n, 1, 3.5f, false, Rolls{1.0f, 0.0f});
             bent += h.newly_bent;
             weak += h.newly_weak;
-            assert(m.c[3].bend >= -bend_max - 1e-6f);
+            assert(n.c[1].bend >= -bend_max - 1e-6f);
         }
-        assert(bent == 1 && weak == 1 && m.c[3].bend < 0);
+        assert(bent == 1 && weak == 1 && n.c[1].collapsed && k > 4 && n.c[1].bend < 0);
+        // A bent corner keeps bending its way whatever the roll says; one hit past warn_health warns once.
+        Model s;
+        apply_hit(s, 0, 4.6f, false, Rolls{0.5f, 0.9f});
+        float b1 = s.c[0].bend;
+        HitResult h2 = apply_hit(s, 0, 4.0f, false, Rolls{0.5f, 0.1f});
+        assert(b1 > 0 && s.c[0].bend > b1 && h2.delta > 0);
+        assert(s.c[0].health < warn_health && s.c[0].told_damaged);
+        assert(!apply_hit(s, 0, 4.0f, false, Rolls{}).newly_damaged);
     }
-    // Heavy loads: a healthy corner never fails, a weakened one can.
+    // Kerbs and the road: never break a corner that is not weakened, half the health of a solid hit.
+    {
+        for (float v = 1.5f; v < 25.0f; v += 0.5f) {
+            Model m;
+            HitResult h = apply_hit(m, 1, v, true, Rolls{});
+            assert(!h.collapse && !h.wheel_off && (v < 3.0f || m.c[1].health < 1));
+        }
+        Model a, b;
+        float la = apply_hit(a, 2, 4.0f, true, Rolls{}).loss, lb = apply_hit(b, 2, 4.0f, false, Rolls{}).loss;
+        assert(std::fabs(2.0f * la - lb) < 1e-6f);
+        Model w;
+        w.c[1].health = 0.3f;
+        assert(apply_hit(w, 1, 5.0f, true, Rolls{}).collapse);
+    }
+    // Heavy loads: a corner that is not weakened never wears, a weakened one faster the deeper the crack, and it
+    // collapses after some hard strikes, never at once.
     {
         Model m;
-        for (int k = 0; k < 1000; ++k)
-            assert(!heavy_load(m, 2, 0.0f, uint64_t(k) * 1000));
-        assert(m.c[2].health < 1 && m.c[2].health > 0.4f);
-        m.c[2].health = 0.2f;
-        assert(!heavy_load(m, 2, 0.5f, 0));
-        assert(heavy_load(m, 2, 0.001f, 0) && m.c[2].collapsed);
+        for (int k = 0; k < 10000; ++k)
+            assert(heavy_load(m, 2, 3.0f) == Load::none);
+        assert(m.c[2].health == 1.0f && heavy_load(m, 2, 0.9f) == Load::none);
+        auto strikes = [](float health, float q) {
+            Model x;
+            x.c[0].health = health;
+            int n = 0;
+            while (!x.c[0].collapsed && n < 100000) {
+                heavy_load(x, 0, q);
+                ++n;
+            }
+            return n;
+        };
+        Model light;
+        light.c[1].health = 0.75f;
+        for (int k = 0; k < 10000; ++k)
+            assert(heavy_load(light, 1, 3.0f) == Load::none);
+        assert(light.c[1].health == 0.75f);
+        assert(strikes(0.5f, 3.0f) == 100000);  // not weakened yet
+        int at45 = strikes(0.45f, 1.3f), at30 = strikes(0.3f, 1.3f), at10 = strikes(0.1f, 1.3f);
+        assert(at45 > at30 && at30 > at10 && at10 >= 2);
+        assert(at45 >= 20 && at45 <= 70);  // just weakened: a few laps of hard kerbs
+        assert(strikes(0.45f, 2.0f) < at45);
+    }
+    // A collapsed corner: a gentle limp keeps the wheel on, a hard kerb or a solid hit lets it go.
+    {
+        Model m;
+        apply_hit(m, 2, 8.0f, false, Rolls{});
+        assert(m.c[2].collapsed && !m.c[2].off);
+        assert(heavy_load(m, 2, 1.9f) == Load::none && !m.c[2].off);
+        assert(apply_hit(m, 2, 3.0f, false, Rolls{}).severity > 0 && !m.c[2].off);  // below half its strength
+        assert(!apply_hit(m, 2, 5.0f, true, Rolls{}).wheel_off);                    // a kerb face
+        Model a = m;
+        assert(heavy_load(a, 2, 2.0f) == Load::wheel_off && a.c[2].off);
+        Model b = m;
+        assert(apply_hit(b, 2, 3.5f, false, Rolls{}).wheel_off && b.c[2].off);
+    }
+    // The strength option: the same hit breaks a Brutal corner, holds on Forgiving.
+    {
+        float mid[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+        Model f = fresh_model(strength_forgiving, mid), r = fresh_model(strength_realistic, mid),
+              b = fresh_model(strength_brutal, mid);
+        assert(!apply_hit(f, 0, 6.0f, false, Rolls{}).collapse && !apply_hit(r, 0, 6.0f, false, Rolls{}).collapse);
+        assert(apply_hit(b, 0, 6.0f, false, Rolls{}).collapse);
+        assert(!apply_hit(f, 1, 12.0f, false, Rolls{}).wheel_off && apply_hit(r, 1, 12.0f, false, Rolls{}).wheel_off);
     }
     // Flashback undo: changes at or after the cut go, earlier ones stay.
     {
         Model m;
         History hist;
-        Rolls hold{1.0f, 1.0f, 0.999f, 0.999f, 0.5f};
+        Rolls hold{1.0f, 1.0f};
         hist.remember(1000, m);
-        apply_hit(m, 2, 3.0f, false, hold, 1000);
+        apply_hit(m, 2, 3.0f, false, hold);
         Model after_first = m;
         hist.remember(30000, m);
-        apply_hit(m, 2, 3.0f, false, hold, 30000);
+        apply_hit(m, 2, 3.0f, false, hold);
         assert(m.c[2].bend > after_first.c[2].bend);
         assert(hist.undo_since(25000, m));
         assert(m.c[2].bend == after_first.c[2].bend && m.c[2].health == after_first.c[2].health);
@@ -360,6 +319,31 @@ int main()
         assert(!strcmp(body_region(bb.at_fwd(), bb.at_left()), "front"));
         assert(!strcmp(body_region(2.0f, 0.6f), "front left") && !strcmp(body_region(-1.7f, -0.8f), "rear right") &&
                !strcmp(body_region(0.2f, 0.9f), "left side") && !strcmp(body_region(0, 0), "middle"));
+        // What of a body hit reaches the corners (0.76.0, the 70 km/h tyre-wall hit front-right): a square nose hit
+        // loads both front corners, one by the wheel mostly that corner, a sidepod hit none, a landing none.
+        {
+            float v[4];
+            body_to_corners(19.4f, 2.8f, -0.53f, v);
+            assert(v[0] == 0 && v[1] == 0 && v[3] > v[2] && v[3] > 10.0f && v[2] > 4.0f);
+            body_to_corners(10.0f, 2.5f, 0.0f, v);
+            assert(std::fabs(v[2] - v[3]) < 1e-5f && std::fabs(v[2] - 6.0f * std::sqrt(0.5f)) < 1e-4f);
+            body_to_corners(8.7f, 2.8f, 0.9f, v);
+            assert(std::fabs(v[2] - 0.6f * 8.7f) < 1e-4f && v[3] == 0);
+            body_to_corners(10.0f, -1.8f, -0.8f, v);
+            assert(v[1] > 5.9f && v[0] == 0 && v[2] == 0 && v[3] == 0);
+            body_to_corners(10.0f, 0.2f, 0.9f, v);
+            assert(v[0] == 0 && v[1] == 0 && v[2] == 0 && v[3] == 0);
+            BodyBurst hb;
+            ContactRecord w, f, t;
+            w.c.dv = 2.0f, w.c.vn = 9.0f, w.c.at_fwd = 2.8f, w.c.at_left = 0.9f, w.cls = obj_solid;
+            f.c.dv = 3.0f, f.c.vn = 9.0f, f.c.n_up = 1.0f, f.c.at_fwd = 2.8f, f.cls = obj_solid;  // the floor: not counted
+            t.c.dv = 2.0f, t.c.vn = 10.0f, t.c.at_fwd = 2.8f, t.c.at_left = -0.9f, t.cls = obj_soft;  // a tyre wall: 0.6
+            hb.add(w, 0);
+            hb.add(f, 0);
+            hb.add(t, 0);
+            assert(std::fabs(hb.hdv - 3.2f) < 1e-5f && hb.hvn == 9.0f && hb.hit_v() == 6.4f);
+            assert(std::fabs(hb.hit_left() - (2.0f * 0.9f - 1.2f * 0.9f) / 3.2f) < 1e-5f);
+        }
         {
             alignas(16) static uint8_t fcar[0x600]{}, wp[0x80]{}, cont[0x48]{}, wrap[8][16]{}, hull[16]{};
             uintptr_t wpa = reinterpret_cast<uintptr_t>(wp);
@@ -437,6 +421,44 @@ int main()
         assert(std::fabs(mfd_value(c) - 0.5f) < 1e-5f);
         c.collapsed = true;
         assert(mfd_value(c) == 1);
+    }
+    // Damage lab: the layout guard, the detached flag and what each step writes (fake suspension damage component).
+    {
+        alignas(16) static uint8_t comp[0x200] = {}, part[4][0x80] = {};
+        auto keyed = [](size_t at, float v, uint32_t key) {
+            tu::put(comp, at, std::bit_cast<uint32_t>(v) ^ key);
+            tu::put(comp, at + 8, key);
+        };
+        keyed(0x58, 1.0f, 0x5a5a1234u);  // W
+        keyed(0x68, 1.5f, 0x0badf00du);  // P
+        for (int i = 0; i < 4; ++i)
+            tu::put(comp, 0xe8 + 8 * i, tu::addr(part[i]));
+        part[2][0x38] = 1;
+        float w = 0, p = 0;
+        assert(lab::limits(tu::addr(comp), w, p) && w == 1.0f && p == 1.5f);
+        assert(lab::detached(tu::addr(comp), 2) == 1 && lab::detached(tu::addr(comp), 0) == 0);
+        static uint32_t applied = 0xffffffff;
+        wheel_state_get = +[](void *) -> uint32_t { return 0x100; };
+        wheel_state_apply = +[](void *, uint32_t s) { applied = s; };
+        auto d_fl = [] { float v; std::memcpy(&v, comp + 0x130 + 8, 4); return v; };
+        lab::run(lab::steps[3], tu::addr(comp));  // just past W
+        assert(std::fabs(d_fl() - 1.02f) < 1e-6f && !lab::unsupported);
+        lab::run(lab::steps[6], tu::addr(comp));  // past twice P
+        assert(std::fabs(d_fl() - 3.075f) < 1e-5f);
+        lab::run(lab::steps[4], tu::addr(comp));  // the game's repair
+        assert(applied == 0);
+        lab::run(lab::steps[1], tu::addr(comp));  // camber +2 deg, cleared by the next step
+        assert(std::fabs(lab::camber.load() - 2.0f * deg) < 1e-6f);
+        lab::run(lab::steps[2], tu::addr(comp));
+        assert(lab::camber.load() == 0 && std::fabs(d_fl() - 0.5f) < 1e-6f);
+        // A layout that does not decode (P below W): no write, the lab stops writing.
+        keyed(0x68, 0.5f, 0x0badf00du);
+        assert(!lab::limits(tu::addr(comp), w, p));
+        lab::run(lab::steps[5], tu::addr(comp));
+        assert(lab::unsupported && std::fabs(d_fl() - 0.5f) < 1e-6f);
+        lab::unsupported = false;
+        wheel_state_get = nullptr;
+        wheel_state_apply = nullptr;
     }
     std::puts("suspension damage ok");
 }

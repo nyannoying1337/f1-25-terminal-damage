@@ -75,6 +75,7 @@ void ai_terminal(int v);
 inline const char *corner_name(int i);
 void hold_minor_toasts(uint32_t ms);
 uint32_t collapsed_corners();
+extern bool enabled;  // the suspension model runs (suspension_damage.hpp)
 }
 bool flashback_hooked = false;
 void flashback_check(uintptr_t car);
@@ -88,6 +89,11 @@ std::atomic<double> limp_watch_left{0}; // seconds of limp watch lines left afte
 // continue). Seconds of driving left before it is retired, 0 = no deadline. Practice and qualifying crawl to the garage.
 constexpr double race_stop_grace = 20.0;
 std::atomic<double> race_stop_left{0};
+// With the suspension model on (0.76): the game lap by which a car limping on a collapsed corner must be in the pit
+// lane (the officials' black-and-orange flag: in at the end of the lap), -1 none. Replaces the 20 s stop.
+std::atomic<int> race_stop_lap{-1};
+// The same rule when the game's lap cannot be read: the line crossing count that retires the car, -1 none.
+std::atomic<int> race_stop_crossing{-1};
 std::atomic<uint32_t> crash_corners{0};
 // Practice/qualifying garage repair: 0 none, 1 wanted, 2 job running, 3 finished. It rebuilds the corner a car limped
 // in on (crash_corners) or, since 0.51.135, services the corners that took damage but hold (garage_service_corners,

@@ -171,7 +171,11 @@ void power_loss(uintptr_t car)
                (retired_engine_off_vehicle.load() >= 0 && retired_engine_off_vehicle.load() == player_vehicle.load());
     engine_off_vehicle = off && engine_off_sound ? player_vehicle.load() : -1;
     engine_kill_vehicle = off ? player_vehicle.load() : -1;
-    replay_terminal_vehicle = keep_control && player_broken && player_pit.load() == 1 && !session_ended ?
+    // On track and in the pit lane outside the box (EnteringPitLane, LeavingPitLane, driving through): a crash at the
+    // pit entry kept the game's terminal block on Instant Replay, so no flashback (a Discord report, 0.76.0).
+    int pit_now = player_pit.load();
+    bool replay_lane = pit_now == 1 || pit_now == 2 || pit_now == 14 || pit_now == 15;
+    replay_terminal_vehicle = keep_control && player_broken && replay_lane && !session_ended ?
                                   player_vehicle.load() : -1;
     float t = test_cap.load();
     bool parked_retirement = retired_drive_lock_vehicle.load() >= 0 && retired_drive_lock_vehicle.load() == player_vehicle.load();

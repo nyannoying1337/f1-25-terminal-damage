@@ -31,33 +31,23 @@ void apply_engine_kill()
                     int(layer.result()));
 }
 
-// The game's own wheel detach limits (F1SuspensionDamage WheelDetachScale W 1.0 and PartsDetachScale P 1.5,
-// re/collision-impact.md section 6): a corner whose damage D reaches P is the game's "wheel coming off", its terminal
-// crash damage, and that switches the engine off (limp_chance). It was 60 % of the crashes that killed the car in
-// 0.51.127-0.51.130 (18 of 30), 14 of the 18 below D 3.0; the front wing's overflow adds into D too (0x14465fdc0: the
-// part over the wing's cap / its damage scale x the front damage scale), it does not set D to P. With the addon's
-// suspension model on (test report after 0.51.132: 'the car is always dead'), W and P are game_detach_factor x higher (W 2,
-// P 3, the wheel gone at 6), so a moderate hit is the model's to judge (hold, bend, break now or later, limp) and only
-// a big crash still tears the wheel off. The player's car, or every car when the model runs for the AI too; without
-// the AI model the AI keeps the game's limits.
-constexpr float game_detach_factor = 2.0f;
-
-// The layers on the game's own suspension damage while the addon's model runs: the detach limits x
-// game_detach_factor, and the front and rear damage scales set back to stock. Another addon can raise those scales
-// (Heavier Damage's "Suspension & wheel damage": front 0.1 and rear 0.01 at Normal, 100x stock); its damage then adds
-// up with the model's, and the front scale also sizes the front wing's overflow into FL/FR, which broke front corners
-// in nose hits without any wheel contact (0.51.115 test at Miami: FL 58.4 and 57.6). The speed threshold stays the
-// game's (or the other addon's). With the model off nothing is layered: the game's or the other addon's values apply.
+// The game's own suspension damage while the addon's model runs (0.76): both damage scales SET 0. Every rise of the
+// game's per-corner damage D from a hit goes through them, the front wing overflow into FL/FR too, so the game adds no
+// suspension damage of its own and the model alone decides (lab run 4, 2026-11-10: walls at 250-280 km/h, 143 wheel
+// contacts, no D at all; re/suspension-damage-audit.md sections 7-8). The detach limits stay stock (W 1.0, P 1.5): a
+// wheel the model tears off is D written just past W (susp::tear_off). Before 0.76 the limits were x2 and the scales
+// stock, so a big crash still tore the wheel off through the game's own damage (18 crashes in the logs, all of them).
+// Another addon's raised scales (Heavier Damage) are overridden while the model runs. With the model off nothing is
+// layered: the game's or the other addon's values apply. The player's car, or every car when the model runs for the
+// AI too.
 struct GameSuspLayer {
     uint32_t field, op;
     float value;
     const char *name;
 };
 constexpr GameSuspLayer game_susp_layers[] = {
-    {SWOFTY_CAR_SUSP_WHEEL_DETACH_SCALE, SWOFTY_CAR_OP_SCALE, game_detach_factor, "wheel detach limit"},
-    {SWOFTY_CAR_SUSP_PARTS_DETACH_SCALE, SWOFTY_CAR_OP_SCALE, game_detach_factor, "parts detach limit"},
-    {SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE, SWOFTY_CAR_OP_SET, susp::stock_front_scale, "front damage scale"},
-    {SWOFTY_CAR_SUSP_REAR_DAMAGE_SCALE, SWOFTY_CAR_OP_SET, susp::stock_rear_scale, "rear damage scale"},
+    {SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE, SWOFTY_CAR_OP_SET, 0.0f, "front damage scale"},
+    {SWOFTY_CAR_SUSP_REAR_DAMAGE_SCALE, SWOFTY_CAR_OP_SET, 0.0f, "rear damage scale"},
 };
 constexpr int game_susp_layer_n = int(sizeof game_susp_layers / sizeof game_susp_layers[0]);
 
@@ -128,7 +118,7 @@ void apply_game_suspension_layers()
                                       l.op == SWOFTY_CAR_OP_SCALE ? "x" : "= ", double(l.value)));
     }
     swofty::log("[td-probe] suspension: layers on the game's own suspension damage on %s: %s (your car now: %s; -1 "
-                "until it is built): moderate hits are the model's, another addon's raised scales do not add up",
+                "until it is built): the game adds no suspension damage, the model decides",
                 want < 0 ? "every car" : "your car", on[0] ? on : "none", now);
 }
 

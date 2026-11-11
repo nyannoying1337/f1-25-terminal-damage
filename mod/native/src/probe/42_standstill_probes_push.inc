@@ -20,12 +20,37 @@ void race_stop_tick(double dt)
         return;
     if (!player_broken || limp_state.load() != 1 || session_ended || practice_like()) {
         race_stop_left = 0;
+        race_stop_lap = -1;
+        race_stop_crossing = -1;
         return;
     }
     int speed = player_speed();
     if (player_pit.load() != 1 || retire_in.load() != -1.0 || speed <= 5 ||
         (player_controller_flags.load() & ((1u << 10) | (1u << 11))))
         return;
+    if (int by = race_stop_lap.load(); by >= 0) {  // the model's collapsed corner: in by the end of the next lap
+        int lap = game_lap();
+        if (lap < 0 || lap < by)
+            return;
+        race_stop_left = 0;
+        race_stop_lap = -1;
+        swofty::log("[td-probe] crash: the limping car stayed out past lap %d, retiring", by);
+        if (swofty::hud::available())
+            swofty::hud::toast("RETIRED", "Unsafe car: it was not brought in", 4);
+        retire_in = 0.0;
+        return;
+    }
+    if (int by = race_stop_crossing.load(); by >= 0) {  // the same, by line crossings
+        if (player_crossings.load() < by)
+            return;
+        race_stop_left = 0;
+        race_stop_crossing = -1;
+        swofty::log("[td-probe] crash: the limping car crossed the line twice without coming in, retiring");
+        if (swofty::hud::available())
+            swofty::hud::toast("RETIRED", "Unsafe car: it was not brought in", 4);
+        retire_in = 0.0;
+        return;
+    }
     left -= dt;
     race_stop_left = left > 0 ? left : 0;
     if (left > 0)

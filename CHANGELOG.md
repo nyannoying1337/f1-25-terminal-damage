@@ -1,3 +1,26 @@
+# Terminal Damage 0.76.0 beta
+
+Suspension damage is rebuilt: how hard you hit now decides whether a corner bends, cracks or breaks, with no dice and no timers. Flashbacks work after a crash in the pit lane, and the damage panel has a new look. Everything from 0.75.15 is in this release.
+
+## Read this first
+
+- **Updating from 0.75.15:** nothing to set up. *Suspension damage from hits* is still experimental and off by default. If you turn it on, the new *Suspension strength* option starts on Realistic.
+
+## New
+
+- **Suspension damage, rebuilt** (option *Suspension damage from hits*). What happens depends only on how hard you hit. A light hit **bends** a corner: the car pulls to one side, and you can drive on. A medium hit **damages** it: kerbs then wear it down, and it can **crack** and break. A heavy hit **breaks** it: the car limps on that corner. A very heavy hit **rips the wheel off**.
+- **Nose and wing crashes count too.** A crash with the front or the rear of the car now reaches the nearest corners, not only a hit on a wheel.
+- **New option: Suspension strength.** Realistic (default): a hit straight into a wall at about 25 km/h breaks a corner, about 45 km/h rips the wheel off. Forgiving takes more, Brutal takes less. Needs a game restart.
+- **Race, broken corner: box, box.** With suspension damage on, a broken corner no longer means "stop the car within 20 seconds". Drive slowly into the pits this lap or the next. The crew pushes the car into the garage, and your race ends there. Stay out longer and the car retires.
+- **Flashback after a crash in the pit lane.** A crash at the pit entry, where the pit speed limit shows, blocked Instant Replay and flashbacks, so you had to retire. Flashbacks work there now.
+- **Plain messages.** The suspension messages and option texts say what you feel and what to do: bent, damaged, cracked, broken.
+- **Damage panel, new look.** A glass panel with rounded tiles and a coloured label under each part. When something is badly damaged, the panel's edge glows in that colour.
+
+## Known issues
+
+- Suspension damage is still experimental, and its tuning can change.
+- A hard landing (after a big kerb, or flying off the track) does not break a healthy corner yet.
+
 # Terminal Damage 0.75.15 beta
 
 The addon's Swofty manifest now says that it supports the Steam version of F1 25 only and needs Swofty Launcher 1.8.36 or newer. Nothing changes in the game. Everything from 0.75.14 is in this release.

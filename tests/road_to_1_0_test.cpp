@@ -369,7 +369,7 @@ int main()
         ai_failures_rolled = true;
         susp::enabled = true;
         susp::model.c[2].bend = 0.02f;
-        susp::model.c[2].crack_at = 1;
+        susp::model.c[2].health = 0.3f;
         reset_for_session_restart(nullptr);
         assert(race_restart_pending.load() && test_run_restarted.load());
         // 0.75: Realistic is the default and plans the new race's failure on the first frame; this checks that the
@@ -389,7 +389,7 @@ int main()
         assert(rear_brake_loss_target.load() == 0.0f && brake_fade.load() == 0.0f && gearbox_decline.path == -1);
         assert(decline_shift_scale.load() == 0.0f && game_failure_deadline.load() == 0 && game_failure_lap.load() == -1);
         assert(radio_pending.load() == 0 && !ai_failures_rolled);
-        assert(susp::model.c[2].bend == 0 && susp::model.c[2].crack_at == 0);  // the suspension model too
+        assert(susp::model.c[2].bend == 0 && susp::model.c[2].health == 1.0f);  // the suspension model too
         susp::enabled = false;
         test_run_restarted = false;
         reset_session();
@@ -748,6 +748,9 @@ int main()
         assert(limp_chance(3, 2) == 35 && limp_chance(3, 3) == 35 && limp_chance(3, 0) == 0 && limp_chance(3, 1) == 0);
         assert(limp_chance(4, 2) == 0 && limp_chance(4, 3) == 0 && limp_chance(4, 0) == 0);
         assert(limp_chance(5, 2) == 0 && limp_chance(5, 0) == 0);
+        // 0.76, the suspension model on: no dice. A collapsed corner (2) limps, a wheel off (3 and up) does not.
+        assert(limp_chance_model(0) == 100 && limp_chance_model(2) == 100);
+        assert(limp_chance_model(3) == 0 && limp_chance_model(4) == 0 && limp_chance_model(5) == 0);
         // Limping on a collapsed rear corner: the wheel there comes off (state 4), the limp ends.
         reset_session();
         susp::model.c[1].collapsed = true;
@@ -848,8 +851,8 @@ int main()
         reset_session();
     }
 
-    // ---- 0.51.133: the game's wheel detach limits x2 while the suspension model runs; 0.75.1: and the game's
-    // front and rear damage scales back to stock (another addon's raised scales would add up with the model) ----
+    // ---- 0.76: while the suspension model runs the game's front and rear damage scales are SET 0 (the game adds no
+    // suspension damage of its own, another addon's raised scales neither); the detach limits stay stock ----
     {
         struct Made {
             uint32_t index, field, op;
@@ -876,16 +879,11 @@ int main()
             return int(SWOFTY_ASSET_OK);
         };
         auto layers_on = [](size_t from, uint32_t index) {
-            assert(made.size() == from + 4);
-            assert(made[from].index == index && made[from].field == SWOFTY_CAR_SUSP_WHEEL_DETACH_SCALE &&
-                   made[from].op == SWOFTY_CAR_OP_SCALE && made[from].value == 2.0f && made[from].priority == 50);
-            assert(made[from + 1].index == index && made[from + 1].field == SWOFTY_CAR_SUSP_PARTS_DETACH_SCALE &&
-                   made[from + 1].op == SWOFTY_CAR_OP_SCALE && made[from + 1].value == 2.0f);
-            assert(made[from + 2].index == index && made[from + 2].field == SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE &&
-                   made[from + 2].op == SWOFTY_CAR_OP_SET && made[from + 2].value == 0.001f &&
-                   made[from + 2].priority == 50);
-            assert(made[from + 3].index == index && made[from + 3].field == SWOFTY_CAR_SUSP_REAR_DAMAGE_SCALE &&
-                   made[from + 3].op == SWOFTY_CAR_OP_SET && made[from + 3].value == 0.0001f);
+            assert(made.size() == from + 2);
+            assert(made[from].index == index && made[from].field == SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE &&
+                   made[from].op == SWOFTY_CAR_OP_SET && made[from].value == 0.0f && made[from].priority == 50);
+            assert(made[from + 1].index == index && made[from + 1].field == SWOFTY_CAR_SUSP_REAR_DAMAGE_SCALE &&
+                   made[from + 1].op == SWOFTY_CAR_OP_SET && made[from + 1].value == 0.0f);
         };
         swofty::detail::set_car_ops_table(&ops);
         bool was = susp::enabled, was_ai = susp::ai::enabled;
@@ -904,33 +902,33 @@ int main()
         layers_on(0, 3);
         assert(removed.empty());
         apply_game_suspension_layers();
-        assert(made.size() == 4);
+        assert(made.size() == 2);
         player_vehicle = -1;  // between sessions: the layers stay
         apply_game_suspension_layers();
-        assert(made.size() == 4 && removed.empty());
+        assert(made.size() == 2 && removed.empty());
         player_vehicle = 5;  // a restart in another car: the layers move with it
         apply_game_suspension_layers();
-        assert(removed.size() == 4);
-        layers_on(4, 5);
+        assert(removed.size() == 2);
+        layers_on(2, 5);
         susp::ai::enabled = true;  // the AI model runs too: every car, the same layers
         apply_game_suspension_layers();
-        assert(removed.size() == 8);
-        layers_on(8, SWOFTY_CAR_ALL);
+        assert(removed.size() == 4);
+        layers_on(4, SWOFTY_CAR_ALL);
         player_vehicle = 7;
         apply_game_suspension_layers();
-        assert(made.size() == 12 && removed.size() == 8);
-        // A core that refuses one field: that value stays the game's, the other three still apply, and the refused
+        assert(made.size() == 6 && removed.size() == 4);
+        // A core that refuses one field: that value stays the game's, the other one still applies, and the refused
         // field is not asked for again.
         refuse_field = SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE;
         susp::ai::enabled = false;
         apply_game_suspension_layers();
-        assert(removed.size() == 12);
-        layers_on(12, 7);
+        assert(removed.size() == 6);
+        layers_on(6, 7);
         refuse_field = ~0u;
         player_vehicle = 9;
         apply_game_suspension_layers();
-        assert(removed.size() == 15 && made.size() == 19);
-        for (size_t i = 16; i < made.size(); ++i)
+        assert(removed.size() == 7 && made.size() == 9);
+        for (size_t i = 8; i < made.size(); ++i)
             assert(made[i].index == 9 && made[i].field != SWOFTY_CAR_SUSP_FRONT_DAMAGE_SCALE);
         swofty::detail::set_car_ops_table(nullptr);
         susp::enabled = was;
@@ -989,18 +987,17 @@ int main()
         m.c[2].health = 0.9f;
         sp = susp::service_plan(m, half);
         assert(sp.corners == 1u << 2 && std::fabs(sp.seconds - 360.0f) < 0.5f && !sp.crack);
-        m.c[3].health = 0.3f;  // FR, close to breaking: 14-20 minutes
+        m.c[3].health = 0.3f;  // FR, weakened: 14-20 minutes, the team finds the crack
         m.c[3].bend = -1.0f * susp::deg;
         sp = susp::service_plan(m, zero);
         assert(sp.corners == 0xcu && std::fabs(sp.seconds - (14.0f + 2.0f) * 60.0f) < 0.5f);  // longest + half
-        m.c[1].health = 0.85f;  // RR with a crack: 8-14 minutes
+        m.c[1].health = 0.7f;  // RR below 0.8: 8-14 minutes
         m.c[1].bend = 0.2f * susp::deg;
-        m.c[1].crack_at = 5000;
         sp = susp::service_plan(m, zero);
         assert(sp.corners == 0xeu && sp.crack && std::fabs(sp.seconds - (14.0f + 2.0f + 4.0f) * 60.0f) < 0.5f);
         m.c[1].collapsed = true;  // a broken corner is the crash repair's
         sp = susp::service_plan(m, zero);
-        assert(sp.corners == 0xcu && !sp.crack);
+        assert(sp.corners == 0xcu && sp.crack);
         assert(susp::service_minutes(m.c[2], 1.0f) == 8.0f && susp::service_minutes(m.c[3], 1.0f) == 20.0f);
         susp::Corner weak;
         weak.health = 0.7f;

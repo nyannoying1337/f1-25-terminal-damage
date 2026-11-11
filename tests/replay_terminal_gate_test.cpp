@@ -41,6 +41,9 @@ int main()
     }
     reset_session(); player_vehicle = 3; player_broken = true;
     power_loss(0); assert(replay_terminal_vehicle == 3);
+    player_pit = 2; power_loss(0); assert(replay_terminal_vehicle == 3);   // entering the pit lane
+    player_pit = 15; power_loss(0); assert(replay_terminal_vehicle == 3);  // driving through
+    player_pit = 4; power_loss(0); assert(replay_terminal_vehicle == -1);  // in the box: the garage flow
     player_pit = 9; power_loss(0); assert(replay_terminal_vehicle == -1);
     player_pit = 1; enabled = false; power_loss(0); assert(replay_terminal_vehicle == -1);
     enabled = true; session_ended = true; power_loss(0); assert(replay_terminal_vehicle == -1);

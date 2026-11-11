@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Damage panel in the race HUD's style: a header slab and a row of square icon tiles (engine, ERS, gearbox, brakes,
-// suspension, power), the icons drawn from vector strokes so they stay sharp at any resolution. Everything goes through a Pen, so the game overlay and the
+// Damage panel in Project Halo's look (the 2026 onboard halo: dark teal glass, a light rim, rounded tiles and pills): a
+// header and a row of icon tiles (engine, ERS, gearbox, brakes, suspension, power) in one glass capsule, the icons drawn from vector strokes so they stay sharp at any resolution. Everything goes through a Pen, so the game overlay and the
 // SVG preview (tools/damage_panel_preview.cpp) draw the same thing. Icons live on a 24 x 24 grid.
 #pragma once
 #include <algorithm>
@@ -13,7 +13,8 @@ namespace dicons {
 enum icon : uint8_t { engine, ers, gearbox, brakes, suspension, power, n_icons };
 enum level : uint8_t { fine, minor, problem, broken };  // white, yellow, orange, red
 
-constexpr uint32_t ink_fine = 0xf2f2f2ff, ink_minor = 0xf6d000ff, ink_problem = 0xff8700ff, ink_broken = 0xff2d1fff;
+// Halo's label white; yellow and orange warmed to sit on the teal glass; red from the halo's brake stripe, made stronger.
+constexpr uint32_t ink_fine = 0xe4f0f3ff, ink_minor = 0xf2cf3aff, ink_problem = 0xff8a3dff, ink_broken = 0xf0485cff;
 inline uint32_t level_ink(int l)
 {
     static const uint32_t c[4] = {ink_fine, ink_minor, ink_problem, ink_broken};
@@ -159,8 +160,11 @@ void draw_icon(grid<Pen> g, const badge &b, uint32_t ink)
     }
 }
 
-// The race HUD's look: near-black slabs with square corners, a thin accent line, solid colour blocks with dark text.
-constexpr uint32_t slab = 0x0b0d12e0, slab_text = 0xc8ccd4ff, block_text_dark = 0x0b0d12ff;
+// Project Halo's palette (tools/halo.js, theme authentic): the band glass, its rim and glow, the stripe panel behind
+// the halo's slats (the tiles), the label white and the dim grey-blue.
+constexpr uint32_t glass = 0x081a28cc, glass_top = 0x183e4e66, rim = 0x96d4de8c, rim_glow = 0x5ac8d22e,
+                   tile_fill = 0x121e28cc, tile_line = 0x424e58c0, label_ink = 0xe4f0f3ff, dim_ink = 0x93a9bbff,
+                   pill_text_dark = 0x06141fff;
 
 inline const char *level_word(int l)
 {
@@ -168,52 +172,71 @@ inline const char *level_word(int l)
     return w[std::clamp(l, 0, 3)];
 }
 
-// One tile, top-left (x, y), t wide and tall: the icon (white when fine, in the level's colour otherwise), a bar
-// along the bottom and, below the tile, the label on a block of the level's colour.
+// One tile, top-left (x, y), t wide and tall: a rounded stripe-panel square with the icon (Halo white when fine, in the
+// level's colour otherwise) and a short pill of that colour along its bottom; below it, the label on a pill.
 template <class Pen>
-void draw_tile(Pen &p, float x, float y, float t, float s, const badge &b)
+void draw_tile(Pen &p, float x, float y, float t, float s, const badge &b, float lh, float lgap)
 {
     uint32_t col = level_ink(b.level);
-    p.rrect(x, y, t, t, 0, slab);
+    p.rrect(x, y, t, t, 6 * s, tile_fill);
+    p.rrect_outline(x, y, t, t, 6 * s, 1 * s, b.level == fine ? tile_line : (col & 0xffffff00u) | 0xa0u);
     if (b.level != fine)
-        p.rrect(x, y + t - 3 * s, t, 3 * s, 0, col);
-    float k = t * 0.64f / 24;
-    draw_icon(grid<Pen>{p, x + t / 2 - 12 * k, y + t / 2 - 1.5f * s - 12 * k, k}, b, col);
+        p.rrect(x + 8 * s, y + t - 6 * s, t - 16 * s, 3 * s, 1.5f * s, col);
+    float k = t * 0.6f / 24;
+    draw_icon(grid<Pen>{p, x + t / 2 - 12 * k, y + t / 2 - 2 * s - 12 * k, k}, b, b.level == fine ? dim_ink : col);
     if (b.label[0]) {
-        float lh = 18 * s;
-        p.rrect(x, y + t, t, lh, 0, col);
-        float size = strlen(b.label) > 4 ? 12 * s : 14 * s;  // "FRONT", "FL RR" fit the tile
-        p.text(x + t / 2, y + t + lh / 2, size, b.level == broken ? 0xffffffff : block_text_dark, b.label, 1);
+        float ly = y + t + lgap;
+        p.rrect(x, ly, t, lh, lh / 2, col);
+        float size = strlen(b.label) > 4 ? 11 * s : 13 * s;  // "FRONT", "FL RR" fit the tile
+        p.text(x + t / 2, ly + lh / 2, size, pill_text_dark, b.label, 1);
     }
 }
 
-// Tile size, gap and header height at UI scale s; the panel is at least min_w wide.
+// Tile size, gap, header height, the capsule's padding, the label pill's height and the capsule's least width at UI
+// scale s (1 at 1080p).
 struct panel_metrics {
-    float t, gap, head, min_w;
-    explicit panel_metrics(float s) : t(46 * s), gap(4 * s), head(24 * s), min_w(150 * s) {}
+    float t, gap, head, pad, lh, lgap, min_w;
+    explicit panel_metrics(float s)
+        : t(46 * s), gap(5 * s), head(20 * s), pad(9 * s), lh(17 * s), lgap(3 * s), min_w(150 * s) {}
+    // The capsule's height, with or without a row of labels.
+    float height(bool labels) const { return pad + head + gap + t + (labels ? lgap + lh : 0) + pad; }
 };
 
-// The panel, right edge at `right`, top at `top`: a header slab ("CAR" and the worst state in its colour, an accent
-// line on top) and a row of tiles under it, right-aligned. s: UI scale (1 at 1080p).
+inline bool any_label(const badge *b, int n)
+{
+    for (int i = 0; i < n; ++i)
+        if (b[i].label[0])
+            return true;
+    return false;
+}
+
+// The panel, right edge at `right`, top at `top`: a Halo glass capsule (soft glow, light rim, a sheen along the top)
+// holding the header ("CAR" and the worst state in its colour) and the row of tiles, right-aligned.
 template <class Pen>
 void draw_panel(Pen &p, float right, float top, float s, const badge *b, int n)
 {
     if (n <= 0)
         return;
     panel_metrics m(s);
-    float row = n * m.t + (n - 1) * m.gap, w = std::max(row, m.min_w), x0 = right - w;
+    float row = n * m.t + (n - 1) * m.gap, inner = std::max(row, m.min_w), w = inner + 2 * m.pad, x0 = right - w;
+    float h = m.height(any_label(b, n)), r = 14 * s;
     int worst = 0;
     for (int i = 0; i < n; ++i)
         worst = std::max(worst, int(b[i].level));
-    uint32_t accent = worst ? level_ink(worst) : 0xffffff59;
-    p.rrect(x0, top, w, m.head, 0, slab);
-    p.rrect(x0, top, w, 2 * s, 0, accent);
-    float mid = top + 1 * s + m.head / 2;
-    p.text(x0 + 9 * s, mid, 14 * s, slab_text, "CAR", 0);
-    p.text(right - 9 * s, mid, 14 * s, worst ? accent : slab_text, level_word(worst), 2);
-    float ty = top + m.head + m.gap;
+    uint32_t accent = worst ? level_ink(worst) : label_ink;
+    // glow: two soft outlines just outside the rim, in the worst state's colour when something is wrong
+    uint32_t glow = worst >= problem ? (accent & 0xffffff00u) | 0x30u : rim_glow;
+    p.rrect_outline(x0 - 3 * s, top - 3 * s, w + 6 * s, h + 6 * s, r + 3 * s, 2 * s, (glow & 0xffffff00u) | ((glow & 255) / 2));
+    p.rrect_outline(x0 - 1.5f * s, top - 1.5f * s, w + 3 * s, h + 3 * s, r + 1.5f * s, 2 * s, glow);
+    p.rrect(x0, top, w, h, r, glass);
+    p.rrect(x0 + r * 0.6f, top + 1.5f * s, w - 1.2f * r, m.head * 0.9f, m.head * 0.45f, glass_top);  // the top sheen
+    p.rrect_outline(x0, top, w, h, r, 1.4f * s, rim);
+    float mid = top + m.pad + m.head / 2;
+    p.text(x0 + m.pad + 4 * s, mid, 13 * s, label_ink, "CAR", 0);
+    p.text(right - m.pad - 4 * s, mid, 13 * s, worst ? accent : dim_ink, level_word(worst), 2);
+    float ty = top + m.pad + m.head + m.gap;
     for (int i = 0; i < n; ++i)
-        draw_tile(p, right - row + i * (m.t + m.gap), ty, m.t, s, b[i]);
+        draw_tile(p, right - m.pad - row + i * (m.t + m.gap), ty, m.t, s, b[i], m.lh, m.lgap);
 }
 
 }
