@@ -1,3 +1,12 @@
+# Terminal Damage 0.76.2 beta
+
+The addon no longer contains any network code, and in Career early Durability upgrades now count more than late ones. Everything from 0.76.1 is in this release.
+
+## Changed
+
+- **Career R&D, Durability upgrades.** Every upgrade used to take the same 1 % off your team's failure rate. Now the first ones count most: the first upgrade takes almost 2 % off, the first third of them gives half of the effect, and the last ones add little. All of them done still halves the failure rate. Real cars got more reliable the same way: the big problems were fixed first.
+- **No network code.** The debug option *UDP telemetry port* is removed, and with it the addon's only network code (a listener for the game's own telemetry on your PC, off by default). Nothing changes in the game: the addon reads your speed from the game itself.
+
 # Terminal Damage 0.76.1 beta
 
 Each team's own failure rate works again, and the 2026 failure rates include the São Paulo Grand Prix. Everything from 0.76.0 is in this release.

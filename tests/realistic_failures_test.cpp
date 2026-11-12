@@ -641,13 +641,13 @@ int main()
                 assert(close_to(with[v], before[v], 1e-12));
             std::string with_text = team_rates_text(season);
             assert(with_text.find("(R&D 0.50)") != std::string::npos);
-            // 28 of 52 done: 23 of the 47 beyond the start state, factor 0.76. The start state (5 done), fewer than
+            // 28 of 52 done: 23 of the 47 beyond the start state, factor 0.66 (early upgrades count more). The start state (5 done), fewer than
             // that, and no nodes counted leave the team alone.
             {
                 std::lock_guard<std::mutex> lock(team_mu);
                 rnd_shares.assign(1, RndShare{team_key_of_car[0], 28, 52});
             }
-            assert(team_rates_text(season).find("(R&D 0.76)") != std::string::npos);
+            assert(team_rates_text(season).find("(R&D 0.66)") != std::string::npos);
             for (RndShare s : {RndShare{team_key_of_car[0], 5, 52}, RndShare{team_key_of_car[0], 2, 52},
                                RndShare{team_key_of_car[0], 5, 0}}) {
                 {

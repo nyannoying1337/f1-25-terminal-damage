@@ -228,8 +228,15 @@ namespace fm {
 inline constexpr double rnd_max_reduction = 0.5;
 inline constexpr int rnd_start_done = 5;
 
-// The factor of a team with this progress (1 at the start state, rnd_max_reduction off at all done).
-inline double rnd_factor(double progress) { return 1.0 - rnd_max_reduction * std::clamp(progress, 0.0, 1.0); }
+// The factor of a team with this progress (1 at the start state, rnd_max_reduction off at all done). Early upgrades count
+// more (0.76.2; a flat share an upgrade before): the first third of the progress gives half of the effect, the last third
+// 15 %. Real reliability grows the same way while the rules mature: mechanical retirements a start 9.3 % in 2022, then
+// 5.5 %, 3.8 %, 2.9 % (each year's drop smaller: 41 %, 31 %, 24 %; failure_model.hpp seasons).
+inline constexpr double rnd_curve = 1.7;
+inline double rnd_factor(double progress)
+{
+    return 1.0 - rnd_max_reduction * (1.0 - std::pow(1.0 - std::clamp(progress, 0.0, 1.0), rnd_curve));
+}
 
 // The progress of a team with `done` finished upgrades of `total` in the department: (done - start) / (total - start),
 // 0 below the start state or without a department.

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "nick.terminal-damage-probe",
   "name": "Terminal Damage",
-  "version": "0.76.1",
+  "version": "0.76.2",
   "author": "nyannoying",
   "description": "Beta. A broken car is no longer taken away: limp on, pull over or bring it in. Realistic failures with warning signs, a damage HUD, engineer radio, FIA rules, garage repairs and presets. Experimental and off by default: suspension damage from hits.",
   "license": "LicenseRef-Terminal-Damage-Attribution-1.0",
@@ -127,7 +127,7 @@
       "id": "rnd_reliability",
       "type": "toggle",
       "label": "R&D durability lowers failures (Career)",
-      "description": "Career and My Team: each finished Durability upgrade in R&D beyond the five every team starts with takes about 1 % off that team's failures, half with all done, for you and the AI teams. Needs Realistic failures. Off: only the real team rates.",
+      "description": "Career and My Team: finished Durability upgrades in R&D beyond the five every team starts with lower that team's failures. Early ones count most, half with all done, for you and the AI teams. Needs Realistic failures. Off: only the real team rates.",
       "default": true,
       "binds": "native"
     },
@@ -332,28 +332,6 @@
       "default": true,
       "binds": "native",
       "hidden": true
-    },
-    {
-      "id": "udp_port_choice",
-      "type": "choice",
-      "label": "Debug: UDP telemetry port",
-      "description": "Debug. Not needed: the addon reads your speed from the game itself. Only for the debug telemetry log; leave it off if SimHub or another app uses the game's UDP. Needs a game restart.",
-      "values": [
-        "off",
-        "20777",
-        "20778",
-        "20779",
-        "20780",
-        "20781",
-        "20782",
-        "20783",
-        "20784",
-        "20785",
-        "20786",
-        "20787"
-      ],
-      "default": "off",
-      "binds": "native"
     },
     {
       "id": "gp_fault_type",

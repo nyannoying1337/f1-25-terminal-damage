@@ -224,8 +224,10 @@ void read_rnd_durability()
     }
     team_epoch.fetch_add(1);  // a plan made before this is made again
     swofty::log("[td-probe] rd: finished Durability upgrades by team (team key: done/total); every team starts with %d "
-                "done, each one more takes about %.1f %% off that team's failure rate, %.0f %% with all done%s: %s",
-                fm::rnd_start_done, fm::rnd_max_reduction * 100.0 / std::max(1, out.front().total - fm::rnd_start_done),
+                "done, the first one more takes about %.1f %% off that team's failure rate and later ones less, %.0f %% with all "
+                "done%s: %s",
+                fm::rnd_start_done,
+                (1.0 - fm::rnd_factor(1.0 / std::max(1, out.front().total - fm::rnd_start_done))) * 100.0,
                 fm::rnd_max_reduction * 100.0, rnd_reliability ? "" : " (the option is off, no effect)", line.c_str());
 }
 

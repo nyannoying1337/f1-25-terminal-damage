@@ -130,8 +130,7 @@ void standstill_retire(double dt)
     }
 }
 
-// Warns once per session when no UDP car telemetry has arrived at all (UDP off, wrong format or port); with
-// log_telemetry also logs the player's UDP values every 3 s.
+// Warns once per session when the game's car gives no speed at all; with log_telemetry also logs the speed every 3 s.
 void probe_speed(double dt)
 {
     static double since, waited;
@@ -145,10 +144,8 @@ void probe_speed(double dt)
     waited = v >= 0 && !fresh && !game_speed_seen && player_pit.load() == 1 ? waited + dt : 0;
     if (waited > 15 && warned_vehicle != v && !udp_last_ms.load() && !game_speed_seen && player_speed() < 0) {
         warned_vehicle = v;
-        swofty::log("[td-probe] speed: no speed from the game's car and no UDP car telemetry (packets %llu). Set Telemetry Settings: UDP on, "
-                    "127.0.0.1, port %u, format 2026. Without it, standing still does not retire a broken car (use the "
-                    "retire hotkey).",
-                    (unsigned long long)udp_packets.load(), unsigned(udp_port()));
+        swofty::log("[td-probe] speed: no speed from the game's car. Without it, standing still does not retire a broken "
+                    "car (use the retire hotkey).");
     }
     since += dt;
     if (!log_telemetry || since < 3.0)

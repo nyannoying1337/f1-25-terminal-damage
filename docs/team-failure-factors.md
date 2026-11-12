@@ -2,7 +2,7 @@
 
 Each table is what the game logs for that *Failure season* (since 0.75.6): a team's factor (1.00 = the season's average car) and the chance that one of its cars fails in a full Grand Prix, which is the season's average chance times the factor. The teams are the game's 11 current ones, with the season's own name in brackets; a team with no data that season (Cadillac before 2026, Haas before 2016) counts as average.
 
-Factors come from each team's real mechanical retirements in that season, pulled towards the average when its sample is small, so the spread is large only in 2014, 2015, 2017 and 2026. 2023 to 2025 share one table; 2026 is known per team for Aston Martin, Cadillac and Audi and per power unit group for the rest. A race shorter than a Grand Prix gets a smaller chance (a 19-lap sprint about a third). In Career and My Team a team's finished Durability R&D lowers its own factor further (about 1 % per upgrade beyond the five every team starts with); the tables show the start.
+Factors come from each team's real mechanical retirements in that season, pulled towards the average when its sample is small, so the spread is large only in 2014, 2015, 2017 and 2026. 2023 to 2025 share one table; 2026 is known per team for Aston Martin, Cadillac and Audi and per power unit group for the rest. A race shorter than a Grand Prix gets a smaller chance (a 19-lap sprint about a third). In Career and My Team a team's finished Durability R&D lowers its own factor further (up to half with every upgrade done; early upgrades count most); the tables show the start.
 
 ## 2026: an average car fails in 12.5 % of Grands Prix
 

@@ -39,7 +39,7 @@ mechanical failures with warning signs, a damage HUD, engineer radio calls, FIA 
 
 ## New in 0.75.6
 
-- **Failures per team:** each team's cars break down at that team's real rate in the season, and in Career a team's finished Durability R&D lowers it, about 1 % per upgrade (see Realistic failures).
+- **Failures per team:** each team's cars break down at that team's real rate in the season, and in Career a team's finished Durability R&D lowers it, up to half with every upgrade done (see Realistic failures).
 - **Game settings:** the addon is tested with Car Damage and Car Damage Rate on Simulation (see Game settings).
 - **Realistic failures work in Career and My Team too** (experimental, see Realistic failures).
 - *Suspension damage from hits* works together with Heavier Damage (see Suspension damage from hits).
@@ -127,7 +127,7 @@ Picked in the game: reopen ADDON SETTINGS to see the changed options. Picked in 
 - Some faults stay partial: slow shifts, a missing or jammed gear, DRS, ERS or lean fuel trouble, a rear brake-by-wire fault (from 2014).
 - AI cars break down at the season's rate too.
 - **Each team has its own rate** (new in 0.75.6): a team's cars break down as often as that team's did in the season, from its real retirements, so in 2026 an Aston Martin or a Cadillac fails far more often than a Mercedes (Cadillac about 1 race in 3.7 per car, Aston Martin about 1 in 2.6). The season's overall rate stays the same: the rates of the cars in your race add up to it, whichever teams are on the grid. A team's rate is pulled towards the season's average when its numbers are few, and in a year where the teams hardly differed (2023-2025, and so the default season 2025) the rates are nearly equal. A team the addon does not know gets the average. The log lists the teams it found and their rates. Every team in every season: [team failure factors](https://github.com/nyannoying1337/f1-25-terminal-damage/blob/main/docs/team-failure-factors.md).
-- **Career R&D matters** (new in 0.75.6): every team starts a Career with the same five *Durability* upgrades done; each further finished one takes about 1 % off that team's failure rate, up to half with all of them done. It counts for you and for the AI teams (the game researches theirs during the season), and only for the team that did the research: when you research, the AI cars do not get worse, and a grid that develops fails less as the season goes on. A research that fails does not count (the same upgrade can be started again). Option *R&D durability lowers failures (Career)*, on by default. At the start of a Career nothing changes.
+- **Career R&D matters** (new in 0.75.6): every team starts a Career with the same five *Durability* upgrades done; each further finished one lowers that team's failure rate, up to half with all of them done. Early upgrades count most (new in 0.76.2): the first one takes almost 2 % off, the first third of them gives half of the effect, and the last ones add little. It counts for you and for the AI teams (the game researches theirs during the season), and only for the team that did the research: when you research, the AI cars do not get worse, and a grid that develops fails less as the season goes on. A research that fails does not count (the same upgrade can be started again). Option *R&D durability lowers failures (Career)*, on by default. At the start of a Career nothing changes.
 - **Career and My Team** get them too (new in 0.75.5, experimental: only short tests so far): with Realistic on, they replace the game's own rolled failures and its temporary fault for your car, so the real team rates and the teams' Durability R&D decide who breaks down, not the game's own model. The AI cars keep the game's temporary faults.
 
 ## Retirement
@@ -190,7 +190,7 @@ Every part has its own option. Turn off only the part that gives you trouble for
 
 ## Known issues (beta)
 
-- The Career R&D effect is small (about 1 % per Durability upgrade) and its cap of half with every upgrade done is a first guess: I will tune it once I have seen how fast the AI teams research.
+- The Career R&D effect and its cap of half with every Durability upgrade done are a first guess: I will tune them once I have seen how fast the AI teams research.
 - Suspension damage is experimental: its tuning can still change.
 - Suspension damage: a hard landing (after a big kerb, or flying off the track) does not break a healthy corner yet.
 - Career is not fully tested with the limping, red flag and garage repair rules yet. The realistic failures there (0.75.5) are new: one gearbox failure from the real rates has been seen in a Career race so far, and it played out as designed. An AI car that fails in Career stays where it stopped for up to two minutes before the game takes it to its garage.

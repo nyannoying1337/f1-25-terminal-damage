@@ -9,10 +9,6 @@ SWOFTY_ON_LOAD
 {
     td_perf::enabled = bool(performance_diagnostics);
     crew_diagnostics_active = bool(crew_asset_diagnostics);
-    if (udp_port_choice != std::string_view("off"))
-        CloseHandle(CreateThread(nullptr, 0, udp_thread, nullptr, 0, nullptr));
-    else
-        swofty::log("[td-probe] udp: off (speed comes from the game)");
     reset_session();
     hook_asset_diagnostics();
     patch_garage_assets_in_race();
@@ -80,7 +76,7 @@ SWOFTY_ON_LOAD
                           SWOFTY_EVENT_STATE, SWOFTY_EVENT_FLAG, SWOFTY_EVENT_RESULTS})
         swofty::events::subscribe(e, on_event);
     swofty::events::on_frame(on_frame);
-    swofty::log("[td-probe] loaded version=0.76.1, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
+    swofty::log("[td-probe] loaded version=0.76.2, keep_control=%d asset_diagnostics=%d garage_assets_in_race=%d crew_in_race=%d perf_counters=%d",
                 bool(keep_control), bool(crew_asset_diagnostics), bool(garage_assets_in_race),
                 bool(garage_crew_in_race), int(td_perf::enabled.load()));
 }

@@ -222,14 +222,21 @@ int main()
     // ---- R&D durability: a team's finished upgrades beyond the start state take up to half of its rate off ----
     {
         assert(close_to(fm::rnd_factor(0.0), 1.0, 1e-12) && close_to(fm::rnd_factor(1.0), 0.5, 1e-12) &&
-               close_to(fm::rnd_factor(0.25), 0.875, 1e-12));
+               close_to(fm::rnd_factor(0.25), 1.0 - 0.5 * (1.0 - std::pow(0.75, 1.7)), 1e-12));
+        // Early upgrades count more: the first third gives about half of the effect, the last third about 15 %.
+        assert(close_to(1.0 - fm::rnd_factor(1.0 / 3.0), 0.25, 0.005) && fm::rnd_factor(2.0 / 3.0) - 0.5 < 0.08 &&
+               fm::rnd_factor(2.0 / 3.0) - 0.5 > 0.07);
+        for (int i = 1; i <= 47; ++i)  // every upgrade helps, each one less than the one before
+            assert(fm::rnd_factor(i / 47.0) < fm::rnd_factor((i - 1) / 47.0) &&
+                   (i < 2 || fm::rnd_factor((i - 1) / 47.0) - fm::rnd_factor(i / 47.0) <
+                                 fm::rnd_factor((i - 2) / 47.0) - fm::rnd_factor((i - 1) / 47.0)));
         assert(close_to(fm::rnd_factor(-1.0), 1.0, 1e-12) && close_to(fm::rnd_factor(9.0), 0.5, 1e-12));  // clamped
-        // Progress beyond the start state (5 of the 52 Durability upgrades are done in every new Career): 1 % a node.
+        // Progress beyond the start state (5 of the 52 Durability upgrades are done in every new Career).
         assert(close_to(fm::rnd_progress(5, 52), 0.0, 1e-12) && close_to(fm::rnd_progress(52, 52), 1.0, 1e-12) &&
                close_to(fm::rnd_progress(0, 52), 0.0, 1e-12) && close_to(fm::rnd_progress(28, 52), 23.0 / 47.0, 1e-12) &&
                close_to(fm::rnd_progress(5, 0), 0.0, 1e-12) && close_to(fm::rnd_progress(5, 5), 0.0, 1e-12) &&
                close_to(fm::rnd_progress(99, 52), 1.0, 1e-12));
-        assert(close_to(fm::rnd_factor(fm::rnd_progress(6, 52)), 1.0 - 0.5 / 47.0, 1e-12));
+        assert(close_to(fm::rnd_factor(fm::rnd_progress(6, 52)), 1.0 - 0.5 * (1.0 - std::pow(46.0 / 47.0, 1.7)), 1e-12));  // 1.8 %
         // Only Completed (3) is a finished upgrade: not Failed (4), the Invalid placeholder (5) nor the mode 2 stages 6-8.
         for (int s = -1; s <= 9; ++s)
             assert(fm::rnd_state_done(s) == (s == 3));
@@ -264,7 +271,7 @@ int main()
         std::vector<double> all(ids.size(), fm::rnd_factor(0.5));
         std::vector<double> every = fm::grid_factors(s, ids, nullptr, &all);
         for (size_t i = 0; i < ids.size(); ++i)
-            assert(close_to(every[i], 0.75 * plain[i], 1e-12));
+            assert(close_to(every[i], fm::rnd_factor(0.5) * plain[i], 1e-12) && every[i] < 0.66 * plain[i]);
         std::vector<double> flat(ids.size(), 1.0);
         std::vector<double> same = fm::grid_factors(s, ids, nullptr, &flat);
         for (size_t i = 0; i < ids.size(); ++i)

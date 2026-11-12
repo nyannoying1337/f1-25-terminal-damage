@@ -151,7 +151,7 @@ Write-Host ("building {0} program(s), {1} at a time ({2})" -f $jobsList.Count, $
 $include = Join-Path $repo 'mod\native\include'
 Invoke-Pool $jobsList {
     param($j)
-    $a = 'c++ -target x86_64-windows-gnu -std=c++23 -O1 -Wall -Wextra "-I{0}" "{1}" -o "{2}" -lws2_32' -f $include, $j.Src, $j.Exe
+    $a = 'c++ -target x86_64-windows-gnu -std=c++23 -O1 -Wall -Wextra "-I{0}" "{1}" -o "{2}"' -f $include, $j.Src, $j.Exe
     $p = Start-Logged $zig $a $j.BuildLog
     try { $p.PriorityClass = 'BelowNormal' } catch { }
     $p

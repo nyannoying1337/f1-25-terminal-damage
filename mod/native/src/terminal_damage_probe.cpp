@@ -13,9 +13,6 @@
 // welcome popup and SWOFTY_ON_LOAD follow at file scope. The tests include this file. The other src/*.hpp are
 // separate modules, mostly plain logic without game access, that the tests can also include alone.
 
-// winsock2.h has to come before windows.h, which the SDK headers include.
-#include <winsock2.h>
-
 // The SDK headers cast GetProcAddress to their table getters.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
@@ -104,7 +101,6 @@ SWOFTY_SETTING(bool, garage_crew_in_race, true);
 SWOFTY_SETTING(bool, retire_hotkey, true);
 SWOFTY_SETTING(std::string_view, retire_key, "F11");
 SWOFTY_SETTING(bool, crew_asset_diagnostics, false);
-SWOFTY_SETTING(std::string_view, udp_port_choice, "off");
 SWOFTY_SETTING(bool, garage_assets_in_race, true);
 SWOFTY_SETTING(bool, suspension_damage, false);  // experimental and opt-in since 0.75 (Heavier Damage users)
 SWOFTY_SETTING(bool, suspension_damage_ai, false);
@@ -208,7 +204,7 @@ namespace {
 
 #include "probe/40_damage_panel.inc"  // the damage panel overlay
 
-#include "probe/41_events_udp.inc"  // session events, the UDP telemetry thread, player speed
+#include "probe/41_events_udp.inc"  // session events, player speed
 
 #include "probe/42_standstill_probes_push.inc"  // standstill retirement, probes, push helpers, player state publish
 
