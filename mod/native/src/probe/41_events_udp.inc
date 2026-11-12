@@ -13,6 +13,7 @@ void on_event(const SwoftyEvent *ev, void *)
         player_crossings = 0;
         reset_session();
         session_ended = false;
+        time_trial = false;
         {
             std::lock_guard<std::mutex> lock(team_mu);
             team_of_car.assign(32, std::string());
@@ -33,6 +34,7 @@ void on_event(const SwoftyEvent *ev, void *)
         game_race_laps = -1;  // the next session's failure scheduler call reads them again
         game_race_length = -1;
         session_ended = true;
+        time_trial = false;
         reset_session(true);
         pit_lane_system = 0;
         controller_system = nullptr;

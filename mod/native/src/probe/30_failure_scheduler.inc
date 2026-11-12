@@ -58,6 +58,10 @@ void log_race_settings(uint64_t mgr)
 
 void on_failure_scheduler(void *self)
 {
+    if (time_trial) {
+        orig_failure_scheduler(self);
+        return;
+    }
     std::string_view mode = gp_failures;
     {
         // Experimental "native" mode: the scheduler rolls three Mersenne Twister numbers per car at session start; the

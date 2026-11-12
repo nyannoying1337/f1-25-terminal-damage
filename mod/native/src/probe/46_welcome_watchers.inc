@@ -56,7 +56,7 @@ void welcome_tick(uint64_t now)
         w.first = now;
         return;
     }
-    if (now < w.next || (!session_ended && player_vehicle.load() >= 0))
+    if (now < w.next || time_trial || (!session_ended && player_vehicle.load() >= 0))
         return;  // in a session: wait for the menus
     w.next = now + 500;
     if (!welcome_menu_ready(now - w.first))

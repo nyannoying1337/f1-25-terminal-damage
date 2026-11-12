@@ -535,6 +535,20 @@ int main()
         reset_session();
     }
 
+    // ---- Time trial: the addon does nothing, your car stays unknown to it (0.76.3) ----
+    {
+        reset_session();
+        time_trial = true;
+        assert(!note_controller_switch(0, 0, 0));  // HUMAN
+        assert(player_vehicle == -1);
+        assert(!note_controller_switch(0, 1, reason_terminal_damage));  // the hand-over passes
+        assert(player_controller_flags == 0);
+        time_trial = false;
+        assert(!note_controller_switch(0, 0, 0));
+        assert(player_vehicle == 0);
+        reset_session();
+    }
+
     // ---- The test run's gearbox decline asks the game for seconds, not the rest of the race (0.51.119) ----
     {
         reset_session();

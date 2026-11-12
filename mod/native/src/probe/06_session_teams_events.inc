@@ -175,6 +175,8 @@ double team_scale(const fm::Season &season, int vehicle)
     return team_factors_now(season)[vehicle];
 }
 
+void reset_session(bool preserve_retirement_audio);
+
 void attach_session_events()
 {
     namespace sess = swofty::sessions;
@@ -189,11 +191,22 @@ void attach_session_events()
                     std::string_view track = v->track.id();
                     swofty::log("[td-probe] session: type %d '%s', track '%.*s', %d laps (session context)",
                                 int(v->type), v->session.c_str(), int(track.size()), track.data(), v->laps);
+                    if (v->type == swofty::events::SessionType::time_trial) {
+                        time_trial = true;
+                        session_ended = true;
+                        reset_session(true);
+                        team_pending = false;
+                        swofty::log("[td-probe] time trial: the addon does nothing in this session (no damage model, "
+                                    "no failures, no retirement)");
+                    }
                 } else {
                     swofty::log("[td-probe] session: no session context");
                 }
-                read_session_teams(ctx, "the first control change");
+                if (!time_trial)
+                    read_session_teams(ctx, "the first control change");
             }
+            if (time_trial)
+                return false;
             if (control_events.fetch_add(1) == 0)
                 swofty::log("[td-probe] session.player.control fires (first: vehicle %d %d -> %d reason %d)",
                             int(c.car.index()), int(c.from), int(c.to), int(c.reason));

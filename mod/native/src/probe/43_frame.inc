@@ -63,6 +63,17 @@ void apply_game_suspension_layers()
     static uint64_t retry_at = 0;
     if (!susp::enabled)
         return;
+    if (time_trial) {  // also the layers a session before left on
+        auto t = applied != -2 ? swofty::detail::live_car_ops_v2() : nullptr;
+        if (t) {
+            for (uint32_t &token : tokens)
+                if (token)
+                    t->unlayer(std::exchange(token, 0u));
+            applied = -2;
+            swofty::log("[td-probe] suspension: time trial, the layers on the game's own suspension damage are off");
+        }
+        return;
+    }
     int player = player_vehicle.load();
     int want = susp::ai::enabled ? -1 : player >= 0 ? player : applied;
     if (want == applied || want == -2 || GetTickCount64() < retry_at)

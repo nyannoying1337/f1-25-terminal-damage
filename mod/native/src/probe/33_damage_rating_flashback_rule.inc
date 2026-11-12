@@ -68,7 +68,7 @@ uint64_t on_damage_rating(void *system, void *record)
             player_rating.store(worst, std::memory_order_relaxed);
         return r;
     }
-    if (worst != 5 || !keep_control)
+    if (worst != 5 || !keep_control || time_trial)
         return r;
     auto *bytes = static_cast<uint8_t *>(record);
     uint32_t parts = rated_terminal_parts(bytes);

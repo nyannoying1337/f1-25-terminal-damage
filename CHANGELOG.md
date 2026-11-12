@@ -1,3 +1,11 @@
+# Terminal Damage 0.76.3 beta
+
+The addon is now off in Time Trial. Everything from 0.76.2 is in this release.
+
+## Fixed
+
+- **Time Trial.** The addon does nothing there now: no suspension damage, no failures, no retirement handling. It used to run in Time Trial as in every other session.
+
 # Terminal Damage 0.76.2 beta
 
 The addon no longer contains any network code, and in Career early Durability upgrades now count more than late ones. Everything from 0.76.1 is in this release.

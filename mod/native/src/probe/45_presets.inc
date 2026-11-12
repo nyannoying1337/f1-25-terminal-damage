@@ -143,7 +143,8 @@ void preset_tick()
     if (!st.first)
         st.first = now;
     // The result popup: at once for a pick in ADDON SETTINGS, on the main menu for a pick in the launcher.
-    if (!st.popup.empty() && now >= st.popup_next && (session_ended || player_vehicle.load() < 0)) {
+    if (!st.popup.empty() && now >= st.popup_next && !time_trial &&
+        (session_ended || player_vehicle.load() < 0)) {
         st.popup_next = now + 1000;
         if (st.in_game || welcome_menu_ready(now - st.first)) {
             auto r = swofty::popup::show("TERMINAL DAMAGE PRESET", st.popup);

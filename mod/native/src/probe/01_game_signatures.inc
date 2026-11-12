@@ -36,6 +36,10 @@ uint64_t (*orig_update_vehicle)(void *, uint8_t);
 // Packed request: expiry in milliseconds << 16 | vehicle << 8 | (part + 1).
 std::atomic<uint64_t> pending_failure{0};
 std::atomic<bool> session_ended{false};
+// The session is a time trial (session context, at the first control change): the addon does nothing there. It counts
+// as "no session" (session_ended is set with it), so no damage model, failure, retirement or panel runs; the places
+// that do not look at session_ended check this one. Cleared at the next session start and at the session end.
+std::atomic<bool> time_trial{false};
 std::atomic<bool> restart_cleanup_available{true};
 std::atomic<uint64_t> telemetry_not_before{0};
 std::atomic<bool> garage_return_wanted{false};

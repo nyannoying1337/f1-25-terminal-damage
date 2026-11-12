@@ -78,6 +78,8 @@ void heavy_damage_call(uint32_t mask)
 // so everything here is idempotent. Returns true to drop the switch.
 bool note_controller_switch(uint8_t id, uint32_t ai, int32_t reason)
 {
+    if (time_trial)
+        return false;  // every switch passes, your car stays unknown to the addon
     if (id < max_vehicles) {
         if (!ai) {
             human[id] = true;
