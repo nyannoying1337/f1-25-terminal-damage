@@ -23,7 +23,7 @@ bool read_session_teams(const swofty::events::Context &ctx, const char *where)
     last_try = now;
     std::vector<std::string> ids(32);
     std::string line;
-    int n = 0;
+    int n = 0, known = 0;
     auto note = [&](int car, std::string id, bool human) {
         if (car < 0 || car >= 32)
             return;
@@ -31,6 +31,7 @@ bool read_session_teams(const swofty::events::Context &ctx, const char *where)
             id.pop_back();
         ids[car] = id;
         ++n;
+        known += !id.empty();
         char one[112];
         snprintf(one, sizeof one, "%s%d %s%s", line.empty() ? "" : "; ", car, id.empty() ? "?" : id.c_str(),
                  human ? " (you)" : "");
@@ -50,6 +51,15 @@ bool read_session_teams(const swofty::events::Context &ctx, const char *where)
             swofty::log("[td-probe] teams: no participants at %s (typed list empty, raw participants %zu bytes: %.300s; raw "
                         "player %zu bytes: %.200s)", where, rawp.size(), rawp.c_str(), player.size(), player.c_str());
         }
+        return false;
+    }
+    if (known < 2) {
+        // The list has the cars but no team ids (0.76.1: 23 participants, every id empty, in Grand Prix with a 2026
+        // entrant list). It used to count as done, which kept the entrant records (team_ids_from_memory) from being
+        // read: every car got the season's average rate.
+        if (fails_logged.fetch_add(1) < 3)
+            swofty::log("[td-probe] teams: %d participant(s) at %s without a team id, the entrant records are read instead",
+                        n, where);
         return false;
     }
     {

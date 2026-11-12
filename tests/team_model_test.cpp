@@ -18,11 +18,11 @@ struct Total {
     double starts, mech;
 };
 // Starts and mechanical retirements per season (re/out/failure-stats.json for 2012-2022; 2023-25 pooled from
-// re/failure-statistics-research.md; 2026 rounds 1-19), the totals the team rows must add up to.
+// re/failure-statistics-research.md; 2026 rounds 1-20), the totals the team rows must add up to.
 constexpr Total totals[] = {
     {2012, 477, 34}, {2013, 417, 31}, {2014, 405, 51}, {2015, 373, 40}, {2016, 460, 42}, {2017, 399, 60},
     {2018, 420, 45}, {2019, 419, 28}, {2020, 339, 28}, {2021, 439, 22}, {2022, 439, 41}, {2023, 1387, 56},
-    {2024, 1387, 56}, {2025, 1387, 56}, {2026, 411, 53},
+    {2024, 1387, 56}, {2025, 1387, 56}, {2026, 432, 54},
 };
 
 std::string year_id(int year) { return std::to_string(year); }

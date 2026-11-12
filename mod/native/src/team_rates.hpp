@@ -165,17 +165,17 @@ inline constexpr Row rows_2023[] = {
     {"williams", 137, 9},
 };
 inline constexpr Row rows_2026[] = {
-    {"aston", 38, 17},
-    {"cadillac", 38, 12},
-    {"audi", 36, 4},
-    {"ferrari", 38, 3},
-    {"haas", 38, 3},
-    {"mercedes", 37, 2.5},
-    {"mclaren", 37, 2.5},
-    {"williams", 37, 2.5},
-    {"alpine", 37, 2.5},
-    {"redbull", 37.5, 2},
-    {"rb", 37.5, 2},
+    {"aston", 40, 18},
+    {"cadillac", 39, 12},
+    {"audi", 38, 4},
+    {"ferrari", 40, 3},
+    {"haas", 40, 3},
+    {"mercedes", 39, 2.5},
+    {"mclaren", 39, 2.5},
+    {"williams", 39, 2.5},
+    {"alpine", 39, 2.5},
+    {"redbull", 39.5, 2},
+    {"rb", 39.5, 2},
 };
 
 // Index: season year - 2012 (2023-2025 share one pooled table).

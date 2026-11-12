@@ -42,9 +42,9 @@ inline constexpr Era eras[] = {
     {"hybrid", {450, 22, 30, 22, 22, 56, 175, 72, 151}},
     // 2022-2025: ground effect cars (2022 Jolpica n=41 plus 2023-25 race reports n=56).
     {"ground effect", {467, 31, 52, 31, 37, 38, 211, 44, 89}},
-    // 2026: new power units without MGU-H, 350 kW MGU-K (rounds 1-19, n=53; Honda's battery vibrations, Cadillac's
+    // 2026: new power units without MGU-H, 350 kW MGU-K (rounds 1-20, n=54; Honda's battery vibrations, Cadillac's
     // brakes). Power unit retirements split 60 % ICE, 15 % turbo, 10 % each ES and MGU-K, 5 % CE; battery 70 % ES.
-    {"2026 rules", {306, 51, 0, 90, 32, 70, 255, 59, 137}},
+    {"2026 rules", {300, 56, 0, 102, 32, 68, 250, 58, 134}},
 };
 
 struct Season {
@@ -58,7 +58,7 @@ struct Season {
 inline constexpr Season seasons[] = {
     {"2012", 0, 0.071}, {"2013", 0, 0.074}, {"2014", 1, 0.126}, {"2015", 1, 0.107}, {"2016", 1, 0.091},
     {"2017", 2, 0.150}, {"2018", 2, 0.107}, {"2019", 2, 0.067}, {"2020", 2, 0.083}, {"2021", 2, 0.050},
-    {"2022", 3, 0.093}, {"2023", 3, 0.055}, {"2024", 3, 0.038}, {"2025", 3, 0.029}, {"2026", 4, 0.129},
+    {"2022", 3, 0.093}, {"2023", 3, 0.055}, {"2024", 3, 0.038}, {"2025", 3, 0.029}, {"2026", 4, 0.125},
 };
 inline constexpr int n_seasons = int(sizeof seasons / sizeof seasons[0]);
 

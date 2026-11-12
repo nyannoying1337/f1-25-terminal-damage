@@ -1,3 +1,15 @@
+# Terminal Damage 0.76.1 beta
+
+Each team's own failure rate works again, and the 2026 failure rates include the São Paulo Grand Prix. Everything from 0.76.0 is in this release.
+
+## Fixed
+
+- **Failures per team.** In Grand Prix and custom races the addon could not tell which team a car belongs to, so every car got the season's average failure chance. Each team's cars break down at that team's own rate again.
+
+## Changed
+
+- **2026 failure rates, now up to round 20 (São Paulo).** An average 2026 car fails in 12.5 % of Grands Prix (was 12.9 %). Battery failures come a little more often, and Aston Martin is still the team that breaks down most.
+
 # Terminal Damage 0.76.0 beta
 
 Suspension damage is rebuilt: how hard you hit now decides whether a corner bends, cracks or breaks, with no dice and no timers. Flashbacks work after a crash in the pit lane, and the damage panel has a new look. Everything from 0.75.15 is in this release.

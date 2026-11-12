@@ -194,7 +194,7 @@ int main()
     assert(fm::seconds_until_fault(fm::season_of("2012"), 0.0) >= 1e17);
     assert(close_to(fm::fault_race_chance(fm::season_of("2014")), 0.7 * 0.126, 1e-12));
     // 2026: new era without MGU-H, the least reliable season since 2017.
-    assert(fm::era_of(fm::season_of("2026")).share[fm::mguh] == 0 && fm::season_of("2026").race_chance == 0.129);
+    assert(fm::era_of(fm::season_of("2026")).share[fm::mguh] == 0 && fm::season_of("2026").race_chance == 0.125);
     // About 40 % of failures give warning signs (weighted by the era's shares).
     double warned = 0;
     for (int o = 0; o < fm::n_outcomes; ++o)

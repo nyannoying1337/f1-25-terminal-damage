@@ -4,16 +4,16 @@ Each table is what the game logs for that *Failure season* (since 0.75.6): a tea
 
 Factors come from each team's real mechanical retirements in that season, pulled towards the average when its sample is small, so the spread is large only in 2014, 2015, 2017 and 2026. 2023 to 2025 share one table; 2026 is known per team for Aston Martin, Cadillac and Audi and per power unit group for the rest. A race shorter than a Grand Prix gets a smaller chance (a 19-lap sprint about a third). In Career and My Team a team's finished Durability R&D lowers its own factor further (about 1 % per upgrade beyond the five every team starts with); the tables show the start.
 
-## 2026: an average car fails in 12.9 % of Grands Prix
+## 2026: an average car fails in 12.5 % of Grands Prix
 
 | Team | Factor | Chance per car per GP |
 | --- | --- | --- |
-| Aston Martin | x2.97 | 38.3 % |
-| Cadillac | x2.16 | 27.8 % |
-| Audi | x0.90 | 11.6 % |
-| Ferrari, Haas | x0.70 | 9.0 % |
-| Mercedes, Williams, Alpine, McLaren | x0.63 | 8.1 % |
-| Red Bull, RB | x0.54 | 7.0 % |
+| Aston Martin | x3.09 | 38.6 % |
+| Cadillac | x2.17 | 27.1 % |
+| Audi | x0.88 | 11.0 % |
+| Ferrari, Haas | x0.68 | 8.5 % |
+| Mercedes, Williams, Alpine, McLaren | x0.61 | 7.7 % |
+| Red Bull, RB | x0.53 | 6.6 % |
 
 ## 2025 (the default): an average car fails in 2.9 % of Grands Prix
 

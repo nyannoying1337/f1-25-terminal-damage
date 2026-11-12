@@ -38,8 +38,39 @@ bool team_ids_from_memory()
         snprintf(one, sizeof one, "%s%d:%d", line.empty() ? "" : " ", v, row);
         line += one;
     });
-    if (n < 2)
+    if (n < 2) {
+        // Not readable (0.76.1: every car was "?" in Grand Prix with a 2026 entrant list): after 10 tries in a session
+        // log once what the records hold, so the layout can be checked from a log.
+        static uint64_t diag_mgr = 0;
+        static int tries = 0;
+        if (diag_mgr != failure_mgr.load()) {
+            diag_mgr = failure_mgr.load();
+            tries = 0;
+        }
+        if (++tries == 10) {
+            std::string what;
+            int objs = 0, recs = 0;
+            for_each_failure_obj([&](int v, uintptr_t obj) {
+                ++objs;
+                uintptr_t rec = 0;
+                uint32_t w[8] = {};
+                if (!guarded_read(obj + 0x80, rec) || !rec)
+                    return;
+                ++recs;
+                if (recs > 4)
+                    return;
+                for (int i = 0; i < 8; ++i)
+                    guarded_read(rec + 0x50 + 4 * i, w[i]);
+                char one[160];
+                snprintf(one, sizeof one, " [car %d: %08x %08x %08x %08x %08x %08x %08x %08x]", v, w[0], w[1], w[2], w[3],
+                         w[4], w[5], w[6], w[7]);
+                what += one;
+            });
+            swofty::log("[td-probe] teams: the entrant records give no team after 10 tries: %d car object(s), %d with a "
+                        "record, %d readable; record +0x50..+0x6c of the first:%s", objs, recs, n, what.c_str());
+        }
         return false;
+    }
     {
         std::lock_guard<std::mutex> lock(team_mu);
         team_of_car = ids;
